@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1">
+
+<title>Print ID Cards</title>
+
+<link
+href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+rel="stylesheet">
+
+<style>
+
+*{
+    box-sizing:border-box;
+}
+
+body{
+
+    margin:0;
+
+    padding:20px;
+
+    background:#efefef;
+
+    font-family:Arial,Helvetica,sans-serif;
+}
+
+.toolbar{
+
+    text-align:center;
+
+    margin-bottom:20px;
+}
+
+.sheet{
+
+    width:210mm;
+
+    min-height:297mm;
+
+    margin:auto;
+
+    background:white;
+
+    padding:10mm;
+
+    display:grid;
+
+    grid-template-columns:1fr 1fr;
+
+    gap:8mm;
+}
+
+.card{
+
+    border:3px solid #0d6efd;
+
+    border-radius:12px;
+
+    padding:12px;
+
+    display:flex;
+
+    flex-direction:column;
+
+    justify-content:space-between;
+
+    height:134mm;
+
+    page-break-inside:avoid;
+
+    box-shadow:0 0 8px rgba(0,0,0,.15);
+}
+
+.header{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+}
+
+.logo{
+
+    width:55px;
+
+    height:55px;
+
+    object-fit:contain;
+}
+
+.title{
+
+    flex:1;
+
+    text-align:center;
+
+    padding:0 8px;
+}
+
+.title h5{
+
+    margin:0;
+
+    font-size:15px;
+
+    font-weight:bold;
+}
+
+.title h6{
+
+    margin:0;
+
+    color:#0d6efd;
+
+    font-weight:bold;
+
+    font-size:13px;
+}
+
+.title p{
+
+    margin:0;
+
+    font-size:12px;
+
+    font-weight:bold;
+}
+
+.reg-number{
+
+    margin-top:10px;
+
+    background:#0d6efd;
+
+    color:white;
+
+    text-align:center;
+
+    border-radius:6px;
+
+    padding:6px;
+
+    font-weight:bold;
+
+    font-size:14px;
+}
+
+.details{
+
+    margin-top:10px;
+
+    font-size:12px;
+}
+
+.details table{
+
+    width:100%;
+}
+
+.details td{
+
+    padding:2px 0;
+
+    vertical-align:top;
+}
+
+.details td:first-child{
+
+    font-weight:bold;
+
+    width:42%;
+}
+
+.status{
+
+    text-align:center;
+
+    margin-top:8px;
+}
+
+.qr{
+
+    text-align:center;
+
+    margin-top:10px;
+}
+
+.qr img{
+
+    width:90px;
+
+    height:90px;
+}
+
+.footer{
+
+    margin-top:10px;
+
+    text-align:center;
+
+    font-size:10px;
+
+    color:#666;
+
+    border-top:1px solid #ddd;
+
+    padding-top:6px;
+
+    font-weight:bold;
+}
+
+@media print{
+
+body{
+
+background:white;
+
+padding:0;
+
+}
+
+.toolbar{
+
+display:none;
+
+}
+
+.sheet{
+
+width:100%;
+
+padding:5mm;
+
+gap:6mm;
+
+}
+
+.card{
+
+box-shadow:none;
+
+}
+
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div class="toolbar">
+
+<button
+class="btn btn-primary"
+onclick="window.print()">
+
+Print All ID Cards
+
+</button>
+
+<a
+href="/registrations"
+class="btn btn-secondary">
+
+Back
+
+</a>
+
+</div>
+
+<div class="sheet">
+
+{{range .}}
+
+<div class="card">
+
+<div>
+
+<div class="header">
+
+<img
+src="/static/images/church_logo.png"
+class="logo"
+alt="Church Logo">
+
+<div class="title">
+
+<h5>METHODIST CHURCH NIGERIA</h5>
+
+<h6>DIOCESE OF APA</h6>
+
+<p>ANNUAL YOUTH CONVENTION</p>
+
+</div>
+
+<img
+src="/static/images/youth_logo.png"
+class="logo"
+alt="Youth Logo">
+
+</div>
+
+<div class="reg-number">
+
+Registration No.<br>
+
+{{.RegistrationNumber}}
+
+</div>
+
+<div class="details">
+
+<table>
+
+<tr>
+
+<td>Full Name</td>
+
+<td>{{.FullName}}</td>
+
+</tr>
+
+<tr>
+
+<td>Gender</td>
+
+<td>{{.Gender}}</td>
+
+</tr>
+
+<tr>
+
+<td>Age</td>
+
+<td>{{.Age}}</td>
+
+</tr>
+
+<tr>
+
+<td>Phone</td>
+
+<td>{{.Phone}}</td>
+
+</tr>
+
+<tr>
+
+<td>Circuit</td>
+
+<td>{{.Circuit}}</td>
+
+</tr>
+
+<tr>
+
+<td>Local Church</td>
+
+<td>{{.LocalChurch}}</td>
+
+</tr>
+
+<tr>
+
+<td>Membership</td>
+
+<td>{{.Membership}}</td>
+
+</tr>
+
+<tr>
+
+<td>Position</td>
+
+<td>{{.Position}}</td>
+
+</tr>
+
+<tr>
+
+<td>Bible Study</td>
+
+<td>Group {{.BibleStudyGroup}}</td>
+
+</tr>
+
+</table>
+
+</div>
+
+<div class="status">
+
+{{if .CheckedIn}}
+
+<span class="badge bg-success">
+
+✓ Checked In
+
+</span>
+
+{{else}}
+
+<span class="badge bg-warning text-dark">
+
+Not Checked In
+
+</span>
+
+{{end}}
+
+</div>
+
+<div class="qr">
+
+<img
+src="data:image/png;base64,{{.QRCode}}"
+alt="QR Code">
+
+</div>
+
+</div>
+
+<div class="footer">
+
+METHODIST CHURCH NIGERIA - APA DIOCESE, YOUTH FELLOWSHIP
+
+</div>  
+
+</div>
+
+{{end}}
+
+</div>
+
+</body>
+
+</html>

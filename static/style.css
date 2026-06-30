@@ -1,0 +1,45 @@
+body {
+    font-family: "Times New Roman", serif;
+    background: blue;
+}
+
+/* Registration form card only */
+.form-container {
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 30px;
+    background: rgba(255,255,255,0.92);
+    border-radius: 12px;
+    box-shadow: 0 0 30px rgba(0,0,0,.2);
+}
+
+h1 {
+    text-align: center;
+}
+
+label {
+    display: block;
+    margin-top: 10px;
+}
+
+input,
+select {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+}
+
+button {
+    margin-top: 20px;
+    padding: 12px;
+    cursor: pointer;
+}
+
+table td,
+table th {
+    vertical-align: middle;
+}
+
+.text-nowrap {
+    white-space: nowrap;
+}

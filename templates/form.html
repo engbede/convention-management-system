@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+    <title>{{.Title}}</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+
+</head>
+
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+
+    <div class="container">
+
+        <a class="navbar-brand" href="/">
+           Apa Diocesan Youth Fellowship | Management System
+        </a>
+
+        <div class="navbar-nav ms-auto">
+
+            <a class="nav-link" href="/">
+                Home
+            </a>
+
+            <a class="nav-link" href="/login">
+                Admin Login
+            </a>
+
+        </div>
+
+    </div>
+
+</nav>
+
+<div class="container form-container">
+
+    <h1 class="text-center mb-4">
+
+        {{.Title}}
+
+    </h1>
+
+    <p class="text-center mb-4">
+
+        Please complete the form below.
+
+    </p>
+
+    <form method="POST" action="{{.Action}}">
+
+        <!-- Hidden ID (used when editing) -->
+        <input
+            type="hidden"
+            name="id"
+            value="{{.Registration.ID}}">
+
+        <label>Full Name</label>
+
+        <input
+            type="text"
+            name="fullname"
+            value="{{.Registration.FullName}}"
+            required>
+
+        <label>Gender</label>
+
+        <select name="gender">
+
+            <option value="Male" {{if eq .Registration.Gender "Male"}}selected{{end}}>
+                Male
+            </option>
+
+            <option value="Female" {{if eq .Registration.Gender "Female"}}selected{{end}}>
+                Female
+            </option>
+
+        </select>
+
+        <label>Age</label>
+
+        <input
+            type="number"
+            name="age"
+            value="{{.Registration.Age}}">
+
+        <label>Phone Number</label>
+
+        <input
+            type="text"
+            name="phone"
+            value="{{.Registration.Phone}}"
+            required>
+
+        <label>Circuit</label>
+
+        <input
+            type="text"
+            name="circuit"
+            value="{{.Registration.Circuit}}">
+
+        <label>Local Church</label>
+
+        <input
+            type="text"
+            name="local_church"
+            value="{{.Registration.LocalChurch}}">
+
+        <label>Membership</label>
+
+        <select name="membership">
+
+            <option value="Member" {{if eq .Registration.Membership "Member"}}selected{{end}}>
+                Member
+            </option>
+
+            <option value="Non-Member" {{if eq .Registration.Membership "Non-Member"}}selected{{end}}>
+                Non-Member
+            </option>
+
+        </select>
+
+        <label>Position</label>
+
+        <input
+            type="text"
+            name="position"
+            value="{{.Registration.Position}}">
+
+        <label>Marital Status</label>
+
+        <select name="marital_status">
+
+            <option value="Single" {{if eq .Registration.MaritalStatus "Single"}}selected{{end}}>
+                Single
+            </option>
+
+            <option value="Married" {{if eq .Registration.MaritalStatus "Married"}}selected{{end}}>
+                Married
+            </option>
+
+            <option value="Divorced" {{if eq .Registration.MaritalStatus "Divorced"}}selected{{end}}>
+                Divorced
+            </option>
+
+        </select>
+
+        <label>Occupation</label>
+
+        <input
+            type="text"
+            name="occupation"
+            value="{{.Registration.Occupation}}">
+
+        <label>Bible Study Group</label>
+
+        <select
+            name="bible_study_group"
+            required>
+
+            <option value="">
+                Select Group
+            </option>
+
+            <option value="1" {{if eq .Registration.BibleStudyGroup 1}}selected{{end}}>Group 1</option>
+            <option value="2" {{if eq .Registration.BibleStudyGroup 2}}selected{{end}}>Group 2</option>
+            <option value="3" {{if eq .Registration.BibleStudyGroup 3}}selected{{end}}>Group 3</option>
+            <option value="4" {{if eq .Registration.BibleStudyGroup 4}}selected{{end}}>Group 4</option>
+            <option value="5" {{if eq .Registration.BibleStudyGroup 5}}selected{{end}}>Group 5</option>
+            <option value="6" {{if eq .Registration.BibleStudyGroup 6}}selected{{end}}>Group 6</option>
+            <option value="7" {{if eq .Registration.BibleStudyGroup 7}}selected{{end}}>Group 7</option>
+            <option value="8" {{if eq .Registration.BibleStudyGroup 8}}selected{{end}}>Group 8</option>
+            <option value="9" {{if eq .Registration.BibleStudyGroup 9}}selected{{end}}>Group 9</option>
+            <option value="10" {{if eq .Registration.BibleStudyGroup 10}}selected{{end}}>Group 10</option>
+            <option value="11" {{if eq .Registration.BibleStudyGroup 11}}selected{{end}}>Group 11</option>
+            <option value="12" {{if eq .Registration.BibleStudyGroup 12}}selected{{end}}>Group 12</option>
+            <option value="13" {{if eq .Registration.BibleStudyGroup 13}}selected{{end}}>Group 13</option>
+            <option value="14" {{if eq .Registration.BibleStudyGroup 14}}selected{{end}}>Group 14</option>
+            <option value="15" {{if eq .Registration.BibleStudyGroup 15}}selected{{end}}>Group 15</option>
+
+        </select>
+
+        <label>Emergency Contact Name</label>
+
+        <input
+            type="text"
+            name="emergency_contact_name"
+            value="{{.Registration.EmergencyContactName}}">
+
+        <label>Emergency Contact Phone</label>
+
+        <input
+            type="text"
+            name="emergency_contact_phone"
+            value="{{.Registration.EmergencyContactPhone}}">
+
+        <label>Arrival Date</label>
+
+        <input
+            type="date"
+            name="arrival_date"
+            value="{{.Registration.ArrivalDate}}">
+
+        <label>First Time Attendee</label>
+
+        <select name="first_time_attendee">
+
+            <option value="Yes" {{if .Registration.FirstTimeAttendee}}selected{{end}}>
+                Yes
+            </option>
+
+            <option value="No" {{if not .Registration.FirstTimeAttendee}}selected{{end}}>
+                No
+            </option>
+
+        </select>
+
+        <br><br>
+
+        <button type="submit">
+
+            {{.ButtonText}}
+
+        </button>
+
+    </form>
+
+</div>
+
+</body>
+
+</html>
