@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"os"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -23,22 +24,33 @@ func SeedAdmin() error {
 		return nil
 	}
 
-	// Hash the default password.
+	// Read admin credentials from environment variables.
+	username := os.Getenv("ADMIN_USERNAME")
+	if username == "" {
+		username = "superadmin"
+	}
+
+	password := os.Getenv("ADMIN_PASSWORD")
+	if password == "" {
+		password = "YouthConvention2026!"
+	}
+
+	// Hash the password.
 	hashedPassword, err := bcrypt.GenerateFromPassword(
-		[]byte("admin123"),
+		[]byte(password),
 		bcrypt.DefaultCost,
 	)
-
 	if err != nil {
 		return err
 	}
 
+	// Insert the admin.
 	_, err = DB.Exec(
-	`INSERT INTO admins(username, password)
-	 VALUES($1, $2)`,
-	"admin",
-	string(hashedPassword),
-)
+		`INSERT INTO admins(username, password)
+		 VALUES($1, $2)`,
+		username,
+		string(hashedPassword),
+	)
 
 	if err != nil && err != sql.ErrNoRows {
 		return err
