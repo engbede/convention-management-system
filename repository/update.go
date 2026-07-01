@@ -10,27 +10,26 @@ func UpdateRegistration(reg models.Registration) error {
 	query := `
 	UPDATE registrations
 	SET
-		full_name = ?,
-		gender = ?,
-		age = ?,
-		phone = ?,
-		circuit = ?,
-		local_church = ?,
-		membership = ?,
-		position = ?,
-		marital_status = ?,
-		occupation = ?,
-		emergency_contact_name = ?,
-		emergency_contact_phone = ?,
-		arrival_date = ?,
-		first_time_attendee = ?,
-		bible_study_group = ?
-	WHERE id = ?
+		full_name = $1,
+		gender = $2,
+		age = $3,
+		phone = $4,
+		circuit = $5,
+		local_church = $6,
+		membership = $7,
+		position = $8,
+		marital_status = $9,
+		occupation = $10,
+		emergency_contact_name = $11,
+		emergency_contact_phone = $12,
+		arrival_date = $13,
+		first_time_attendee = $14,
+		bible_study_group = $15
+	WHERE id = $16
 	`
 
 	_, err := database.DB.Exec(
 		query,
-
 		reg.FullName,
 		reg.Gender,
 		reg.Age,

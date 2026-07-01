@@ -26,7 +26,7 @@ func CreateRegistration(reg models.Registration) error {
     first_time_attendee,
     bible_study_group
 )
-VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 	`
 
 	_, err := database.DB.Exec(
@@ -46,7 +46,6 @@ VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		reg.EmergencyContactPhone,
 		&reg.ArrivalDate,
 		&reg.FirstTimeAttendee,
-		&reg.CheckedIn,
 		&reg.BibleStudyGroup,
 	)
 
@@ -153,8 +152,8 @@ func GetRegistrationsPaginated(
 			bible_study_group
 		FROM registrations
 		ORDER BY id DESC
-		LIMIT ?
-		OFFSET ?
+		LIMIT $1
+		OFFSET $2
 	`, pageSize, offset)
 
 	if err != nil {
@@ -245,8 +244,8 @@ func SearchRegistrations(
 		bible_study_group
 	FROM registrations
 	WHERE
-		full_name LIKE ?
-		OR phone LIKE ?
+	full_name ILIKE $1
+	OR phone ILIKE $2
 	ORDER BY id DESC
 	`
 
@@ -319,7 +318,7 @@ func GetDashboardStats() (models.DashboardStats, error) {
 
     COALESCE(SUM(CASE WHEN membership='Non-Member' THEN 1 ELSE 0 END), 0),
 
-    COALESCE(SUM(CASE WHEN first_time_attendee=1 THEN 1 ELSE 0 END), 0),
+    COALESCE(SUM(CASE WHEN first_time_attendee = TRUE THEN 1 ELSE 0 END),0),
 
     COALESCE(SUM(CASE WHEN marital_status='Married' THEN 1 ELSE 0 END), 0),
 

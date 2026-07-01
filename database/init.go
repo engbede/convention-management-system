@@ -1,8 +1,21 @@
 package database
 
+import "os"
+
 func Init() error {
-	if err := InitDB(); err != nil {
-		return err
+
+	if os.Getenv("DATABASE_URL") != "" {
+
+		if err := InitPostgres(); err != nil {
+			return err
+		}
+
+	} else {
+
+		if err := InitDB(); err != nil {
+			return err
+		}
+
 	}
 
 	return Migrate()

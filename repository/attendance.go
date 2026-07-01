@@ -6,8 +6,8 @@ func CheckInRegistration(id int) error {
 
 	_, err := database.DB.Exec(`
 		UPDATE registrations
-		SET checked_in = 1
-		WHERE id = ?
+		SET checked_in = TRUE
+		WHERE id = $1
 	`, id)
 
 	return err

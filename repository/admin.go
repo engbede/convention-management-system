@@ -15,7 +15,7 @@ func GetAdminByUsername(username string) (models.Admin, error) {
 			username,
 			password
 		FROM admins
-		WHERE username = ?
+		WHERE username = $1
 	`, username).Scan(
 		&admin.ID,
 		&admin.Username,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/joho/godotenv"
 	"html/template"
 	"log"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 
 func main() {
 
+	_ = godotenv.Load()
+
 	// Load templates
 	handlers.Templates = template.Must(
 		template.Must(
@@ -21,12 +24,7 @@ func main() {
 	)
 
 	// Initialize database
-	if err := database.InitDB(); err != nil {
-		log.Fatal(err)
-	}
-
-	// Run database migrations
-	if err := database.Migrate(); err != nil {
+	if err := database.Init(); err != nil {
 		log.Fatal(err)
 	}
 

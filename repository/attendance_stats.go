@@ -13,8 +13,8 @@ func GetAttendanceStats() (AttendanceStats, error) {
 
 	err := database.DB.QueryRow(`
 		SELECT
-			SUM(CASE WHEN checked_in = 1 THEN 1 ELSE 0 END),
-			SUM(CASE WHEN checked_in = 0 THEN 1 ELSE 0 END)
+			COALESCE(SUM(CASE WHEN checked_in = TRUE THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN checked_in = FALSE THEN 1 ELSE 0 END), 0)
 		FROM registrations
 	`).Scan(
 		&stats.CheckedIn,

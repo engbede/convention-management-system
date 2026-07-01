@@ -32,7 +32,7 @@ func GetRegistrationByID(id int) (models.Registration, error) {
 			checked_in,
 			bible_study_group
 		FROM registrations
-		WHERE id = ?
+		WHERE id = $1
 	`, id).Scan(
 		&reg.ID,
 		&reg.FullName,

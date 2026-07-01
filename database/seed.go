@@ -34,11 +34,11 @@ func SeedAdmin() error {
 	}
 
 	_, err = DB.Exec(
-		`INSERT INTO admins(username, password)
-		 VALUES(?, ?)`,
-		"admin",
-		string(hashedPassword),
-	)
+	`INSERT INTO admins(username, password)
+	 VALUES($1, $2)`,
+	"admin",
+	string(hashedPassword),
+)
 
 	if err != nil && err != sql.ErrNoRows {
 		return err
