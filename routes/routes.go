@@ -86,6 +86,8 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 	mux.HandleFunc("/login", handlers.Login)
 
+	mux.HandleFunc("/healthz", handlers.Health,)
+
 	fs := http.FileServer(http.Dir("static"))
 
 	mux.Handle(
