@@ -6,9 +6,31 @@ func MigratePostgres() error {
 
 	fmt.Println("Running PostgreSQL migration...")
 
+	conventionsTable := `
+	CREATE TABLE IF NOT EXISTS conventions (
+		id BIGSERIAL PRIMARY KEY,
+		name TEXT NOT NULL,
+		theme TEXT,
+		venue TEXT,
+		start_date DATE,
+		end_date DATE,
+		year INTEGER NOT NULL,
+		active BOOLEAN DEFAULT FALSE,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	`
+
+	if _, err := DB.Exec(conventionsTable); err != nil {
+		return err
+	}
+
+	fmt.Println("Creating conventions table...")
+
 	registrationsTable := `
 	CREATE TABLE IF NOT EXISTS registrations (
 		id BIGSERIAL PRIMARY KEY,
+		convention_id BIGINT REFERENCES conventions(id) ON DELETE CASCADE,
+
 		full_name TEXT NOT NULL,
 		gender TEXT NOT NULL,
 		age INTEGER,
@@ -28,11 +50,11 @@ func MigratePostgres() error {
 	);
 	`
 
-	fmt.Println("Creating registrations table...")
-
 	if _, err := DB.Exec(registrationsTable); err != nil {
-		return fmt.Errorf("registrations table failed: %w", err)
+		return err
 	}
+
+	fmt.Println("Creating registrations table...")
 
 	adminsTable := `
 	CREATE TABLE IF NOT EXISTS admins (
@@ -42,13 +64,11 @@ func MigratePostgres() error {
 	);
 	`
 
-	fmt.Println("Creating admins table...")
-
 	if _, err := DB.Exec(adminsTable); err != nil {
-		return fmt.Errorf("admins table failed: %w", err)
+		return err
 	}
 
-	fmt.Println("Migration completed.")
+	fmt.Println("Creating admins table...")
 
 	return nil
 }

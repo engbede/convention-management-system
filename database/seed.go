@@ -32,7 +32,7 @@ func SeedAdmin() error {
 
 	password := os.Getenv("ADMIN_PASSWORD")
 	if password == "" {
-		password = "YouthConvention2026!"
+		password = "YouthConvention@2026"
 	}
 
 	// Hash the password.

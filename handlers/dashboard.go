@@ -1,53 +1,36 @@
 package handlers
 
 import (
-	"net/http"
+    "log"
+    "net/http"
 
-	"convention-management-system/repository"
+    "convention-management-system/repository"
 )
-
 func Dashboard(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 
 	stats, err := repository.GetDashboardStats()
+if err != nil {
+    log.Println("DashboardStats:", err)
+    http.Error(w, err.Error(), http.StatusInternalServerError)
+    return
+}
 
-	if err != nil {
+circuits, err := repository.GetRegistrationsByCircuit()
+if err != nil {
+    log.Println("Circuits:", err)
+    http.Error(w, err.Error(), http.StatusInternalServerError)
+    return
+}
 
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-	attendance, err := repository.GetAttendanceStats()
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-	circuits, err := repository.GetRegistrationsByCircuit()
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-
+attendance, err := repository.GetAttendanceStats()
+if err != nil {
+    log.Println("Attendance:", err)
+    http.Error(w, err.Error(), http.StatusInternalServerError)
+    return
+}
 	stats.Circuits = circuits
 
 	stats.CheckedIn = attendance.CheckedIn

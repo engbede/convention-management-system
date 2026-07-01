@@ -2,6 +2,7 @@ package models
 
 type Registration struct {
 	ID                 int
+	ConventionID 	   int
 	RegistrationNumber string
 	QRCode             string
 	FullName           string

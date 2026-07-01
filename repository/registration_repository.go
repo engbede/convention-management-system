@@ -8,30 +8,39 @@ import (
 
 func CreateRegistration(reg models.Registration) error {
 
+	activeConvention, err := GetActiveConvention()
+	if err != nil {
+		return err
+	}
+
 	query := `
 	INSERT INTO registrations(
-    full_name,
-    gender,
-    age,
-    phone,
-    circuit,
-    local_church,
-    membership,
-    position,
-    marital_status,
-    occupation,
-    emergency_contact_name,
-    emergency_contact_phone,
-    arrival_date,
-    first_time_attendee,
-    bible_study_group
-)
-VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		convention_id,
+		full_name,
+		gender,
+		age,
+		phone,
+		circuit,
+		local_church,
+		membership,
+		position,
+		marital_status,
+		occupation,
+		emergency_contact_name,
+		emergency_contact_phone,
+		arrival_date,
+		first_time_attendee,
+		bible_study_group
+	)
+	VALUES(
+		$1,$2,$3,$4,$5,$6,$7,$8,
+		$9,$10,$11,$12,$13,$14,$15,$16
+	)
 	`
 
-	_, err := database.DB.Exec(
+	_, err = database.DB.Exec(
 		query,
-
+		activeConvention.ID,
 		reg.FullName,
 		reg.Gender,
 		reg.Age,
@@ -44,9 +53,9 @@ VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		reg.Occupation,
 		reg.EmergencyContactName,
 		reg.EmergencyContactPhone,
-		&reg.ArrivalDate,
-		&reg.FirstTimeAttendee,
-		&reg.BibleStudyGroup,
+		reg.ArrivalDate,
+		reg.FirstTimeAttendee,
+		reg.BibleStudyGroup,
 	)
 
 	return err
@@ -308,51 +317,41 @@ func GetDashboardStats() (models.DashboardStats, error) {
 
 	row := database.DB.QueryRow(`
 		SELECT
-    COUNT(*),
+			COUNT(*),
 
-    COALESCE(SUM(CASE WHEN gender='Male' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN gender = 'Male' THEN 1 ELSE 0 END), 0),
 
-    COALESCE(SUM(CASE WHEN gender='Female' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN gender = 'Female' THEN 1 ELSE 0 END), 0),
 
-    COALESCE(SUM(CASE WHEN membership='Member' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN membership = 'Member' THEN 1 ELSE 0 END), 0),
 
-    COALESCE(SUM(CASE WHEN membership='Non-Member' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN membership = 'Non-Member' THEN 1 ELSE 0 END), 0),
 
-    COALESCE(SUM(CASE WHEN first_time_attendee = TRUE THEN 1 ELSE 0 END),0),
+			COALESCE(SUM(CASE WHEN first_time_attendee = TRUE THEN 1 ELSE 0 END), 0),
 
-    COALESCE(SUM(CASE WHEN marital_status='Married' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN marital_status = 'Married' THEN 1 ELSE 0 END), 0),
 
-    COALESCE(SUM(CASE WHEN marital_status='Single' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN marital_status = 'Single' THEN 1 ELSE 0 END), 0),
 
-    COALESCE(SUM(CASE WHEN marital_status='Divorce' THEN 1 ELSE 0 END), 0)
+			COALESCE(SUM(CASE WHEN marital_status = 'Divorce' THEN 1 ELSE 0 END), 0)
 
-FROM registrations
+		FROM registrations
 	`)
 
 	err := row.Scan(
-
 		&stats.TotalRegistrations,
-
 		&stats.MaleCount,
-
 		&stats.FemaleCount,
-
 		&stats.MemberCount,
-
 		&stats.NonMemberCount,
-
 		&stats.FirstTimeCount,
-
 		&stats.MarriedCount,
-
 		&stats.SingleCount,
-
 		&stats.DivorcedCount,
 	)
 
 	return stats, err
 }
-
 func GetRegistrationsByCircuit() ([]models.CircuitStat, error) {
 
 	rows, err := database.DB.Query(`
