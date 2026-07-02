@@ -23,7 +23,42 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.Dashboard,
 		),
 	)
+	// Convention Management
+	mux.HandleFunc(
+		"/conventions",
+		middleware.RequireAuth(handlers.ListConventions),
+	)
 
+	mux.HandleFunc(
+		"/conventions/new",
+		middleware.RequireAuth(handlers.NewConvention),
+	)
+
+	mux.HandleFunc(
+		"/conventions/create",
+		middleware.RequireAuth(handlers.CreateConvention),
+	)
+
+	mux.HandleFunc(
+		"/conventions/edit",
+		middleware.RequireAuth(handlers.EditConvention),
+	)
+
+	mux.HandleFunc(
+		"/conventions/update",
+		middleware.RequireAuth(handlers.UpdateConvention),
+	)
+
+	mux.HandleFunc(
+		"/conventions/activate",
+		middleware.RequireAuth(handlers.ActivateConvention),
+	)
+	mux.HandleFunc(
+    "/conventions/delete",
+    middleware.RequireAuth(
+        handlers.DeleteConvention,
+    ),
+)
 	mux.HandleFunc(
 		"/view",
 		middleware.RequireAuth(
@@ -86,7 +121,7 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 	mux.HandleFunc("/login", handlers.Login)
 
-	mux.HandleFunc("/healthz", handlers.Health,)
+	mux.HandleFunc("/healthz", handlers.Health)
 
 	fs := http.FileServer(http.Dir("static"))
 

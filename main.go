@@ -1,11 +1,12 @@
 package main
 
 import (
-	"github.com/joho/godotenv"
 	"html/template"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/joho/godotenv"
 
 	"convention-management-system/database"
 	"convention-management-system/handlers"
@@ -28,16 +29,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Seed default admin
 	if err := database.SeedAdmin(); err != nil {
 		log.Fatal(err)
 	}
+	
+	if err := database.SeedConvention(); err != nil {
+		log.Fatal(err)
+	}
 
-	// Register routes
 	mux := http.NewServeMux()
 	routes.RegisterRoutes(mux)
 
-	// Use environment PORT if available
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8085"

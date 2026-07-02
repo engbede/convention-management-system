@@ -3,65 +3,88 @@ package database
 func MigrateSQLite() error {
 
 	query := `
-	CREATE TABLE IF NOT EXISTS registrations (
+CREATE TABLE IF NOT EXISTS registrations (
 
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		full_name TEXT NOT NULL,
+	convention_id INTEGER,
 
-		gender TEXT NOT NULL,
+	full_name TEXT NOT NULL,
 
-		age INTEGER,
+	gender TEXT NOT NULL,
 
-		phone TEXT UNIQUE NOT NULL,
+	age INTEGER,
 
-		circuit TEXT NOT NULL,
+	phone TEXT UNIQUE NOT NULL,
 
-		local_church TEXT NOT NULL,
+	circuit TEXT NOT NULL,
 
-		membership TEXT NOT NULL,
+	local_church TEXT NOT NULL,
 
-		position TEXT,
+	membership TEXT NOT NULL,
 
-		marital_status TEXT,
+	position TEXT,
 
-		occupation TEXT,
+	marital_status TEXT,
 
-		emergency_contact_name TEXT,
+	occupation TEXT,
 
-		emergency_contact_phone TEXT,
+	emergency_contact_name TEXT,
 
-		arrival_date TEXT,
+	emergency_contact_phone TEXT,
 
-		first_time_attendee INTEGER DEFAULT 0,
+	arrival_date TEXT,
 
-		checked_in INTEGER DEFAULT 0,
+	first_time_attendee INTEGER DEFAULT 0,
 
-		bible_study_group INTEGER DEFAULT 0
-	);
+	checked_in INTEGER DEFAULT 0,
 
-	CREATE TABLE IF NOT EXISTS admins (
+	bible_study_group INTEGER DEFAULT 0
+);
 
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
+CREATE TABLE IF NOT EXISTS admins (
 
-		username TEXT UNIQUE NOT NULL,
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-		password TEXT NOT NULL
-	);
-	`
+	username TEXT UNIQUE NOT NULL,
 
+	password TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS conventions (
+
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+	name TEXT NOT NULL,
+
+	theme TEXT,
+
+	venue TEXT,
+
+	start_date TEXT,
+
+	end_date TEXT,
+
+	year INTEGER,
+
+	active INTEGER DEFAULT 0
+);
+`
 	_, err := DB.Exec(query)
 	if err != nil {
 		return err
 	}
 
-	// Add checked_in column for older databases.
 	_, _ = DB.Exec(`
 		ALTER TABLE registrations
 		ADD COLUMN checked_in INTEGER DEFAULT 0
 	`)
 
-	// Add bible_study_group column for older databases.
+	_, _ = DB.Exec(`
+    ALTER TABLE registrations
+    ADD COLUMN convention_id INTEGER
+	`)
+
 	_, _ = DB.Exec(`
 		ALTER TABLE registrations
 		ADD COLUMN bible_study_group INTEGER DEFAULT 0

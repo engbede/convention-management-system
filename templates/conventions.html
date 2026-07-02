@@ -1,0 +1,85 @@
+{{template "header" .}}
+
+<h2>Convention Management</h2>
+
+<p>
+    <a href="/conventions/new">+ Add Convention</a>
+</p>
+
+<table border="1" cellpadding="8" cellspacing="0">
+
+    <tr>
+        <th>Year</th>
+        <th>Name</th>
+        <th>Venue</th>
+        <th>Start Date</th>
+        <th>End Date</th>
+        <th>Status</th>
+        <th>Actions</th>
+    </tr>
+
+    {{range .}}
+
+    <tr>
+
+        <td>{{.Year}}</td>
+
+        <td>{{.Name}}</td>
+
+        <td>{{.Venue}}</td>
+
+        <td>{{.StartDate}}</td>
+
+        <td>{{.EndDate}}</td>
+
+        <td>
+            {{if .Active}}
+                ✅ Active
+            {{else}}
+                ❌ Inactive
+            {{end}}
+        </td>
+
+        <td>
+
+            <a href="/conventions/edit?id={{.ID}}">
+                Edit
+            </a>
+
+            {{if .Active}}
+
+            {{else}}
+
+                |
+
+                <a href="/conventions/activate?id={{.ID}}">
+                    Activate
+                </a>
+
+            {{end}}
+
+            |
+
+            <a
+                href="/conventions/delete?id={{.ID}}"
+                onclick="return confirm('Are you sure you want to delete this convention?');">
+                Delete
+            </a>
+
+        </td>
+
+    </tr>
+
+    {{else}}
+
+    <tr>
+        <td colspan="7" style="text-align:center;">
+            No conventions found.
+        </td>
+    </tr>
+
+    {{end}}
+
+</table>
+
+{{template "footer" .}}

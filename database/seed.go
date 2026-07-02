@@ -58,3 +58,43 @@ func SeedAdmin() error {
 
 	return nil
 }
+
+func SeedConvention() error {
+
+	var count int
+
+	err := DB.QueryRow(
+		"SELECT COUNT(*) FROM conventions",
+	).Scan(&count)
+
+	if err != nil {
+		return err
+	}
+
+	if count > 0 {
+		return nil
+	}
+
+	_, err = DB.Exec(`
+		INSERT INTO conventions(
+			name,
+			theme,
+			venue,
+			start_date,
+			end_date,
+			year,
+			active
+		)
+		VALUES(
+			'2026 National Youth Convention',
+			'Walking in Purpose',
+			'National Camp Ground',
+			'2026-08-15',
+			'2026-08-21',
+			2026,
+			1
+		)
+	`)
+
+	return err
+}

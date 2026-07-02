@@ -85,8 +85,22 @@ func Register(
 		group = 0
 	}
 
+	activeConvention, err := repository.GetActiveConvention()
+
+	if err != nil {
+
+		http.Error(
+			w,
+			"No active convention found. Please activate a convention first.",
+			http.StatusBadRequest,
+		)
+
+		return
+	}
 	// Create Registration object
 	reg := models.Registration{
+
+		ConventionID: activeConvention.ID,
 
 		FullName: r.FormValue("fullname"),
 

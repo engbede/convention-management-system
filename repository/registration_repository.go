@@ -8,11 +8,6 @@ import (
 
 func CreateRegistration(reg models.Registration) error {
 
-	activeConvention, err := GetActiveConvention()
-	if err != nil {
-		return err
-	}
-
 	query := `
 	INSERT INTO registrations(
 		convention_id,
@@ -38,9 +33,9 @@ func CreateRegistration(reg models.Registration) error {
 	)
 	`
 
-	_, err = database.DB.Exec(
+	_, err := database.DB.Exec(
 		query,
-		activeConvention.ID,
+		reg.ConventionID,
 		reg.FullName,
 		reg.Gender,
 		reg.Age,
@@ -138,11 +133,17 @@ func GetRegistrationsPaginated(
 	pageSize int,
 ) ([]models.Registration, error) {
 
+	activeConvention, err := GetActiveConvention()
+	if err != nil {
+		return nil, err
+	}
+
 	offset := (page - 1) * pageSize
 
 	rows, err := database.DB.Query(`
 		SELECT
 			id,
+			convention_id,
 			full_name,
 			gender,
 			age,
@@ -160,10 +161,11 @@ func GetRegistrationsPaginated(
 			checked_in,
 			bible_study_group
 		FROM registrations
+		WHERE convention_id = $1
 		ORDER BY id DESC
-		LIMIT $1
-		OFFSET $2
-	`, pageSize, offset)
+		LIMIT $2
+		OFFSET $3
+	`, activeConvention.ID, pageSize, offset)
 
 	if err != nil {
 		return nil, err
@@ -179,6 +181,7 @@ func GetRegistrationsPaginated(
 
 		err := rows.Scan(
 			&reg.ID,
+			&reg.ConventionID,
 			&reg.FullName,
 			&reg.Gender,
 			&reg.Age,
@@ -214,12 +217,18 @@ func GetRegistrationsPaginated(
 
 func CountRegistrations() (int, error) {
 
+	activeConvention, err := GetActiveConvention()
+	if err != nil {
+		return 0, err
+	}
+
 	var total int
 
-	err := database.DB.QueryRow(`
+	err = database.DB.QueryRow(`
 		SELECT COUNT(*)
 		FROM registrations
-	`).Scan(&total)
+		WHERE convention_id = $1
+	`, activeConvention.ID).Scan(&total)
 
 	if err != nil {
 		return 0, err
@@ -232,9 +241,15 @@ func SearchRegistrations(
 	search string,
 ) ([]models.Registration, error) {
 
+	activeConvention, err := GetActiveConvention()
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
 	SELECT
 		id,
+		convention_id,
 		full_name,
 		gender,
 		age,
@@ -252,14 +267,17 @@ func SearchRegistrations(
 		checked_in,
 		bible_study_group
 	FROM registrations
-	WHERE
-	full_name ILIKE $1
-	OR phone ILIKE $2
+	WHERE convention_id = $1
+	AND (
+		full_name ILIKE $2
+		OR phone ILIKE $3
+	)
 	ORDER BY id DESC
 	`
 
 	rows, err := database.DB.Query(
 		query,
+		activeConvention.ID,
 		"%"+search+"%",
 		"%"+search+"%",
 	)
@@ -278,6 +296,7 @@ func SearchRegistrations(
 
 		err := rows.Scan(
 			&reg.ID,
+			&reg.ConventionID,
 			&reg.FullName,
 			&reg.Gender,
 			&reg.Age,
@@ -310,7 +329,6 @@ func SearchRegistrations(
 
 	return registrations, nil
 }
-
 func GetDashboardStats() (models.DashboardStats, error) {
 
 	var stats models.DashboardStats

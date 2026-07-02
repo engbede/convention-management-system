@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Convention System</title>
+</head>
+
+<body>
+
+<h2>
+{{if .ID}}
+Edit Convention
+{{else}}
+Add Convention
+{{end}}
+</h2>
+
+<form method="POST"
+      action="{{if .ID}}/conventions/update{{else}}/conventions/create{{end}}">
+
+    <input
+        type="hidden"
+        name="id"
+        value="{{.ID}}">
+
+    <label>Year:</label><br>
+
+    <input
+        type="number"
+        name="year"
+        value="{{.Year}}"
+        required>
+
+    <br><br>
+
+    <label>Name:</label><br>
+
+    <input
+        type="text"
+        name="name"
+        value="{{.Name}}"
+        required>
+
+    <br><br>
+
+    <label>Theme:</label><br>
+
+    <input
+        type="text"
+        name="theme"
+        value="{{.Theme}}">
+
+    <br><br>
+
+    <label>Venue:</label><br>
+
+    <input
+        type="text"
+        name="venue"
+        value="{{.Venue}}"
+        required>
+
+    <br><br>
+
+    <label>Start Date:</label><br>
+
+    <input
+        type="date"
+        name="start_date"
+        value="{{.StartDate}}"
+        required>
+
+    <br><br>
+
+    <label>End Date:</label><br>
+
+    <input
+        type="date"
+        name="end_date"
+        value="{{.EndDate}}"
+        required>
+
+    <br><br>
+
+    <button type="submit">
+
+        {{if .ID}}
+        Update Convention
+        {{else}}
+        Save Convention
+        {{end}}
+
+    </button>
+
+</form>
+
+</body>
+</html>
