@@ -5,4 +5,5 @@ type FormData struct {
 	Action       string
 	ButtonText   string
 	Registration Registration
+	Convention   Convention
 }

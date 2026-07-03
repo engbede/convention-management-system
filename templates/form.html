@@ -46,19 +46,103 @@
 
 </nav>
 
-<div class="container form-container">
+<div class="container mt-5">
 
-    <h1 class="text-center mb-4">
+    <div class="card shadow-lg border-primary mb-4">
 
-        {{.Title}}
+        <div class="card-body text-center">
 
-    </h1>
+           <h1 class="display-5 fw-bold text-primary">
+                {{.Convention.Name}}
 
-    <p class="text-center mb-4">
+            </h2>
 
-        Please complete the form below.
+            <div class="mt-2">
 
-    </p>
+    <span class="badge bg-success fs-6">
+
+        ACTIVE CONVENTION
+
+    </span>
+
+</div>
+
+<div class="text-center mb-4">
+
+    <img
+        src="/static/images/youth_logo.png"
+        class="logo"
+        alt="Youth Fellowship Logo">
+
+</div>
+            <h5 class="text-muted">
+
+                Methodist Church Nigeria
+
+            </h5>
+
+            <h5 class="mb-3">
+
+                Apa Diocesan Youth Fellowship
+
+            </h5>
+
+            <p class="lead mt-3">
+
+    Welcome to the official online registration portal.
+    Kindly complete the registration form below.
+
+</p>
+
+            <hr>
+
+            <p>
+
+                <strong>Theme:</strong>
+
+                {{.Convention.Theme}}
+
+            </p>
+
+            <p>
+
+                <strong>Venue:</strong>
+
+                {{.Convention.Venue}}
+
+            </p>
+
+            <p>
+
+                <strong>Date:</strong>
+
+                {{.Convention.StartDate}}
+
+                -
+
+                {{.Convention.EndDate}}
+
+            </p>
+
+        </div>
+
+    </div>
+
+    <div class="card shadow">
+
+        <div class="card-body">
+
+            <h3 class="text-center mb-4">
+
+                {{.Title}}
+
+            </h3>
+
+            <p class="text-center text-muted">
+
+                Kindly complete the registration form below.
+
+            </p>
 
     <form method="POST" action="{{.Action}}">
 
@@ -68,11 +152,15 @@
             name="id"
             value="{{.Registration.ID}}">
 
-        <label>Full Name</label>
+       <label class="form-label fw-bold">
 
+    Full Name
+
+</label>
         <input
-            type="text"
-            name="fullname"
+    type="text"
+    class="form-control"
+    name="fullname"
             value="{{.Registration.FullName}}"
             required>
 
@@ -230,18 +318,41 @@
 
         <br><br>
 
-        <button type="submit">
+        <div class="d-grid mt-4">
 
-            {{.ButtonText}}
+    <button
+        type="submit"
+        class="btn btn-success btn-lg">
 
-        </button>
+        {{.ButtonText}}
 
-    </form>
+    </button>
 
 </div>
 
-<!-- Bootstrap JavaScript -->
+    </form>
+
+        </div>
+
+    </div>
+
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<footer class="text-center text-white mt-5 mb-3">
+
+    Methodist Church Nigeria
+
+    <br>
+
+    Apa Diocesan Youth Fellowship
+
+    <br>
+
+    Convention Management System © 2026
+
+</footer>
 
 </body>
 

@@ -1,6 +1,18 @@
 body {
-    font-family: "Times New Roman", serif;
-    background: skyblue;
+    font-family: "Segoe UI", 'Times New Roman', serif, sans-serif;
+
+    background:
+        linear-gradient(
+            rgba(8,35,85,.55),
+            rgba(8,35,85,.55)
+        ),
+        url("/static/images/church-bg.jpg");
+
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+
+    min-height: 100vh;
 }
 
 /* Registration form card only */
@@ -12,7 +24,14 @@ body {
     border-radius: 12px;
     box-shadow: 0 0 30px rgba(0,0,0,.2);
 }
+input,
+select{
 
+    border-radius:8px !important;
+
+    padding:10px;
+
+}
 h1 {
     text-align: center;
 }
@@ -43,4 +62,39 @@ table th {
 
 .text-nowrap {
     white-space: nowrap;
+}
+
+.logo{
+    width:120px;
+    height:120px;
+    object-fit:contain;
+    border-radius:50%;
+    background:white;
+    padding:10px;
+    box-shadow:0 8px 20px rgba(0,0,0,.25);
+}
+.home-logo{
+
+    width:170px;
+
+    height:170px;
+
+    object-fit:contain;
+
+    border-radius:50%;
+
+    background:#fff;
+
+    padding:12px;
+
+    box-shadow:0 12px 35px rgba(0,0,0,.30);
+
+    transition:.3s;
+
+}
+
+.home-logo:hover{
+
+    transform:scale(1.05);
+
 }

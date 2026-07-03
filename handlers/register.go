@@ -11,19 +11,29 @@ import (
 
 var Templates *template.Template
 
-// Display registration form
 func ShowForm(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 
+	activeConvention, err := repository.GetActiveConvention()
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
 	data := models.FormData{
 		Title:      "Youth Convention Registration",
 		Action:     "/submit-registration",
 		ButtonText: "Register",
+		Convention: activeConvention,
 	}
 
-	err := Templates.ExecuteTemplate(
+	err = Templates.ExecuteTemplate(
 		w,
 		"form.html",
 		data,
