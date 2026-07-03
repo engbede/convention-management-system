@@ -1,6 +1,6 @@
 body {
     font-family: "Times New Roman", serif;
-    background: blue;
+    background: skyblue;
 }
 
 /* Registration form card only */
@@ -34,6 +34,7 @@ button {
     padding: 12px;
     cursor: pointer;
 }
+
 
 table td,
 table th {

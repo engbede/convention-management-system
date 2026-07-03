@@ -19,7 +19,7 @@ func ShowForm(
 
 	data := models.FormData{
 		Title:      "Youth Convention Registration",
-		Action:     "/register",
+		Action:     "/submit-registration",
 		ButtonText: "Register",
 	}
 

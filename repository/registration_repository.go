@@ -333,6 +333,11 @@ func GetDashboardStats() (models.DashboardStats, error) {
 
 	var stats models.DashboardStats
 
+	activeConvention, err := GetActiveConvention()
+	if err != nil {
+		return stats, err
+	}
+
 	row := database.DB.QueryRow(`
 		SELECT
 			COUNT(*),
@@ -354,9 +359,10 @@ func GetDashboardStats() (models.DashboardStats, error) {
 			COALESCE(SUM(CASE WHEN marital_status = 'Divorce' THEN 1 ELSE 0 END), 0)
 
 		FROM registrations
-	`)
+		WHERE convention_id = $1
+	`, activeConvention.ID)
 
-	err := row.Scan(
+	err = row.Scan(
 		&stats.TotalRegistrations,
 		&stats.MaleCount,
 		&stats.FemaleCount,
@@ -370,16 +376,23 @@ func GetDashboardStats() (models.DashboardStats, error) {
 
 	return stats, err
 }
+
 func GetRegistrationsByCircuit() ([]models.CircuitStat, error) {
+
+	activeConvention, err := GetActiveConvention()
+	if err != nil {
+		return nil, err
+	}
 
 	rows, err := database.DB.Query(`
 		SELECT
 			circuit,
 			COUNT(*)
 		FROM registrations
+		WHERE convention_id = $1
 		GROUP BY circuit
 		ORDER BY COUNT(*) DESC
-	`)
+	`, activeConvention.ID)
 
 	if err != nil {
 		return nil, err
@@ -402,10 +415,7 @@ func GetRegistrationsByCircuit() ([]models.CircuitStat, error) {
 			return nil, err
 		}
 
-		circuits = append(
-			circuits,
-			c,
-		)
+		circuits = append(circuits, c)
 	}
 
 	return circuits, nil

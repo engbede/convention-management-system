@@ -8,8 +8,11 @@ import (
 )
 
 func RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/", handlers.ShowForm)
-	mux.HandleFunc("/register", handlers.Register)
+	mux.HandleFunc("/", handlers.Home)
+
+	mux.HandleFunc("/register", handlers.ShowForm)
+
+	mux.HandleFunc("/submit-registration", handlers.Register)
 
 	mux.HandleFunc(
 		"/registrations",
@@ -54,11 +57,11 @@ func RegisterRoutes(mux *http.ServeMux) {
 		middleware.RequireAuth(handlers.ActivateConvention),
 	)
 	mux.HandleFunc(
-    "/conventions/delete",
-    middleware.RequireAuth(
-        handlers.DeleteConvention,
-    ),
-)
+		"/conventions/delete",
+		middleware.RequireAuth(
+			handlers.DeleteConvention,
+		),
+	)
 	mux.HandleFunc(
 		"/view",
 		middleware.RequireAuth(
