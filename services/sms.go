@@ -19,6 +19,13 @@ type TermiiRequest struct {
 }
 
 func SendSMS(phone string, message string) error {
+	key := os.Getenv("TERMII_API_KEY")
+
+	fmt.Printf("API Key length: %d\n", len(key))
+
+	if len(key) >= 8 {
+		fmt.Printf("API Key prefix: %s...\n", key[:8])
+	}
 	fmt.Println("TERMII_API_KEY:", os.Getenv("TERMII_API_KEY"))
 	fmt.Println("TERMII_SENDER:", os.Getenv("TERMII_SENDER"))
 	request := TermiiRequest{

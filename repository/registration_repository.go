@@ -11,7 +11,7 @@ func PhoneExists(phone string) (bool, error) {
 	var count int
 
 	err := database.DB.QueryRow(
-		`SELECT COUNT(*) FROM registrations WHERE phone = ?`,
+		`SELECT COUNT(*) FROM registrations WHERE phone = $1`,
 		phone,
 	).Scan(&count)
 
@@ -21,7 +21,6 @@ func PhoneExists(phone string) (bool, error) {
 
 	return count > 0, nil
 }
-
 func CreateRegistration(reg models.Registration) error {
 
 	query := `

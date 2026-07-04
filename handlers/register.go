@@ -167,9 +167,12 @@ func Register(
 		return
 	}
 	reg.ConventionID = activeConvention.ID
+
 	exists, err := repository.PhoneExists(phone)
 
 	if err != nil {
+		fmt.Println("PhoneExists error:", err)
+
 		renderRegistrationForm(
 			w,
 			reg,
