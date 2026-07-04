@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS registrations (
 
 	age INTEGER,
 
-	phone TEXT UNIQUE NOT NULL,
+	phone TEXT NOT NULL UNIQUE,
 
 	circuit TEXT NOT NULL,
 

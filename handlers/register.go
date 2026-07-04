@@ -3,6 +3,7 @@ package handlers
 import (
 	"html/template"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"convention-management-system/models"
@@ -11,16 +12,20 @@ import (
 
 var Templates *template.Template
 
+// renderRegistrationForm redisplays the registration form with an error message.
+
+// ShowForm displays the registration page.
 func ShowForm(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 
 	activeConvention, err := repository.GetActiveConvention()
+
 	if err != nil {
 		http.Error(
 			w,
-			err.Error(),
+			"No active convention found. Please contact the administrator.",
 			http.StatusInternalServerError,
 		)
 		return
@@ -48,116 +53,151 @@ func ShowForm(
 	}
 }
 
-// Handle registration
+// Register handles registration submission.
 func Register(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
 
-	// Only allow POST
 	if r.Method != http.MethodPost {
-
 		http.Redirect(
 			w,
 			r,
-			"/",
+			"/register",
 			http.StatusSeeOther,
 		)
-
 		return
 	}
 
-	// Convert age to integer
-	age, err := strconv.Atoi(
-		r.FormValue("age"),
-	)
-
+	fullName := r.FormValue("fullname")
+	gender := r.FormValue("gender")
+	phone := r.FormValue("phone")
+	circuit := r.FormValue("circuit")
+	localChurch := r.FormValue("local_church")
+	membership := r.FormValue("membership")
+	position := r.FormValue("position")
+	maritalStatus := r.FormValue("marital_status")
+	occupation := r.FormValue("occupation")
+	emergencyName := r.FormValue("emergency_contact_name")
+	emergencyPhone := r.FormValue("emergency_contact_phone")
+	arrivalDate := r.FormValue("arrival_date")
+	// Convert age
+	age, err := strconv.Atoi(r.FormValue("age"))
 	if err != nil {
-
-		http.Error(
-			w,
-			"Invalid age",
-			http.StatusBadRequest,
-		)
-
-		return
+		age = 0
 	}
 
-	// Convert Yes/No to bool
-	firstTime :=
-		r.FormValue("first_time_attendee") == "Yes"
-
-	group, err := strconv.Atoi(
-		r.FormValue("bible_study_group"),
-	)
-
+	// Convert Bible Study Group
+	group, err := strconv.Atoi(r.FormValue("bible_study_group"))
 	if err != nil {
 		group = 0
+	}
+
+	// First-time attendee
+	firstTime := r.FormValue("first_time_attendee") == "Yes"
+
+	// Temporary registration object for redisplaying the form
+	reg := models.Registration{
+		FullName: fullName,
+		Gender:   gender,
+		Age:      age,
+		Phone:    phone,
+
+		Circuit:     circuit,
+		LocalChurch: localChurch,
+		Membership:  membership,
+		Position:    position,
+
+		MaritalStatus: maritalStatus,
+		Occupation:    occupation,
+
+		EmergencyContactName:  emergencyName,
+		EmergencyContactPhone: emergencyPhone,
+
+		ArrivalDate: arrivalDate,
+
+		BibleStudyGroup:   group,
+		FirstTimeAttendee: firstTime,
+	}
+
+	// Required fields
+	if fullName == "" ||
+		gender == "" ||
+		phone == "" ||
+		circuit == "" ||
+		localChurch == "" ||
+		membership == "" ||
+		emergencyName == "" ||
+		emergencyPhone == "" ||
+		arrivalDate == "" {
+
+		renderRegistrationForm(
+			w,
+			reg,
+			"Please complete all required fields.",
+		)
+		return
+	}
+
+	// Phone number validation
+	matched, _ := regexp.MatchString(
+		`^[0-9]{11}$`,
+		phone,
+	)
+
+	if !matched {
+		renderRegistrationForm(
+			w,
+			reg,
+			"Phone number must contain exactly 11 digits.",
+		)
+		return
 	}
 
 	activeConvention, err := repository.GetActiveConvention()
 
 	if err != nil {
-
 		http.Error(
 			w,
-			"No active convention found. Please activate a convention first.",
+			"No active convention found.",
 			http.StatusBadRequest,
 		)
-
 		return
 	}
-	// Create Registration object
-	reg := models.Registration{
+	reg.ConventionID = activeConvention.ID
+	exists, err := repository.PhoneExists(phone)
 
-		ConventionID: activeConvention.ID,
-
-		FullName: r.FormValue("fullname"),
-
-		Gender: r.FormValue("gender"),
-
-		Age: age,
-
-		Phone: r.FormValue("phone"),
-
-		Circuit: r.FormValue("circuit"),
-
-		LocalChurch: r.FormValue("local_church"),
-
-		Membership: r.FormValue("membership"),
-
-		Position: r.FormValue("position"),
-
-		MaritalStatus: r.FormValue("marital_status"),
-
-		Occupation: r.FormValue("occupation"),
-
-		EmergencyContactName: r.FormValue("emergency_contact_name"),
-
-		EmergencyContactPhone: r.FormValue("emergency_contact_phone"),
-
-		ArrivalDate: r.FormValue("arrival_date"),
-
-		BibleStudyGroup: group,
-
-		FirstTimeAttendee: firstTime,
+	if err != nil {
+		renderRegistrationForm(
+			w,
+			reg,
+			"Unable to validate phone number. Please try again.",
+		)
+		return
 	}
 
-	// Save into SQLite
+	if exists {
+		renderRegistrationForm(
+			w,
+			reg,
+			"This phone number has already been used for registration.",
+		)
+		return
+	}
+
 	err = repository.CreateRegistration(reg)
 
 	if err != nil {
 
-		http.Error(
+		renderRegistrationForm(
 			w,
-			err.Error(),
-			http.StatusInternalServerError,
+			reg,
+			"Registration could not be completed. Please try again.",
 		)
 
 		return
 	}
 
-	// Show success page
 	err = Templates.ExecuteTemplate(
 		w,
 		"success.html",
@@ -165,7 +205,6 @@ func Register(
 	)
 
 	if err != nil {
-
 		http.Error(
 			w,
 			err.Error(),
@@ -174,6 +213,7 @@ func Register(
 	}
 }
 
+// ListRegistrations displays all registrations with search and pagination.
 func ListRegistrations(
 	w http.ResponseWriter,
 	r *http.Request,

@@ -6,6 +6,22 @@ import (
 	"convention-management-system/models"
 )
 
+func PhoneExists(phone string) (bool, error) {
+
+	var count int
+
+	err := database.DB.QueryRow(
+		`SELECT COUNT(*) FROM registrations WHERE phone = ?`,
+		phone,
+	).Scan(&count)
+
+	if err != nil {
+		return false, err
+	}
+
+	return count > 0, nil
+}
+
 func CreateRegistration(reg models.Registration) error {
 
 	query := `
