@@ -15,8 +15,11 @@ import (
 
 func main() {
 
-	_ = godotenv.Load()
+	err := godotenv.Load()
 
+	if err != nil {
+		log.Println("Warning: .env file not found:", err)
+	}
 	// Load templates
 	handlers.Templates = template.Must(
 		template.Must(
@@ -32,7 +35,7 @@ func main() {
 	if err := database.SeedAdmin(); err != nil {
 		log.Fatal(err)
 	}
-	
+
 	if err := database.SeedConvention(); err != nil {
 		log.Fatal(err)
 	}

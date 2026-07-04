@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"regexp"
@@ -8,6 +9,7 @@ import (
 
 	"convention-management-system/models"
 	"convention-management-system/repository"
+	"convention-management-system/services"
 )
 
 var Templates *template.Template
@@ -196,6 +198,29 @@ func Register(
 		)
 
 		return
+	}
+
+	message := fmt.Sprintf(
+		"Dear %s,\n\n"+
+			"Your registration for %s has been received successfully.\n\n"+
+			"Venue: %s\n"+
+			"Arrival Date: %s\n"+
+			"Bible Study Group: %d\n\n"+
+			"Thank you for registering.\n\n"+
+			"Methodist Church Nigeria\n"+
+			"Apa Diocesan Youth Fellowship",
+		reg.FullName,
+		activeConvention.Name,
+		activeConvention.Venue,
+		reg.ArrivalDate,
+		reg.BibleStudyGroup,
+	)
+
+	if err := services.SendSMS(reg.Phone, message); err != nil {
+
+		// Don't stop registration because SMS failed.
+		fmt.Println("SMS Error:", err)
+
 	}
 
 	err = Templates.ExecuteTemplate(
