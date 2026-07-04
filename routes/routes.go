@@ -122,6 +122,10 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.PrintIDCards,
 		),
 	)
+	http.HandleFunc(
+		"/checkin",
+		handlers.QRCheckIn,
+	)
 	mux.HandleFunc("/login", handlers.Login)
 
 	mux.HandleFunc("/healthz", handlers.Health)

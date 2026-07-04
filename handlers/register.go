@@ -190,7 +190,7 @@ func Register(
 		return
 	}
 
-	err = repository.CreateRegistration(reg)
+	err = repository.CreateRegistration(&reg)
 
 	if err != nil {
 
@@ -203,6 +203,51 @@ func Register(
 		return
 	}
 
+	reg.RegistrationNumber = repository.GenerateRegistrationNumber(reg.ID)
+
+	err = repository.SaveRegistrationNumber(
+		reg.ID,
+		reg.RegistrationNumber,
+	)
+
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	qrPath, err := services.GenerateQRCode(
+		reg.RegistrationNumber,
+	)
+
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	reg.QRCode = qrPath
+
+	err = repository.SaveQRCode(
+		reg.ID,
+		qrPath,
+	)
+
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+	
 	message := fmt.Sprintf(
 		"Dear %s,\n\n"+
 			"Your registration for %s has been received successfully.\n\n"+

@@ -90,5 +90,14 @@ CREATE TABLE IF NOT EXISTS conventions (
 		ADD COLUMN bible_study_group INTEGER DEFAULT 0
 	`)
 
+	_, _ = DB.Exec(`
+    ALTER TABLE registrations
+    ADD COLUMN registration_number TEXT
+`)
+
+	_, _ = DB.Exec(`
+    ALTER TABLE registrations
+    ADD COLUMN qr_code TEXT
+`)
 	return nil
 }

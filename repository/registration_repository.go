@@ -21,7 +21,7 @@ func PhoneExists(phone string) (bool, error) {
 
 	return count > 0, nil
 }
-func CreateRegistration(reg models.Registration) error {
+func CreateRegistration(reg *models.Registration) error {
 
 	query := `
 	INSERT INTO registrations(
@@ -46,9 +46,10 @@ func CreateRegistration(reg models.Registration) error {
 		$1,$2,$3,$4,$5,$6,$7,$8,
 		$9,$10,$11,$12,$13,$14,$15,$16
 	)
+	RETURNING id
 	`
 
-	_, err := database.DB.Exec(
+	err := database.DB.QueryRow(
 		query,
 		reg.ConventionID,
 		reg.FullName,
@@ -66,11 +67,10 @@ func CreateRegistration(reg models.Registration) error {
 		reg.ArrivalDate,
 		reg.FirstTimeAttendee,
 		reg.BibleStudyGroup,
-	)
+	).Scan(&reg.ID)
 
 	return err
 }
-
 func GetAllRegistrations() ([]models.Registration, error) {
 
 	rows, err := database.DB.Query(`

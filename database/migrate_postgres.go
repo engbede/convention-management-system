@@ -49,7 +49,15 @@ func MigratePostgres() error {
 		bible_study_group INTEGER DEFAULT 0
 	);
 	`
+	DB.Exec(`
+ALTER TABLE registrations
+ADD COLUMN IF NOT EXISTS registration_number TEXT;
+`)
 
+	DB.Exec(`
+ALTER TABLE registrations
+ADD COLUMN IF NOT EXISTS qr_code TEXT;
+`)
 	if _, err := DB.Exec(registrationsTable); err != nil {
 		return err
 	}
