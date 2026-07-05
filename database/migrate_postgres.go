@@ -77,8 +77,40 @@ ADD COLUMN IF NOT EXISTS qr_code TEXT;
 	}
 
 	fmt.Println("Creating admins table...")
-	
+
 	fmt.Println("Creating officials table...")
+
+	fmt.Println("Creating notices table...")
+
+	noticesTable := `
+CREATE TABLE IF NOT EXISTS notices (
+
+	id BIGSERIAL PRIMARY KEY,
+
+	title TEXT NOT NULL,
+
+	message TEXT NOT NULL,
+
+	audience TEXT NOT NULL,
+
+	priority TEXT DEFAULT 'Normal',
+
+	pinned BOOLEAN DEFAULT FALSE,
+
+	start_date TEXT,
+
+	end_date TEXT,
+
+	created_by TEXT,
+
+	created_at TIMESTAMP DEFAULT NOW()
+
+);
+`
+
+	if _, err := DB.Exec(noticesTable); err != nil {
+		return err
+	}
 
 	officialsTable := `
 CREATE TABLE IF NOT EXISTS officials (
