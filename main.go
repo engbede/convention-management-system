@@ -21,12 +21,20 @@ func main() {
 		log.Println("Warning: .env file not found:", err)
 	}
 	// Load templates
-	handlers.Templates = template.Must(
-		template.Must(
-			template.ParseGlob("templates/*.html"),
-		).ParseGlob("templates/partials/*.html"),
+	// Load templates
+	handlers.Templates = template.New("")
+
+	template.Must(
+		handlers.Templates.ParseGlob("templates/*.html"),
 	)
 
+	template.Must(
+		handlers.Templates.ParseGlob("templates/partials/*.html"),
+	)
+
+	template.Must(
+		handlers.Templates.ParseGlob("templates/layouts/*.html"),
+	)
 	// Initialize database
 	if err := database.Init(); err != nil {
 		log.Fatal(err)

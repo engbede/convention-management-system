@@ -118,7 +118,7 @@ func GetConventionByID(id int) (models.Convention, error) {
 		end_date,
 		active
 	FROM conventions
-	WHERE id = ?
+	WHERE id = $1
 	`
 
 	err := database.DB.QueryRow(query, id).Scan(
@@ -137,16 +137,16 @@ func GetConventionByID(id int) (models.Convention, error) {
 func UpdateConvention(c models.Convention) error {
 
 	query := `
-	UPDATE conventions
-	SET
-		year = ?,
-		name = ?,
-		theme = ?,
-		venue = ?,
-		start_date = ?,
-		end_date = ?
-	WHERE id = ?
-	`
+UPDATE conventions
+SET
+year = $1,
+name = $2,
+theme = $3,
+venue = $4,
+start_date = $5,
+end_date = $6
+WHERE id = $7
+`
 
 	_, err := database.DB.Exec(
 		query,
@@ -181,8 +181,8 @@ func ActivateConvention(id int) error {
 	// activate selected convention
 	_, err = tx.Exec(`
 		UPDATE conventions
-		SET active = 1
-		WHERE id = ?
+		SET active = TRUE
+		WHERE id = $1
 	`, id)
 
 	if err != nil {
@@ -196,7 +196,7 @@ func DeleteConvention(id int) error {
 
 	_, err := database.DB.Exec(`
 		DELETE FROM conventions
-		WHERE id = ?
+		WHERE id = $1
 	`, id)
 
 	return err

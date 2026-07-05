@@ -26,6 +26,7 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.Dashboard,
 		),
 	)
+
 	// Convention Management
 	mux.HandleFunc(
 		"/conventions",
@@ -122,10 +123,57 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.PrintIDCards,
 		),
 	)
-	http.HandleFunc(
-		"/checkin",
-		handlers.QRCheckIn,
+
+	// Officials Management
+	mux.HandleFunc(
+		"/officials",
+		middleware.RequireAuth(
+			handlers.ListOfficials,
+		),
 	)
+
+	mux.HandleFunc(
+		"/officials/new",
+		middleware.RequireAuth(
+			handlers.ShowOfficialForm,
+		),
+	)
+
+	mux.HandleFunc(
+		"/officials/create",
+		middleware.RequireAuth(
+			handlers.CreateOfficial,
+		),
+	)
+
+	mux.HandleFunc(
+		"/officials/view",
+		middleware.RequireAuth(
+			handlers.ViewOfficial,
+		),
+	)
+
+	mux.HandleFunc(
+		"/officials/edit",
+		middleware.RequireAuth(
+			handlers.EditOfficial,
+		),
+	)
+
+	mux.HandleFunc(
+		"/officials/update",
+		middleware.RequireAuth(
+			handlers.UpdateOfficial,
+		),
+	)
+
+	mux.HandleFunc(
+		"/officials/delete",
+		middleware.RequireAuth(
+			handlers.DeleteOfficial,
+		),
+	)
+
 	mux.HandleFunc("/login", handlers.Login)
 
 	mux.HandleFunc("/healthz", handlers.Health)

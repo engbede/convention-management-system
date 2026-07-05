@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>{{.Title}}</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+    <link rel="stylesheet"
+          href="/static/style.css">
+
+</head>
+
+<body class="bg-light">
+
+<div class="container py-5">
+
+    <div class="card shadow-lg">
+
+        <div class="card-header bg-primary text-white">
+
+            <h3 class="mb-0">
+                {{.Title}}
+            </h3>
+
+        </div>
+
+        <div class="card-body">
+
+            <form method="POST" action="{{.Action}}">
+
+                <input
+                    type="hidden"
+                    name="id"
+                    value="{{.Official.ID}}">
+
+                <!-- PERSONAL INFORMATION -->
+
+                <h4 class="text-primary mb-3">
+                    Personal Information
+                </h4>
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Full Name *
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="full_name"
+                            value="{{.Official.FullName}}"
+                            required>
+
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Gender
+                        </label>
+
+                        <select
+                            class="form-select"
+                            name="gender">
+
+                            <option value="">Select Gender</option>
+
+                            <option value="Male"
+                                {{if eq .Official.Gender "Male"}}selected{{end}}>
+                                Male
+                            </option>
+
+                            <option value="Female"
+                                {{if eq .Official.Gender "Female"}}selected{{end}}>
+                                Female
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Phone Number *
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="phone"
+                            value="{{.Official.Phone}}"
+                            required>
+
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Email Address
+                        </label>
+
+                        <input
+                            type="email"
+                            class="form-control"
+                            name="email"
+                            value="{{.Official.Email}}">
+
+                    </div>
+
+                </div>
+
+                <hr>
+
+                <!-- CHURCH INFORMATION -->
+
+                <h4 class="text-primary mb-3">
+                    Church Information
+                </h4>
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Circuit
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="circuit"
+                            value="{{.Official.Circuit}}">
+
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Local Church
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="local_church"
+                            value="{{.Official.LocalChurch}}">
+
+                    </div>
+
+                </div>
+
+                <hr>
+
+                <!-- OFFICE INFORMATION -->
+
+                <h4 class="text-primary mb-3">
+                    Office Information
+                </h4>
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Position Held *
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="position"
+                            value="{{.Official.Position}}"
+                            required>
+
+                    </div>
+
+                    <div class="col-md-6 mb-3">
+
+                        <label class="form-label">
+                            Department
+                        </label>
+
+                        <input
+                            type="text"
+                            class="form-control"
+                            name="department"
+                            value="{{.Official.Department}}">
+
+                    </div>
+
+                </div>
+
+                <div class="row">
+
+                    <div class="col-md-6 mb-4">
+
+                        <label class="form-label">
+                            Status
+                        </label>
+
+                        <select
+                            class="form-select"
+                            name="status">
+
+                            <option value="Active"
+                                {{if eq .Official.Status "Active"}}selected{{end}}>
+                                Active
+                            </option>
+
+                            <option value="Inactive"
+                                {{if eq .Official.Status "Inactive"}}selected{{end}}>
+                                Inactive
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+                <button
+                    type="submit"
+                    class="btn btn-primary btn-lg">
+
+                    {{if .Official.ID}}
+                        Update Official
+                    {{else}}
+                        Register Official
+                    {{end}}
+
+                </button>
+
+                <a
+                    href="/officials"
+                    class="btn btn-secondary btn-lg">
+
+                    Cancel
+
+                </a>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+
+</html>

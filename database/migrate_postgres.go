@@ -77,6 +77,40 @@ ADD COLUMN IF NOT EXISTS qr_code TEXT;
 	}
 
 	fmt.Println("Creating admins table...")
+	
+	fmt.Println("Creating officials table...")
 
+	officialsTable := `
+CREATE TABLE IF NOT EXISTS officials (
+
+	id BIGSERIAL PRIMARY KEY,
+
+	full_name TEXT NOT NULL,
+
+	gender TEXT NOT NULL,
+
+	phone TEXT UNIQUE NOT NULL,
+
+	email TEXT UNIQUE,
+
+	circuit TEXT NOT NULL,
+
+	local_church TEXT NOT NULL,
+
+	position TEXT NOT NULL,
+
+	department TEXT NOT NULL,
+
+	status TEXT DEFAULT 'Active',
+
+	photo TEXT,
+
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`
+
+	if _, err := DB.Exec(officialsTable); err != nil {
+		return err
+	}
 	return nil
 }

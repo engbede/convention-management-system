@@ -17,23 +17,17 @@
 <body>
 
 <!-- NAVBAR -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+{{define "content"}}
 
-    <div class="container">
+<div class="container-fluid">
 
-        <a class="navbar-brand" href="/dashboard">
-            Admin Portal
-        </a>
+    <h2 class="mb-3">
+        Administrator Dashboard
+    </h2>
 
-        <div class="navbar-nav ms-auto">
-            <a class="nav-link" href="/dashboard">Dashboard</a>
-            <a class="nav-link" href="/registrations">Registrations</a>
-            <a class="nav-link" href="/logout">Logout</a>
-        </div>
-
-    </div>
-
-</nav>
+    <p class="text-muted">
+        Welcome to the Apa Diocesan Youth Fellowship Management System.
+    </p>
 
 <!-- HEADER -->
 <div class="container mt-4">
@@ -565,6 +559,8 @@ new Chart(document.getElementById("circuitChart"), {
 
 </script>
 
-</body>
+</div>
 
-</html>
+{{end}}
+
+{{template "admin_layout" .}}

@@ -251,26 +251,22 @@ value="{{.Registration.ID}}">
 
             <div class="col-md-3 mb-3">
 
-                <label class="form-label">
-                    Gender
-                </label>
+               <select
+    class="form-select"
+    name="gender"
+    required>
 
-                <select
-                    class="form-select"
-                    name="gender"
-                    required>
+    <option value="">Select Gender</option>
 
-                    <option value="">
-                        Select Gender
-                    </option>
+    <option value="Male"
+        {{if eq .Registration.Gender "Male"}}selected{{end}}>
+        Male
+    </option>
 
-                    <option value="Male">
-                        Male
-                    </option>
-
-                    <option value="Female">
-                        Female
-                    </option>
+    <option value="Female"
+        {{if eq .Registration.Gender "Female"}}selected{{end}}>
+        Female
+    </option>
 
                 </select>
 
@@ -285,8 +281,8 @@ value="{{.Registration.ID}}">
                 <input
                     type="number"
                     class="form-control"
-                    name="age">
-
+                    name="age"
+                    value="{{.Registration.Age}}">
             </div>
 
         </div>
@@ -304,8 +300,8 @@ value="{{.Registration.ID}}">
                     maxlength="11"
                     class="form-control"
                     name="phone"
+                    value="{{.Registration.Phone}}"
                     required>
-
             </div>
 
         </div>
@@ -342,6 +338,7 @@ Church Information
 <input
 class="form-control"
 name="circuit"
+value="{{.Registration.Circuit}}"
 required>
 
 </div>
@@ -353,6 +350,7 @@ required>
 <input
 class="form-control"
 name="local_church"
+value="{{.Registration.LocalChurch}}"
 required>
 
 </div>
@@ -369,11 +367,15 @@ required>
 class="form-select"
 name="membership">
 
-<option>Member</option>
+<option value="Member"
+{{if eq .Registration.Membership "Member"}}selected{{end}}>
+Member
+</option>
 
-<option>Non-Member</option>
-
-</select>
+<option value="Non-Member"
+{{if eq .Registration.Membership "Non-Member"}}selected{{end}}>
+Non-Member
+</option>
 
 </div>
 
@@ -383,7 +385,8 @@ name="membership">
 
 <input
 class="form-control"
-name="position">
+name="position"
+value="{{.Registration.Position}}">
 
 </div>
 
@@ -422,11 +425,20 @@ Personal Details
 class="form-select"
 name="marital_status">
 
-<option>Single</option>
+<option value="Single"
+{{if eq .Registration.MaritalStatus "Single"}}selected{{end}}>
+Single
+</option>
 
-<option>Married</option>
+<option value="Married"
+{{if eq .Registration.MaritalStatus "Married"}}selected{{end}}>
+Married
+</option>
 
-<option>Divorced</option>
+<option value="Divorced"
+{{if eq .Registration.MaritalStatus "Divorced"}}selected{{end}}>
+Divorced
+</option>
 
 </select>
 
@@ -438,7 +450,8 @@ name="marital_status">
 
 <input
 class="form-control"
-name="occupation">
+name="occupation"
+value="{{.Registration.Occupation}}">
 
 </div>
 
@@ -454,11 +467,13 @@ name="occupation">
 class="form-select"
 name="first_time_attendee">
 
-<option value="Yes">
+<option value="Yes"
+{{if .Registration.FirstTimeAttendee}}selected{{end}}>
 Yes
 </option>
 
-<option value="No">
+<option value="No"
+{{if not .Registration.FirstTimeAttendee}}selected{{end}}>
 No
 </option>
 
@@ -500,6 +515,7 @@ Emergency Contact
 <input
 class="form-control"
 name="emergency_contact_name"
+value="{{.Registration.EmergencyContactName}}"
 required>
 
 </div>
@@ -512,6 +528,7 @@ required>
 class="form-control"
 name="emergency_contact_phone"
 maxlength="11"
+value="{{.Registration.EmergencyContactPhone}}"
 required>
 
 </div>
@@ -551,6 +568,7 @@ Convention Information
 type="date"
 class="form-control"
 name="arrival_date"
+value="{{.Registration.ArrivalDate}}"
 required>
 
 </div>
@@ -568,21 +586,65 @@ required>
 Select Group
 </option>
 
-<option value="1">Group 1</option>
-<option value="2">Group 2</option>
-<option value="3">Group 3</option>
-<option value="4">Group 4</option>
-<option value="5">Group 5</option>
-<option value="6">Group 6</option>
-<option value="7">Group 7</option>
-<option value="8">Group 8</option>
-<option value="9">Group 9</option>
-<option value="10">Group 10</option>
-<option value="11">Group 11</option>
-<option value="12">Group 12</option>
-<option value="13">Group 13</option>
-<option value="14">Group 14</option>
-<option value="15">Group 15</option>
+<option value="1"
+{{if eq .Registration.BibleStudyGroup 1}}selected{{end}}>
+Group 1
+</option>
+<option value="2"
+{{if eq .Registration.BibleStudyGroup 2}}selected{{end}}>
+Group 2
+</option>
+<option value="3"
+{{if eq .Registration.BibleStudyGroup 3}}selected{{end}}>
+Group 3
+</option>
+<option value="4"
+{{if eq .Registration.BibleStudyGroup 4}}selected{{end}}>
+Group 4
+</option>
+<option value="5"
+{{if eq .Registration.BibleStudyGroup 5}}selected{{end}}>
+Group 5
+</option>
+<option value="6"
+{{if eq .Registration.BibleStudyGroup 6}}selected{{end}}>
+Group 6
+</option>
+<option value="7"
+{{if eq .Registration.BibleStudyGroup 7}}selected{{end}}>
+Group 7
+</option>
+<option value="8"
+{{if eq .Registration.BibleStudyGroup 8}}selected{{end}}>
+Group 8
+</option>
+<option value="9"
+{{if eq .Registration.BibleStudyGroup 10}}selected{{end}}>
+Group 9
+<option value="10"
+{{if eq .Registration.BibleStudyGroup 10}}selected{{end}}>
+Group 10
+</option>
+<option value="11"
+{{if eq .Registration.BibleStudyGroup 11}}selected{{end}}>
+Group 11
+</option>
+<option value="12"
+{{if eq .Registration.BibleStudyGroup 12}}selected{{end}}>
+Group 12
+</option>
+<option value="13"
+{{if eq .Registration.BibleStudyGroup 13}}selected{{end}}>
+Group 13
+</option>
+<option value="14"
+{{if eq .Registration.BibleStudyGroup 14}}selected{{end}}>
+Group 14
+</option>
+<option value="15"
+{{if eq .Registration.BibleStudyGroup 15}}selected{{end}}>
+Group 15
+</option>
 
 </select>
 
@@ -600,7 +662,11 @@ Select Group
 class="btn btn-success btn-lg"
 type="submit">
 
+{{if .Registration.ID}}
+Update Registration
+{{else}}
 Register For Convention
+{{end}}
 
 </button>
 
