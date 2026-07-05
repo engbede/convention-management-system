@@ -177,3 +177,145 @@ func ViewNotice(
 		)
 	}
 }
+func EditNotice(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	id, err := strconv.Atoi(
+		r.URL.Query().Get("id"),
+	)
+
+	if err != nil {
+		http.Error(w, "Invalid notice ID", http.StatusBadRequest)
+		return
+	}
+
+	notice, err := repository.GetNoticeByID(id)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	data := struct {
+		Title  string
+		Action string
+		Error  string
+		Notice models.Notice
+	}{
+		Title:  "Edit Notice",
+		Action: "/notices/update",
+		Error:  "",
+		Notice: notice,
+	}
+
+	err = Templates.ExecuteTemplate(
+		w,
+		"notice_form.html",
+		data,
+	)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+func UpdateNotice(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	if r.Method != http.MethodPost {
+
+		http.Redirect(
+			w,
+			r,
+			"/notices",
+			http.StatusSeeOther,
+		)
+
+		return
+	}
+
+	id, err := strconv.Atoi(
+		r.FormValue("id"),
+	)
+
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	notice := models.Notice{
+
+		ID: id,
+
+		Title: r.FormValue("title"),
+
+		Message: r.FormValue("message"),
+
+		Audience: r.FormValue("audience"),
+
+		Priority: r.FormValue("priority"),
+
+		Pinned: r.FormValue("pinned") == "on",
+
+		StartDate: r.FormValue("start_date"),
+
+		EndDate: r.FormValue("end_date"),
+	}
+
+	err = repository.UpdateNotice(notice)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
+	http.Redirect(
+		w,
+		r,
+		"/notices",
+		http.StatusSeeOther,
+	)
+}
+func DeleteNotice(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	id, err := strconv.Atoi(
+		r.URL.Query().Get("id"),
+	)
+
+	if err != nil {
+		http.Error(w, "Invalid ID", http.StatusBadRequest)
+		return
+	}
+
+	err = repository.DeleteNotice(id)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
+	http.Redirect(
+		w,
+		r,
+		"/notices",
+		http.StatusSeeOther,
+	)
+}
