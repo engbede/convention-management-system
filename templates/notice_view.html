@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>Notice Details</title>
+
+<link
+href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+rel="stylesheet">
+
+</head>
+
+<body class="bg-light">
+
+<div class="container mt-5">
+
+<div class="card shadow">
+
+<div class="card-header bg-primary text-white">
+
+<h3>
+
+{{.Title}}
+
+</h3>
+
+</div>
+
+<div class="card-body">
+
+<p>
+
+<strong>Audience:</strong>
+
+{{.Audience}}
+
+</p>
+
+<p>
+
+<strong>Priority:</strong>
+
+{{.Priority}}
+
+</p>
+
+<p>
+
+<strong>Pinned:</strong>
+
+{{if .Pinned}}
+
+Yes
+
+{{else}}
+
+No
+
+{{end}}
+
+</p>
+
+<hr>
+
+<p style="white-space:pre-line;">
+
+{{.Message}}
+
+</p>
+
+<hr>
+
+<p>
+
+<strong>Start:</strong>
+
+{{.StartDate}}
+
+</p>
+
+<p>
+
+<strong>End:</strong>
+
+{{.EndDate}}
+
+</p>
+
+<p>
+
+<strong>Created By:</strong>
+
+{{.CreatedBy}}
+
+</p>
+
+<a
+href="/notices"
+class="btn btn-secondary">
+
+Back
+
+</a>
+
+</div>
+
+</div>
+
+</div>
+
+</body>
+
+</html>

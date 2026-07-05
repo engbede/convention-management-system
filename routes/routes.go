@@ -173,7 +173,30 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.DeleteOfficial,
 		),
 	)
-
+	mux.HandleFunc(
+		"/notices/new",
+		middleware.RequireAuth(
+			handlers.NewNotice,
+		),
+	)
+	mux.HandleFunc(
+		"/notices/create",
+		middleware.RequireAuth(
+			handlers.CreateNotice,
+		),
+	)
+	mux.HandleFunc(
+		"/notices",
+		middleware.RequireAuth(
+			handlers.ListNotices,
+		),
+	)
+	mux.HandleFunc(
+		"/notices/view",
+		middleware.RequireAuth(
+			handlers.ViewNotice,
+		),
+	)
 	mux.HandleFunc("/login", handlers.Login)
 
 	mux.HandleFunc("/healthz", handlers.Health)
