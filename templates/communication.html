@@ -1,0 +1,105 @@
+{{define "communication.html"}}
+
+{{template "admin_layout" .}}
+
+{{end}}
+
+{{define "content"}}
+
+<div class="container mt-4">
+
+<h2 class="mb-4">
+Communication Centre
+</h2>
+
+<div class="row">
+
+<div class="col-md-4 mb-4">
+
+<div class="card shadow">
+
+<div class="card-body text-center">
+
+<h1>📧</h1>
+
+<h5>Email Broadcast</h5>
+
+<p>
+Send information to officials.
+</p>
+
+<a
+href="/communication/email"
+class="btn btn-primary">
+
+Open
+
+</a>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-md-4 mb-4">
+
+<div class="card shadow">
+
+<div class="card-body text-center">
+
+<h1>📱</h1>
+
+<h5>SMS Broadcast</h5>
+
+<p>
+Send SMS to officials.
+</p>
+
+<a
+href="/communication/sms"
+class="btn btn-success">
+
+Open
+
+</a>
+
+</div>
+
+</div>
+
+</div>
+
+<div class="col-md-4 mb-4">
+
+<div class="card shadow">
+
+<div class="card-body text-center">
+
+<h1>🚨</h1>
+
+<h5>Emergency Notice</h5>
+
+<p>
+Instant communication.
+</p>
+
+<a
+href="/communication/emergency"
+class="btn btn-danger">
+
+Open
+
+</a>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+{{end}}

@@ -26,6 +26,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.Dashboard,
 		),
 	)
+	mux.HandleFunc(
+	"/communication",
+	middleware.RequireAuth(
+		handlers.Communication,
+	),
+	)
 
 	// Convention Management
 	mux.HandleFunc(
