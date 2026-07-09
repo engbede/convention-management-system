@@ -13,17 +13,9 @@ func Communication(
 		Title: "Communication Centre",
 	}
 
-	err := Templates.ExecuteTemplate(
+	Render(
 		w,
 		"communication.html",
 		data,
 	)
-
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }

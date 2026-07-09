@@ -40,12 +40,11 @@ func ShowForm(
 		Convention: activeConvention,
 	}
 
-	err = Templates.ExecuteTemplate(
-		w,
-		"form.html",
-		data,
-	)
-
+	Render(
+	w,
+	"registrations.html",
+	data,
+)
 	if err != nil {
 		http.Error(
 			w,

@@ -105,30 +105,31 @@ func EditConvention(
 
 	if err != nil {
 
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
-
-	err = Templates.ExecuteTemplate(
+	http.Error(
 		w,
-		"convention_form.html",
-		convention,
+		err.Error(),
+		http.StatusInternalServerError,
 	)
 
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
+	return
 }
+	data := struct {
+		Title      string
+		Action     string
+		Convention interface{}
+	}{
+		Title:      "Edit Convention",
+		Action:     "/conventions/update",
+		Convention: convention,
+	}
+
+	Render(
+		w,
+		"convention_form.html",
+		data,
+	)
+}
+
 func UpdateConvention(
 	w http.ResponseWriter,
 	r *http.Request,

@@ -103,19 +103,19 @@ func ListOfficials(
 		return
 	}
 
-	err = Templates.ExecuteTemplate(
-		w,
-		"officials.html",
-		officials,
-	)
+	data := struct {
+	Title     string
+	Officials interface{}
+}{
+	Title:     "Officials",
+	Officials: officials,
+}
 
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
+Render(
+	w,
+	"officials.html",
+	data,
+)
 }
 func ViewOfficial(
 	w http.ResponseWriter,

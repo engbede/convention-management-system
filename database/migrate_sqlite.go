@@ -70,6 +70,35 @@ CREATE TABLE IF NOT EXISTS conventions (
 	active INTEGER DEFAULT 0
 );
 `
+_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS officials (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    full_name TEXT NOT NULL,
+
+    gender TEXT,
+
+    phone TEXT,
+
+    email TEXT,
+
+    circuit TEXT,
+
+    local_church TEXT,
+
+    position TEXT,
+
+    department TEXT,
+
+    status TEXT,
+
+    photo TEXT,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+);
+`)
 	_, err := DB.Exec(query)
 	if err != nil {
 		return err

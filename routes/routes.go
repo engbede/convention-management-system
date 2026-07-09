@@ -27,10 +27,10 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
-	"/communication",
-	middleware.RequireAuth(
-		handlers.Communication,
-	),
+		"/communication",
+		middleware.RequireAuth(
+			handlers.Communication,
+		),
 	)
 
 	// Convention Management
@@ -223,6 +223,19 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.DeleteNotice,
 		),
 	)
+
+	mux.HandleFunc("/finance", handlers.ListFinance)
+
+	mux.HandleFunc("/finance/new", handlers.NewFinance)
+
+	mux.HandleFunc("/finance/create", handlers.CreateFinance)
+
+	mux.HandleFunc("/finance/edit", handlers.EditFinance)
+
+	mux.HandleFunc("/finance/update", handlers.UpdateFinance)
+
+	mux.HandleFunc("/finance/delete", handlers.DeleteFinance)
+
 	mux.HandleFunc("/login", handlers.Login)
 
 	mux.HandleFunc("/healthz", handlers.Health)
