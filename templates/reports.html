@@ -1,0 +1,57 @@
+{{define "reports.html"}}
+
+{{template "admin_layout" .}}
+
+{{end}}
+
+{{define "content"}}
+
+<div class="container-fluid">
+
+    <h2 class="mb-4">
+        Reports & Analytics
+    </h2>
+
+    <div class="row">
+
+        <div class="col-md-3 mb-4">
+            <div class="card shadow text-center">
+                <div class="card-body">
+                    <h5>Total Registrations</h5>
+                    <h2>{{.Stats.TotalRegistrations}}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="card shadow text-center">
+                <div class="card-body">
+                    <h5>Total Officials</h5>
+                    <h2>{{.Stats.TotalOfficials}}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="card shadow text-center">
+                <div class="card-body">
+                    <h5>Conventions</h5>
+                    <h2>{{.Stats.TotalConventions}}</h2>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3 mb-4">
+            <div class="card shadow text-center">
+                <div class="card-body">
+                    <h5>Checked In</h5>
+                    <h2>{{.Stats.CheckedIn}}</h2>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+{{end}}

@@ -33,6 +33,10 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 
+	mux.HandleFunc(
+		"/reports",
+			handlers.Reports,
+	)
 	// Convention Management
 	mux.HandleFunc(
 		"/conventions",
