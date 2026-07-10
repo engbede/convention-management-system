@@ -1,35 +1,52 @@
 package handlers
 
 import (
-    "html/template"
-    "log"
-    "net/http"
+	"html/template"
+	"net/http"
 )
 
 func Render(
-    w http.ResponseWriter,
-    page string,
-    data interface{},
+	w http.ResponseWriter,
+	page string,
+	data interface{},
 ) {
 
-    tmpl, err := template.ParseFiles(
-        "templates/layouts/admin_layout.html",
-        "templates/"+page,
-    )
+	var tmpl *template.Template
 
-    if err != nil {
-        log.Println(err)
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+	// Public pages (already complete HTML documents)
+	if page == "form.html" ||
+		page == "home.html" ||
+		page == "login.html" ||
+		page == "success.html" {
 
-    err = tmpl.ExecuteTemplate(
-        w,
-        page,
-        data,
-    )
+		tmpl = template.Must(
+			template.ParseFiles(
+				"templates/" + page,
+			),
+		)
 
-    if err != nil {
-        log.Println(err)
-    }
+	} else {
+
+		// Admin pages
+		tmpl = template.Must(
+			template.ParseFiles(
+				"templates/layouts/admin_layout.html",
+				"templates/"+page,
+			),
+		)
+	}
+
+	err := tmpl.ExecuteTemplate(
+		w,
+		page,
+		data,
+	)
+
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+	}
 }
