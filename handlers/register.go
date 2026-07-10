@@ -41,9 +41,9 @@ func ShowForm(
 	}
 
 	Render(
-	w,
-	"registrations.html",
-	data,
+    w,
+    "form.html",
+    data,
 )
 	if err != nil {
 		http.Error(
