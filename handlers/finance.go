@@ -1,6 +1,10 @@
 package handlers
 
-import "net/http"
+import (
+	"net/http"
+
+	"convention-management-system/repository"
+)
 
 func FinanceDashboard(
 	w http.ResponseWriter,
@@ -20,28 +24,52 @@ func ListFinance(
 	r *http.Request,
 ) {
 
+	finances, err := repository.GetAllFinance()
+
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	income,
+	expense,
+	balance,
+	totalTransactions,
+	err := repository.GetFinanceSummary()
+
+	if err != nil {
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
 	data := struct {
-		Title string
+		Title             string
+		Finances          interface{}
+		Income            float64
+		Expense           float64
+		Balance           float64
+		TotalTransactions int
 	}{
-		Title: "Finance",
+		Title:             "Finance",
+		Finances:          finances,
+		Income:            income,
+		Expense:           expense,
+		Balance:           balance,
+		TotalTransactions: totalTransactions,
 	}
 
 	Render(
 		w,
 		"finance.html",
 		data,
-	)
-}
-func NewFinance(
-	w http.ResponseWriter,
-	r *http.Request,
-) {
-
-	http.Redirect(
-		w,
-		r,
-		"/dashboard",
-		http.StatusSeeOther,
 	)
 }
 
