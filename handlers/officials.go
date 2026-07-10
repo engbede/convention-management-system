@@ -10,23 +10,27 @@ import (
 
 // ShowOfficialForm displays the official registration form.
 func ShowOfficialForm(
-	w http.ResponseWriter,
-	r *http.Request,
+    w http.ResponseWriter,
+    r *http.Request,
 ) {
 
-	err := Templates.ExecuteTemplate(
-		w,
-		"official_form.html",
-		nil,
-	)
+    data := struct {
+        Title      string
+        Action     string
+        ButtonText string
+        Official   models.Official
+        Error      string
+    }{
+        Title:      "Register Official",
+        Action:     "/officials/create",
+        ButtonText: "Register Official",
+    }
 
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
+    Render(
+        w,
+        "official_form.html",
+        data,
+    )
 }
 
 // CreateOfficial saves a new official.

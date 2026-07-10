@@ -365,16 +365,18 @@ func ListRegistrations(
 
 	totalPages := (total + pageSize - 1) / pageSize
 
-	data := struct {
-		Registrations []models.Registration
-		Search        string
-		Page          int
-		TotalPages    int
-		HasPrevious   bool
-		HasNext       bool
-		PreviousPage  int
-		NextPage      int
+		data := struct {
+    	Title         string
+   		Registrations []models.Registration
+   		Search        string
+    	Page          int
+    	TotalPages    int
+    	HasPrevious   bool
+    	HasNext       bool
+    	PreviousPage  int
+    	NextPage      int
 	}{
+		Title:         "Registrations",
 		Registrations: registrations,
 		Search:        search,
 		Page:          page,
@@ -386,17 +388,21 @@ func ListRegistrations(
 	}
 
 	err = Templates.ExecuteTemplate(
-		w,
-		"registrations.html",
-		data,
+    w,
+    "registrations.html",
+    data,
+)
+
+if err != nil {
+    http.Error(
+        w,
+        err.Error(),
+        http.StatusInternalServerError,
+    )
+	Render(
+    w,
+    "registrations.html",
+    data,
 	)
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
 	}
 }

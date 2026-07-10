@@ -1,34 +1,35 @@
 package handlers
 
 import (
-	"html/template"
-	"net/http"
+    "html/template"
+    "log"
+    "net/http"
 )
 
 func Render(
-	w http.ResponseWriter,
-	page string,
-	data interface{},
+    w http.ResponseWriter,
+    page string,
+    data interface{},
 ) {
 
-	tmpl := template.Must(
-		template.ParseFiles(
-			"templates/layouts/admin_layout.html",
-			"templates/"+page,
-		),
-	)
+    tmpl, err := template.ParseFiles(
+        "templates/layouts/admin_layout.html",
+        "templates/"+page,
+    )
 
-	err := tmpl.ExecuteTemplate(
-		w,
-		page,
-		data,
-	)
+    if err != nil {
+        log.Println(err)
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
 
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
+    err = tmpl.ExecuteTemplate(
+        w,
+        page,
+        data,
+    )
+
+    if err != nil {
+        log.Println(err)
+    }
 }

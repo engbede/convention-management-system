@@ -1,13 +1,13 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Convention System</title>
-</head>
+{{define "convention_form.html"}}
 
-<body>
+{{template "admin_layout" .}}
+
+{{end}}
+
+{{define "content"}}
 
 <h2>
-{{if .ID}}
+{{if .Convention.ID}}
 Edit Convention
 {{else}}
 Add Convention
@@ -15,19 +15,19 @@ Add Convention
 </h2>
 
 <form method="POST"
-      action="{{if .ID}}/conventions/update{{else}}/conventions/create{{end}}">
+      action="{{.Action}}">
 
     <input
         type="hidden"
         name="id"
-        value="{{.ID}}">
+        value="{{.Convention.ID}}">
 
     <label>Year:</label><br>
 
     <input
         type="number"
         name="year"
-        value="{{.Year}}"
+        value="{{.Convention.Year}}"
         required>
 
     <br><br>
@@ -37,7 +37,7 @@ Add Convention
     <input
         type="text"
         name="name"
-        value="{{.Name}}"
+        value="{{.Convention.Name}}"
         required>
 
     <br><br>
@@ -47,7 +47,7 @@ Add Convention
     <input
         type="text"
         name="theme"
-        value="{{.Theme}}">
+        value="{{.Convention.Theme}}">
 
     <br><br>
 
@@ -56,7 +56,7 @@ Add Convention
     <input
         type="text"
         name="venue"
-        value="{{.Venue}}"
+        value="{{.Convention.Venue}}"
         required>
 
     <br><br>
@@ -66,7 +66,7 @@ Add Convention
     <input
         type="date"
         name="start_date"
-        value="{{.StartDate}}"
+        value="{{.Convention.StartDate}}"
         required>
 
     <br><br>
@@ -76,14 +76,14 @@ Add Convention
     <input
         type="date"
         name="end_date"
-        value="{{.EndDate}}"
+        value="{{.Convention.EndDate}}"
         required>
 
     <br><br>
 
     <button type="submit">
 
-        {{if .ID}}
+        {{if .Convention.ID}}
         Update Convention
         {{else}}
         Save Convention
@@ -93,5 +93,4 @@ Add Convention
 
 </form>
 
-</body>
-</html>
+{{end}}
