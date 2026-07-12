@@ -22,38 +22,35 @@ func ListConventions(
 		return
 	}
 
-	err = Templates.ExecuteTemplate(
+	data := struct {
+		Title       string
+		Conventions interface{}
+	}{
+		Title:       "Convention Management",
+		Conventions: conventions,
+	}
+
+	Render(
 		w,
 		"conventions.html",
-		conventions,
+		data,
 	)
-
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }
 
 func NewConvention(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
-	err := Templates.ExecuteTemplate(
+	Render(
 		w,
 		"convention_form.html",
-		nil,
+		struct {
+			Title      string
+			Action     string
+			Convention interface{}
+		}{
+			Title:  "New Convention",
+			Action: "/conventions/create",
+		},
 	)
-
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }
 
 func CreateConvention(w http.ResponseWriter, r *http.Request) {
@@ -105,14 +102,14 @@ func EditConvention(
 
 	if err != nil {
 
-	http.Error(
-		w,
-		err.Error(),
-		http.StatusInternalServerError,
-	)
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
 
-	return
-}
+		return
+	}
 	data := struct {
 		Title      string
 		Action     string

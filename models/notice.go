@@ -14,4 +14,3 @@ type Notice struct {
 	CreatedBy string
 	CreatedAt time.Time
 }
-

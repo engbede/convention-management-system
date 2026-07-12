@@ -17,19 +17,11 @@ func Login(
 
 	if r.Method == http.MethodGet {
 
-		err := Templates.ExecuteTemplate(
+		Render(
 			w,
 			"login.html",
 			nil,
 		)
-
-		if err != nil {
-			http.Error(
-				w,
-				err.Error(),
-				http.StatusInternalServerError,
-			)
-		}
 
 		return
 	}

@@ -24,17 +24,9 @@ func renderRegistrationForm(
 		Error:        errMsg,
 	}
 
-	err := Templates.ExecuteTemplate(
+	Render(
 		w,
 		"form.html",
 		data,
 	)
-
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }

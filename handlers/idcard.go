@@ -68,18 +68,9 @@ Bible Study Group: Group ` + strconv.Itoa(reg.BibleStudyGroup)
 		reg.QRCode = qr
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"idcard.html",
 		reg,
 	)
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }

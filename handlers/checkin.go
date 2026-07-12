@@ -28,7 +28,7 @@ func QRCheckIn(
 
 	if err != nil {
 
-		Templates.ExecuteTemplate(
+		Render(
 			w,
 			"checkin_error.html",
 			"Registration not found.",
@@ -39,7 +39,7 @@ func QRCheckIn(
 
 	if reg.CheckedIn {
 
-		Templates.ExecuteTemplate(
+		Render(
 			w,
 			"checkin_error.html",
 			"Attendee has already checked in.",
@@ -47,7 +47,6 @@ func QRCheckIn(
 
 		return
 	}
-
 	err = repository.MarkCheckedIn(reg.ID)
 
 	if err != nil {
@@ -61,7 +60,7 @@ func QRCheckIn(
 		return
 	}
 
-	Templates.ExecuteTemplate(
+	Render(
 		w,
 		"checkin_success.html",
 		reg,

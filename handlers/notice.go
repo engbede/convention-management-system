@@ -23,22 +23,11 @@ func NewNotice(
 		Action: "/notices/create",
 	}
 
-	err := Templates.ExecuteTemplate(
+	Render(
 		w,
 		"notice_form.html",
 		data,
 	)
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
 }
 func CreateNotice(
 	w http.ResponseWriter,
@@ -125,20 +114,11 @@ func ListNotices(
 		return
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"notices.html",
 		notices,
 	)
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }
 func ViewNotice(
 	w http.ResponseWriter,
@@ -162,20 +142,11 @@ func ViewNotice(
 		return
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"notice_view.html",
 		notice,
 	)
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }
 func EditNotice(
 	w http.ResponseWriter,
@@ -210,15 +181,11 @@ func EditNotice(
 		Notice: notice,
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"notice_form.html",
 		data,
 	)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
 func UpdateNotice(
 	w http.ResponseWriter,

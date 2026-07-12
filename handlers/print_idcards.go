@@ -56,18 +56,17 @@ Bible Study Group: Group ` + strconv.Itoa(registrations[i].BibleStudyGroup)
 		}
 	}
 
-	err = Templates.ExecuteTemplate(
+	data := struct {
+		Title         string
+		Registrations interface{}
+	}{
+		Title:         "Print ID Cards",
+		Registrations: registrations,
+	}
+
+	Render(
 		w,
 		"print_idcards.html",
 		registrations,
 	)
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }

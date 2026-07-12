@@ -22,20 +22,9 @@ func Home(
 		return
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"home.html",
 		convention,
 	)
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-
-		return
-	}
 }

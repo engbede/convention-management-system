@@ -1,0 +1,156 @@
+{{define "finance.html"}}
+
+{{template "admin_layout" .}}
+
+{{end}}
+
+{{define "content"}}
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h2>Finance Management</h2>
+
+        <a href="/finance/new" class="btn btn-primary">
+            + New Transaction
+        </a>
+
+    </div>
+
+    <div class="row mb-4">
+
+        <div class="col-md-3">
+
+            <div class="card text-bg-success">
+
+                <div class="card-body">
+
+                    <h6>Total Income</h6>
+
+                    <h3>{{printf "%.2f" .Income}}</h3>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card text-bg-danger">
+
+                <div class="card-body">
+
+                    <h6>Total Expense</h6>
+
+                    <h3>{{printf "%.2f" .Expense}}</h3>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card text-bg-primary">
+
+                <div class="card-body">
+
+                    <h6>Balance</h6>
+
+                    <h3>{{printf "%.2f" .Balance}}</h3>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-3">
+
+            <div class="card text-bg-dark">
+
+                <div class="card-body">
+
+                    <h6>Transactions</h6>
+
+                    <h3>{{.TotalTransactions}}</h3>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <table class="table table-bordered table-hover">
+
+        <thead class="table-dark">
+
+            <tr>
+
+                <th>Date</th>
+                <th>Type</th>
+                <th>Category</th>
+                <th>Description</th>
+                <th>Amount</th>
+                <th>Recorded By</th>
+                <th>Actions</th>
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+            {{range .Finances}}
+
+            <tr>
+
+                <td>{{.Date}}</td>
+                <td>{{.Type}}</td>
+                <td>{{.Category}}</td>
+                <td>{{.Description}}</td>
+                <td>{{printf "%.2f" .Amount}}</td>
+                <td>{{.RecordedBy}}</td>
+
+                <td>
+
+                    <a href="/finance/edit?id={{.ID}}" class="btn btn-warning btn-sm">
+                        Edit
+                    </a>
+
+                    <a href="/finance/delete?id={{.ID}}"
+                       class="btn btn-danger btn-sm"
+                       onclick="return confirm('Delete this transaction?')">
+                        Delete
+                    </a>
+
+                </td>
+
+            </tr>
+
+            {{else}}
+
+            <tr>
+
+                <td colspan="7" class="text-center">
+
+                    No finance records found.
+
+                </td>
+
+            </tr>
+
+            {{end}}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+{{end}}

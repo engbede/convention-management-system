@@ -17,6 +17,6 @@ type DashboardStats struct {
 	CheckedIn      int
 	Pending        int
 	AttendanceRate float64
-	
-	Circuits       []CircuitStat
+
+	Circuits []CircuitStat
 }

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"html/template"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -11,8 +10,6 @@ import (
 	"convention-management-system/repository"
 	"convention-management-system/services"
 )
-
-var Templates *template.Template
 
 // renderRegistrationForm redisplays the registration form with an error message.
 
@@ -41,17 +38,10 @@ func ShowForm(
 	}
 
 	Render(
-    w,
-    "form.html",
-    data,
-)
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
+		w,
+		"form.html",
+		data,
+	)
 }
 
 // Register handles registration submission.
@@ -246,7 +236,7 @@ func Register(
 		)
 		return
 	}
-	
+
 	message := fmt.Sprintf(
 		"Dear %s,\n\n"+
 			"Your registration for %s has been received successfully.\n\n"+
@@ -270,19 +260,11 @@ func Register(
 
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"success.html",
 		reg,
 	)
-
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }
 
 // ListRegistrations displays all registrations with search and pagination.
@@ -365,16 +347,16 @@ func ListRegistrations(
 
 	totalPages := (total + pageSize - 1) / pageSize
 
-		data := struct {
-    	Title         string
-   		Registrations []models.Registration
-   		Search        string
-    	Page          int
-    	TotalPages    int
-    	HasPrevious   bool
-    	HasNext       bool
-    	PreviousPage  int
-    	NextPage      int
+	data := struct {
+		Title         string
+		Registrations []models.Registration
+		Search        string
+		Page          int
+		TotalPages    int
+		HasPrevious   bool
+		HasNext       bool
+		PreviousPage  int
+		NextPage      int
 	}{
 		Title:         "Registrations",
 		Registrations: registrations,
@@ -387,22 +369,9 @@ func ListRegistrations(
 		NextPage:      page + 1,
 	}
 
-	err = Templates.ExecuteTemplate(
-    w,
-    "registrations.html",
-    data,
-)
-
-if err != nil {
-    http.Error(
-        w,
-        err.Error(),
-        http.StatusInternalServerError,
-    )
 	Render(
-    w,
-    "registrations.html",
-    data,
+		w,
+		"registrations.html",
+		data,
 	)
-	}
 }

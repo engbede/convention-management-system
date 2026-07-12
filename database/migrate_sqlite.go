@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS conventions (
 	active INTEGER DEFAULT 0
 );
 `
-_, _ = DB.Exec(`
+	_, _ = DB.Exec(`
 CREATE TABLE IF NOT EXISTS officials (
 
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -96,6 +96,26 @@ CREATE TABLE IF NOT EXISTS officials (
     photo TEXT,
 
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+);
+`)
+
+	_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS finance (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    type TEXT NOT NULL,
+
+    category TEXT NOT NULL,
+
+    description TEXT,
+
+    amount REAL NOT NULL,
+
+    recorded_by TEXT,
+
+    date TEXT NOT NULL
 
 );
 `)

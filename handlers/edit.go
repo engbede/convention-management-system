@@ -52,20 +52,11 @@ func EditRegistration(
 		Registration: reg,
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"form.html",
 		data,
 	)
-
-	if err != nil {
-
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
-	}
 }
 
 func UpdateRegistration(

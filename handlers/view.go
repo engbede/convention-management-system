@@ -25,13 +25,9 @@ func ViewRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"view.html",
 		registration,
 	)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }

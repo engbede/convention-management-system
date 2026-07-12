@@ -10,27 +10,27 @@ import (
 
 // ShowOfficialForm displays the official registration form.
 func ShowOfficialForm(
-    w http.ResponseWriter,
-    r *http.Request,
+	w http.ResponseWriter,
+	r *http.Request,
 ) {
 
-    data := struct {
-        Title      string
-        Action     string
-        ButtonText string
-        Official   models.Official
-        Error      string
-    }{
-        Title:      "Register Official",
-        Action:     "/officials/create",
-        ButtonText: "Register Official",
-    }
+	data := struct {
+		Title      string
+		Action     string
+		ButtonText string
+		Official   models.Official
+		Error      string
+	}{
+		Title:      "Register Official",
+		Action:     "/officials/create",
+		ButtonText: "Register Official",
+	}
 
-    Render(
-        w,
-        "official_form.html",
-        data,
-    )
+	Render(
+		w,
+		"official_form.html",
+		data,
+	)
 }
 
 // CreateOfficial saves a new official.
@@ -108,18 +108,18 @@ func ListOfficials(
 	}
 
 	data := struct {
-	Title     string
-	Officials interface{}
-}{
-	Title:     "Officials",
-	Officials: officials,
-}
+		Title     string
+		Officials interface{}
+	}{
+		Title:     "Officials",
+		Officials: officials,
+	}
 
-Render(
-	w,
-	"officials.html",
-	data,
-)
+	Render(
+		w,
+		"officials.html",
+		data,
+	)
 }
 func ViewOfficial(
 	w http.ResponseWriter,
@@ -138,15 +138,17 @@ func ViewOfficial(
 		return
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"official_view.html",
-		official,
+		struct {
+			Title    string
+			Official models.Official
+		}{
+			Title:    "Official Details",
+			Official: official,
+		},
 	)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
 func EditOfficial(
 	w http.ResponseWriter,
@@ -175,15 +177,11 @@ func EditOfficial(
 		Official: official,
 	}
 
-	err = Templates.ExecuteTemplate(
+	Render(
 		w,
 		"official_form.html",
 		data,
 	)
-
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
 }
 func UpdateOfficial(
 	w http.ResponseWriter,

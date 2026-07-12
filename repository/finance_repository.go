@@ -4,6 +4,7 @@ import (
 	"convention-management-system/database"
 	"convention-management-system/models"
 )
+
 func CreateFinance(finance models.Finance) error {
 
 	_, err := database.DB.Exec(`

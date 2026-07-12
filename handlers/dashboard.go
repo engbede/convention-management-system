@@ -52,23 +52,23 @@ func Dashboard(
 				float64(stats.TotalRegistrations) * 100
 	}
 	data := struct {
-    Title           string
-    ContentTemplate string
-    Stats           interface{}
-    Convention      interface{}
-}{
-    Title:           "Dashboard",
-    ContentTemplate: "dashboard_content",
-    Stats:           stats,
-    Convention:      activeConvention,
-}
+		Title           string
+		ContentTemplate string
+		Stats           interface{}
+		Convention      interface{}
+	}{
+		Title:           "Dashboard",
+		ContentTemplate: "dashboard_content",
+		Stats:           stats,
+		Convention:      activeConvention,
+	}
 
 	Render(
-	w,
-	"dashboard.html",
-	data,
-)
-	
+		w,
+		"dashboard.html",
+		data,
+	)
+
 	if err != nil {
 		log.Println("Dashboard Template Error:", err)
 		return

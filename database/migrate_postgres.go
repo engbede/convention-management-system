@@ -140,8 +140,30 @@ CREATE TABLE IF NOT EXISTS officials (
 	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `
-
 	if _, err := DB.Exec(officialsTable); err != nil {
+		return err
+	}
+
+	financeTable := `
+CREATE TABLE IF NOT EXISTS finance (
+
+    id BIGSERIAL PRIMARY KEY,
+
+    type TEXT NOT NULL,
+
+    category TEXT NOT NULL,
+
+    description TEXT,
+
+    amount NUMERIC(12,2) NOT NULL,
+
+    recorded_by TEXT,
+
+    date DATE NOT NULL
+
+);
+`
+	if _, err := DB.Exec(financeTable); err != nil {
 		return err
 	}
 	return nil
