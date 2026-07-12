@@ -67,6 +67,6 @@ Bible Study Group: Group ` + strconv.Itoa(registrations[i].BibleStudyGroup)
 	Render(
 		w,
 		"print_idcards.html",
-		registrations,
+		data,
 	)
 }
