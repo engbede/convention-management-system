@@ -228,6 +228,21 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 
+	mux.HandleFunc(
+		"/communication/email",
+		middleware.RequireAuth(handlers.EmailBroadcast),
+	)
+
+	mux.HandleFunc(
+		"/communication/sms",
+		middleware.RequireAuth(handlers.SMSBroadcast),
+	)
+
+	mux.HandleFunc(
+		"/communication/emergency",
+		middleware.RequireAuth(handlers.EmergencyNotice),
+	)
+
 	mux.HandleFunc("/finance", handlers.ListFinance)
 
 	mux.HandleFunc("/finance/new", handlers.NewFinance)

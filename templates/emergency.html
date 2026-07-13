@@ -1,0 +1,27 @@
+{{define "emergency.html"}}
+
+{{template "admin_layout" .}}
+
+{{end}}
+
+{{define "content"}}
+
+<div class="container mt-4">
+
+    <h2>Emergency Notice</h2>
+
+    <div class="alert alert-danger">
+        <h5>Emergency Communication</h5>
+        <p>
+            This page will be used to send urgent notices
+            to all convention attendees.
+        </p>
+    </div>
+
+    <a href="/communication" class="btn btn-secondary">
+        ← Back
+    </a>
+
+</div>
+
+{{end}}

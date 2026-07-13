@@ -133,21 +133,20 @@ func ViewOfficial(
 	}
 
 	official, err := repository.GetOfficialByID(id)
+
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
 		return
 	}
 
 	Render(
 		w,
 		"official_view.html",
-		struct {
-			Title    string
-			Official models.Official
-		}{
-			Title:    "Official Details",
-			Official: official,
-		},
+		official,
 	)
 }
 func EditOfficial(

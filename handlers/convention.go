@@ -13,6 +13,7 @@ func ListConventions(
 ) {
 
 	conventions, err := repository.GetAllConventions()
+
 	if err != nil {
 		http.Error(
 			w,
@@ -24,7 +25,7 @@ func ListConventions(
 
 	data := struct {
 		Title       string
-		Conventions interface{}
+		Conventions []models.Convention
 	}{
 		Title:       "Convention Management",
 		Conventions: conventions,

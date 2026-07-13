@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"html/template"
+	"log"
 	"net/http"
 )
 
@@ -13,7 +14,6 @@ func Render(
 
 	var tmpl *template.Template
 
-	// Public pages (already complete HTML documents)
 	if page == "form.html" ||
 		page == "home.html" ||
 		page == "login.html" ||
@@ -27,7 +27,6 @@ func Render(
 
 	} else {
 
-		// Admin pages
 		tmpl = template.Must(
 			template.ParseFiles(
 				"templates/layouts/admin_layout.html",
@@ -36,17 +35,12 @@ func Render(
 		)
 	}
 
-	err := tmpl.ExecuteTemplate(
+	if err := tmpl.ExecuteTemplate(
 		w,
 		page,
 		data,
-	)
+	); err != nil {
 
-	if err != nil {
-		http.Error(
-			w,
-			err.Error(),
-			http.StatusInternalServerError,
-		)
+		log.Println("Template execution error:", err)
 	}
 }

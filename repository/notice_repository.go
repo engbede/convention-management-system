@@ -8,19 +8,17 @@ import (
 func CreateNotice(n models.Notice) error {
 
 	_, err := database.DB.Exec(`
-		INSERT INTO notices(
-			title,
-			message,
-			audience,
-			priority,
-			pinned,
-			start_date,
-			end_date,
-			created_by
-		)
-		VALUES(
-			$1,$2,$3,$4,$5,$6,$7,$8
-		)
+	INSERT INTO notices(
+		title,
+		message,
+		audience,
+		priority,
+		pinned,
+		start_date,
+		end_date,
+		created_by
+	)
+	VALUES(?,?,?,?,?,?,?,?)
 	`,
 		n.Title,
 		n.Message,
