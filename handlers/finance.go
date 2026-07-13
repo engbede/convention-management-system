@@ -157,11 +157,48 @@ func EditFinance(
 	r *http.Request,
 ) {
 
-	http.Redirect(
+	id, err := strconv.Atoi(
+		r.URL.Query().Get("id"),
+	)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			"Invalid finance ID",
+			http.StatusBadRequest,
+		)
+
+		return
+	}
+
+	finance, err := repository.GetFinanceByID(id)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
+	data := struct {
+		Title   string
+		Action  string
+		Finance models.Finance
+	}{
+		Title:   "Edit Finance Record",
+		Action:  "/finance/update",
+		Finance: finance,
+	}
+
+	Render(
 		w,
-		r,
-		"/dashboard",
-		http.StatusSeeOther,
+		"finance_form.html",
+		data,
 	)
 }
 
@@ -170,10 +207,83 @@ func UpdateFinance(
 	r *http.Request,
 ) {
 
+	if r.Method != http.MethodPost {
+
+		http.Redirect(
+			w,
+			r,
+			"/finance",
+			http.StatusSeeOther,
+		)
+
+		return
+	}
+
+	id, err := strconv.Atoi(
+		r.FormValue("id"),
+	)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			"Invalid finance ID",
+			http.StatusBadRequest,
+		)
+
+		return
+	}
+
+	amount, err := strconv.ParseFloat(
+		r.FormValue("amount"),
+		64,
+	)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			"Invalid amount",
+			http.StatusBadRequest,
+		)
+
+		return
+	}
+
+	finance := models.Finance{
+
+		ID: id,
+
+		Type: r.FormValue("type"),
+
+		Category: r.FormValue("category"),
+
+		Description: r.FormValue("description"),
+
+		Amount: amount,
+
+		RecordedBy: r.FormValue("recorded_by"),
+
+		Date: r.FormValue("date"),
+	}
+
+	err = repository.UpdateFinance(finance)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
 	http.Redirect(
 		w,
 		r,
-		"/dashboard",
+		"/finance",
 		http.StatusSeeOther,
 	)
 }
@@ -183,11 +293,38 @@ func DeleteFinance(
 	r *http.Request,
 ) {
 
+	id, err := strconv.Atoi(
+		r.URL.Query().Get("id"),
+	)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			"Invalid finance ID",
+			http.StatusBadRequest,
+		)
+
+		return
+	}
+
+	err = repository.DeleteFinance(id)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
 	http.Redirect(
 		w,
 		r,
-		"/dashboard",
+		"/finance",
 		http.StatusSeeOther,
 	)
-
 }

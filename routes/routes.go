@@ -33,6 +33,48 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 
+	// Communication Centre
+	mux.HandleFunc(
+		"/communication/email",
+		middleware.RequireAuth(
+			handlers.EmailBroadcast,
+		),
+	)
+
+	mux.HandleFunc(
+		"/communication/email/send",
+		middleware.RequireAuth(
+			handlers.SendEmailBroadcast,
+		),
+	)
+
+	mux.HandleFunc(
+		"/communication/sms",
+		middleware.RequireAuth(
+			handlers.SMSBroadcast,
+		),
+	)
+
+	mux.HandleFunc(
+		"/communication/sms/send",
+		middleware.RequireAuth(
+			handlers.SendSMSBroadcast,
+		),
+	)
+
+	mux.HandleFunc(
+		"/communication/emergency",
+		middleware.RequireAuth(
+			handlers.EmergencyNotice,
+		),
+	)
+
+	mux.HandleFunc(
+		"/communication/emergency/send",
+		middleware.RequireAuth(
+			handlers.SendEmergencyNotice,
+		),
+	)
 	mux.HandleFunc(
 		"/reports",
 		handlers.Reports,

@@ -19,20 +19,62 @@ func Communication(
 		data,
 	)
 }
-func EmailBroadcast(w http.ResponseWriter, r *http.Request) {
-	Render(w, "email.html", struct{ Title string }{
-		Title: "Email Broadcast",
-	})
+func EmailBroadcast(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	data := struct {
+		Title  string
+		Action string
+	}{
+		Title:  "Email Broadcast",
+		Action: "/communication/email/send",
+	}
+
+	Render(
+		w,
+		"email.html",
+		data,
+	)
 }
 
-func SMSBroadcast(w http.ResponseWriter, r *http.Request) {
-	Render(w, "sms.html", struct{ Title string }{
-		Title: "SMS Broadcast",
-	})
+func SMSBroadcast(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	data := struct {
+		Title  string
+		Action string
+	}{
+		Title:  "SMS Broadcast",
+		Action: "/communication/sms/send",
+	}
+
+	Render(
+		w,
+		"sms.html",
+		data,
+	)
 }
 
-func EmergencyNotice(w http.ResponseWriter, r *http.Request) {
-	Render(w, "emergency.html", struct{ Title string }{
-		Title: "Emergency Notice",
-	})
+func EmergencyNotice(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	data := struct {
+		Title  string
+		Action string
+	}{
+		Title:  "Emergency Notice",
+		Action: "/communication/emergency/send",
+	}
+
+	Render(
+		w,
+		"emergency.html",
+		data,
+	)
 }

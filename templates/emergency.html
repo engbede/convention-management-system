@@ -1,26 +1,70 @@
 {{define "emergency.html"}}
-
 {{template "admin_layout" .}}
-
 {{end}}
 
 {{define "content"}}
 
 <div class="container mt-4">
 
-    <h2>Emergency Notice</h2>
+<h2>Emergency Notice Broadcast</h2>
 
-    <div class="alert alert-danger">
-        <h5>Emergency Communication</h5>
-        <p>
-            This page will be used to send urgent notices
-            to all convention attendees.
-        </p>
-    </div>
+<form method="POST" action="{{.Action}}">
 
-    <a href="/communication" class="btn btn-secondary">
-        ← Back
-    </a>
+<div class="mb-3">
+
+<label>Recipients</label>
+
+<select
+class="form-select"
+name="group">
+
+<option value="attendees">
+All Attendees
+</option>
+
+<option value="diocesan">
+Diocesan Officials
+</option>
+
+<option value="circuit">
+Circuit Officials
+</option>
+
+</select>
+
+</div>
+
+<div class="mb-3">
+
+<label>Subject</label>
+
+<input
+class="form-control"
+name="subject"
+required>
+
+</div>
+
+<div class="mb-3">
+
+<label>Message</label>
+
+<textarea
+class="form-control"
+rows="8"
+name="message"
+required></textarea>
+
+</div>
+
+<button
+class="btn btn-primary">
+
+Send Emergency Notice
+
+</button>
+
+</form>
 
 </div>
 

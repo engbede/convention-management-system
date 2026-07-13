@@ -1,26 +1,70 @@
 {{define "sms.html"}}
-
 {{template "admin_layout" .}}
-
 {{end}}
 
 {{define "content"}}
 
 <div class="container mt-4">
 
-    <h2>SMS Broadcast</h2>
+<h2>SMS Broadcast</h2>
 
-    <div class="alert alert-success">
-        <h5>Coming Soon</h5>
-        <p>
-            This module will allow administrators to send
-            SMS broadcasts to registered participants.
-        </p>
-    </div>
+<form method="POST" action="{{.Action}}">
 
-    <a href="/communication" class="btn btn-secondary">
-        ← Back
-    </a>
+<div class="mb-3">
+
+<label>Recipients</label>
+
+<select
+class="form-select"
+name="group">
+
+<option value="attendees">
+All Attendees
+</option>
+
+<option value="diocesan">
+Diocesan Officials
+</option>
+
+<option value="circuit">
+Circuit Officials
+</option>
+
+</select>
+
+</div>
+
+<div class="mb-3">
+
+<label>Subject</label>
+
+<input
+class="form-control"
+name="subject"
+required>
+
+</div>
+
+<div class="mb-3">
+
+<label>Message</label>
+
+<textarea
+class="form-control"
+rows="8"
+name="message"
+required></textarea>
+
+</div>
+
+<button
+class="btn btn-primary">
+
+Send SMS
+
+</button>
+
+</form>
 
 </div>
 
