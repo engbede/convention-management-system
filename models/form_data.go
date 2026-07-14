@@ -10,6 +10,9 @@ type FormData struct {
 
 	Errors map[string]string
 
-	Error   string
+	Notices []Notice
+
 	Success string
+
+	Error string
 }

@@ -14,17 +14,29 @@ func Home(
 	convention, err := repository.GetActiveConvention()
 
 	if err != nil {
+
 		http.Error(
 			w,
 			"No active convention found.",
 			http.StatusInternalServerError,
 		)
+
 		return
+	}
+
+	notices, _ := repository.GetActiveNotices()
+
+	data := struct {
+		Convention interface{}
+		Notices    interface{}
+	}{
+		Convention: convention,
+		Notices:    notices,
 	}
 
 	Render(
 		w,
 		"home.html",
-		convention,
+		data,
 	)
 }

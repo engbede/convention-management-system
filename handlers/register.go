@@ -29,12 +29,13 @@ func ShowForm(
 		)
 		return
 	}
-
+	notices, _ := repository.GetActiveNotices()
 	data := models.FormData{
 		Title:      "Youth Convention Registration",
 		Action:     "/submit-registration",
 		ButtonText: "Register",
 		Convention: activeConvention,
+		Notices:    notices,
 	}
 
 	Render(

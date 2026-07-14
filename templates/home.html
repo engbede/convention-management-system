@@ -9,7 +9,7 @@
           content="width=device-width, initial-scale=1">
 
     <title>
-        {{.Name}} | Apa Diocesan Youth Fellowship
+        {{.Convention.Name}} | Apa Diocesan Youth Fellowship
     </title>
 
     <link
@@ -58,6 +58,7 @@
 
 </div>
 
+
 <!-- HERO -->
 
 <div class="container py-5">
@@ -80,6 +81,44 @@
 
 </div>
 
+{{if .Notices}}
+
+<div class="container mt-4">
+
+    <div class="alert alert-warning shadow">
+
+        <h4 class="mb-3">
+            📢 Convention Notices
+        </h4>
+
+        {{range .Notices}}
+
+        <div class="mb-3">
+
+            <strong>{{.Title}}</strong>
+
+            {{if .Pinned}}
+            <span class="badge bg-danger">
+                Pinned
+            </span>
+            {{end}}
+
+            <p class="mb-1">
+                {{.Message}}
+            </p>
+
+            <hr>
+
+        </div>
+
+        {{end}}
+
+    </div>
+
+</div>
+
+{{end}}
+
 <!-- ACTIVE CONVENTION -->
 
 <div class="container">
@@ -100,7 +139,7 @@
 
             <h2 class="text-center text-primary">
 
-                {{.Name}}
+                {{.Convention.Name}}
 
             </h2>
 
@@ -110,15 +149,14 @@
 
                 <strong>Theme:</strong>
 
-                {{.Theme}}
-
+                {{.Convention.Theme}}
             </p>
 
             <p>
 
                 <strong>Venue:</strong>
 
-                {{.Venue}}
+                {{.Convention.Venue}}
 
             </p>
 
@@ -126,7 +164,7 @@
 
                 <strong>Year:</strong>
 
-                {{.Year}}
+                {{.Convention.Year}}
 
             </p>
 
@@ -134,7 +172,7 @@
 
                 <strong>Convention Dates:</strong>
 
-                {{.StartDate}} to {{.EndDate}}
+                {{.Convention.StartDate}} to {{.Convention.EndDate}}
 
             </p>
 

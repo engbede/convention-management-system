@@ -71,6 +71,38 @@
 
 <div class="container py-5">
 
+{{if .Notices}}
+
+<div class="alert alert-warning shadow mb-4">
+
+    <h4>Convention Notices</h4>
+
+    {{range .Notices}}
+
+        <div class="mb-3">
+
+            <strong>{{.Title}}</strong><br>
+
+            {{.Message}}
+
+            {{if .Pinned}}
+
+            <span class="badge bg-danger">
+                Pinned
+            </span>
+
+            {{end}}
+
+        </div>
+
+        <hr>
+
+    {{end}}
+
+</div>
+
+{{end}}
+
 <!-- CONVENTION CARD -->
 
 <div class="card shadow-lg border-0 mb-5">
