@@ -1,0 +1,41 @@
+{{define "communication_success.html"}}
+
+{{template "admin_layout" .}}
+
+{{end}}
+
+{{define "content"}}
+
+<div class="container mt-4">
+
+    <div class="alert alert-success">
+
+        <h3>{{.Title}}</h3>
+
+        <p>{{.Message}}</p>
+
+        <hr>
+
+        <p>
+            <strong>Recipient Group:</strong>
+            {{.Group}}
+        </p>
+
+        {{if .Subject}}
+        <p>
+            <strong>Subject:</strong>
+            {{.Subject}}
+        </p>
+        {{end}}
+
+        <a
+            href="/communication"
+            class="btn btn-primary">
+            Back to Communication Centre
+        </a>
+
+    </div>
+
+</div>
+
+{{end}}

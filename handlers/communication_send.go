@@ -25,7 +25,7 @@ func SendEmailBroadcast(
 
 	Render(
 		w,
-		"success.html",
+		"communication_success.html",
 		struct {
 			Title   string
 			Message string
@@ -63,7 +63,7 @@ func SendSMSBroadcast(
 
 	Render(
 		w,
-		"success.html",
+		"communication_success.html",
 		struct {
 			Title   string
 			Message string
@@ -101,7 +101,7 @@ func SendEmergencyNotice(
 
 	Render(
 		w,
-		"success.html",
+		"communication_success.html",
 		struct {
 			Title   string
 			Message string

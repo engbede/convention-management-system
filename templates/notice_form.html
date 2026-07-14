@@ -39,6 +39,11 @@
 
 <form method="POST" action="{{.Action}}">
 
+    <input
+        type="hidden"
+        name="id"
+        value="{{.Notice.ID}}">
+
 <div class="mb-3">
 
 <label class="form-label">
@@ -86,14 +91,13 @@ Audience
 class="form-select"
 name="audience">
 
-<option value="Everyone">Everyone</option>
+<option value="Everyone" {{if eq .Notice.Audience "Everyone"}}selected{{end}}>Everyone</option>
 
-<option value="Officials">Officials</option>
+<option value="Officials" {{if eq .Notice.Audience "Officials"}}selected{{end}}>Officials</option>
 
-<option value="Registrants">Registrants</option>
+<option value="Registrants" {{if eq .Notice.Audience "Registrants"}}selected{{end}}>Registrants</option>
 
-<option value="Circuit Leaders">Circuit Leaders</option>
-
+<option value="Circuit Leaders" {{if eq .Notice.Audience "Circuit Leaders"}}selected{{end}}>Circuit Leaders</option>
 </select>
 
 </div>
@@ -110,13 +114,13 @@ Priority
 class="form-select"
 name="priority">
 
-<option value="Low">Low</option>
+<option value="Low" {{if eq .Notice.Priority "Low"}}selected{{end}}>Low</option>
 
-<option value="Normal" selected>Normal</option>
+<option value="Normal" {{if eq .Notice.Priority "Normal"}}selected{{end}}>Normal</option>
 
-<option value="High">High</option>
+<option value="High" {{if eq .Notice.Priority "High"}}selected{{end}}>High</option>
 
-<option value="Emergency">Emergency</option>
+<option value="Emergency" {{if eq .Notice.Priority "Emergency"}}selected{{end}}>Emergency</option>
 
 </select>
 
@@ -135,7 +139,8 @@ Pin Notice
 <input
 class="form-check-input"
 type="checkbox"
-name="pinned">
+name="pinned"
+{{if .Notice.Pinned}}checked{{end}}>
 
 <label class="form-check-label">
 
@@ -162,7 +167,8 @@ Start Date
 <input
 type="date"
 class="form-control"
-name="start_date">
+name="start_date"
+value="{{.Notice.StartDate}}">
 
 </div>
 
@@ -177,7 +183,8 @@ End Date
 <input
 type="date"
 class="form-control"
-name="end_date">
+name="end_date"
+value="{{.Notice.EndDate}}">
 
 </div>
 
@@ -204,10 +211,6 @@ Cancel
 
 </form>
 
-<input
-    type="hidden"
-    name="id"
-    value="{{.Notice.ID}}">
 </div>
 
 </div>

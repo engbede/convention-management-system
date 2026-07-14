@@ -8,17 +8,17 @@ import (
 func UpdateNotice(n models.Notice) error {
 
 	_, err := database.DB.Exec(`
-		UPDATE notices
-		SET
-			title=$1,
-			message=$2,
-			audience=$3,
-			priority=$4,
-			pinned=$5,
-			start_date=$6,
-			end_date=$7
-		WHERE id=$8
-	`,
+UPDATE notices
+SET
+    title=?,
+    message=?,
+    audience=?,
+    priority=?,
+    pinned=?,
+    start_date=?,
+    end_date=?
+WHERE id=?
+`,
 		n.Title,
 		n.Message,
 		n.Audience,

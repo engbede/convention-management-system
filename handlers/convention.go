@@ -38,22 +38,27 @@ func ListConventions(
 	)
 }
 
-func NewConvention(w http.ResponseWriter, r *http.Request) {
+func NewConvention(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+
+	data := struct {
+		Title      string
+		Action     string
+		Convention models.Convention
+	}{
+		Title:      "Add Convention",
+		Action:     "/conventions/create",
+		Convention: models.Convention{},
+	}
 
 	Render(
 		w,
 		"convention_form.html",
-		struct {
-			Title      string
-			Action     string
-			Convention interface{}
-		}{
-			Title:  "New Convention",
-			Action: "/conventions/create",
-		},
+		data,
 	)
 }
-
 func CreateConvention(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != http.MethodPost {
@@ -114,7 +119,7 @@ func EditConvention(
 	data := struct {
 		Title      string
 		Action     string
-		Convention interface{}
+		Convention models.Convention
 	}{
 		Title:      "Edit Convention",
 		Action:     "/conventions/update",

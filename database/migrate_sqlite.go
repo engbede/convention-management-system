@@ -119,6 +119,31 @@ CREATE TABLE IF NOT EXISTS finance (
 
 );
 `)
+	_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS notices (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    title TEXT NOT NULL,
+
+    message TEXT NOT NULL,
+
+    audience TEXT NOT NULL,
+
+    priority TEXT NOT NULL,
+
+    pinned INTEGER DEFAULT 0,
+
+    start_date TEXT,
+
+    end_date TEXT,
+
+    created_by TEXT,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+);
+`)
 	_, err := DB.Exec(query)
 	if err != nil {
 		return err

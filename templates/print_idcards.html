@@ -1,3 +1,4 @@
+{{define "print_idcards.html"}}
 <!DOCTYPE html>
 <html lang="en">
 
@@ -279,7 +280,9 @@ Back
 
 <div class="sheet">
 
-{{range .}}
+<div class="sheet">
+
+{{range .Registrations}}
 
 <div class="card">
 
@@ -444,3 +447,4 @@ METHODIST CHURCH NIGERIA - APA DIOCESE, YOUTH FELLOWSHIP
 </body>
 
 </html>
+{{end}}

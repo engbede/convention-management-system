@@ -284,8 +284,8 @@ func SearchRegistrations(
 	FROM registrations
 	WHERE convention_id = $1
 	AND (
-		full_name ILIKE $2
-		OR phone ILIKE $3
+		full_name LIKE $2
+		OR phone LIKE $3
 	)
 	ORDER BY id DESC
 	`
