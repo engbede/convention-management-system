@@ -1,0 +1,65 @@
+{{define "backup.html"}}
+
+{{template "admin_layout" .}}
+
+{{end}}
+
+{{define "content"}}
+
+<div class="container mt-4">
+
+<h2>Backup & Restore</h2>
+
+<a
+href="/backup/create"
+class="btn btn-success mb-3">
+
+Create Backup
+
+</a>
+
+<table class="table table-bordered">
+
+<thead>
+
+<tr>
+
+<th>Backup File</th>
+
+<th>Action</th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{{range .Files}}
+
+<tr>
+
+<td>{{.Name}}</td>
+
+<td>
+
+<a
+href="/backup/download?file={{.Name}}"
+class="btn btn-primary btn-sm">
+
+Download
+
+</a>
+
+</td>
+
+</tr>
+
+{{end}}
+
+</tbody>
+
+</table>
+
+</div>
+
+{{end}}

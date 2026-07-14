@@ -269,7 +269,26 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.DeleteNotice,
 		),
 	)
+	mux.HandleFunc(
+		"/backup",
+		middleware.RequireAuth(
+			handlers.BackupPage,
+		),
+	)
 
+	mux.HandleFunc(
+		"/backup/create",
+		middleware.RequireAuth(
+			handlers.CreateBackup,
+		),
+	)
+
+	mux.HandleFunc(
+		"/backup/download",
+		middleware.RequireAuth(
+			handlers.DownloadBackup,
+		),
+	)
 	mux.HandleFunc("/finance", handlers.ListFinance)
 
 	mux.HandleFunc("/finance/new", handlers.NewFinance)
