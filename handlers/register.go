@@ -18,6 +18,16 @@ func ShowForm(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	if repository.GetSetting("registration_open") == "closed" {
+
+		http.Error(
+			w,
+			"Registration is currently closed.",
+			http.StatusForbidden,
+		)
+
+		return
+	}
 
 	activeConvention, err := repository.GetActiveConvention()
 
@@ -50,7 +60,16 @@ func Register(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	if repository.GetSetting("registration_open") == "closed" {
 
+		http.Error(
+			w,
+			"Registration is currently closed.",
+			http.StatusForbidden,
+		)
+
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Redirect(
 			w,

@@ -26,16 +26,16 @@ func CreateBackup(
 
 	err := os.MkdirAll("backups", 0755)
 
-if err != nil {
+	if err != nil {
 
-	http.Error(
-		w,
-		err.Error(),
-		http.StatusInternalServerError,
-	)
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
 
-	return
-}
+		return
+	}
 
 	src, err := os.Open(source)
 

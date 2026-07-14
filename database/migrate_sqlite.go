@@ -120,6 +120,18 @@ CREATE TABLE IF NOT EXISTS finance (
 );
 `)
 	_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS settings (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    key TEXT UNIQUE,
+
+    value TEXT
+
+);
+`)
+
+	_, _ = DB.Exec(`
 CREATE TABLE IF NOT EXISTS notices (
 
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -137,6 +149,29 @@ CREATE TABLE IF NOT EXISTS notices (
     start_date TEXT,
 
     end_date TEXT,
+
+    created_by TEXT,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+);
+`)
+	_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS documents (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    title TEXT NOT NULL,
+
+    category TEXT NOT NULL,
+
+    convention TEXT,
+
+    year INTEGER,
+
+    description TEXT,
+
+    content TEXT,
 
     created_by TEXT,
 

@@ -50,6 +50,24 @@ Download
 
 </a>
 
+<a
+href="/backup/restore?file={{.Name}}"
+class="btn btn-warning btn-sm"
+onclick="return confirm('Restore this backup? Current data will be replaced.')">
+
+Restore
+
+</a>
+
+<a
+href="/backup/delete?file={{.Name}}"
+class="btn btn-danger btn-sm"
+onclick="return confirm('Delete this backup permanently?')">
+
+Delete
+
+</a>
+
 </td>
 
 </tr>

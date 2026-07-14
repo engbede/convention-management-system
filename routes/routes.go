@@ -289,6 +289,67 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.DownloadBackup,
 		),
 	)
+	mux.HandleFunc(
+		"/backup/restore",
+		middleware.RequireAuth(
+			handlers.RestoreBackup,
+		),
+	)
+	mux.HandleFunc(
+		"/settings",
+		middleware.RequireAuth(
+			handlers.SystemSettings,
+		),
+	)
+	// Documentation & Minutes
+	mux.HandleFunc(
+		"/documents",
+		middleware.RequireAuth(
+			handlers.ListDocuments,
+		),
+	)
+
+	mux.HandleFunc(
+		"/documents/new",
+		middleware.RequireAuth(
+			handlers.NewDocument,
+		),
+	)
+
+	mux.HandleFunc(
+		"/documents/create",
+		middleware.RequireAuth(
+			handlers.CreateDocument,
+		),
+	)
+
+	mux.HandleFunc(
+		"/documents/view",
+		middleware.RequireAuth(
+			handlers.ViewDocument,
+		),
+	)
+
+	mux.HandleFunc(
+		"/documents/edit",
+		middleware.RequireAuth(
+			handlers.EditDocument,
+		),
+	)
+
+	mux.HandleFunc(
+		"/documents/update",
+		middleware.RequireAuth(
+			handlers.UpdateDocument,
+		),
+	)
+
+	mux.HandleFunc(
+		"/documents/delete",
+		middleware.RequireAuth(
+			handlers.DeleteDocument,
+		),
+	)
 	mux.HandleFunc("/finance", handlers.ListFinance)
 
 	mux.HandleFunc("/finance/new", handlers.NewFinance)
