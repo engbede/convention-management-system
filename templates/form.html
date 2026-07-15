@@ -389,40 +389,46 @@ required>
 
 </div>
 
-<div class="row">
+<div class="row mt-3">
 
-<div class="col-md-6">
+    <div class="col-md-6">
 
-    <label class="form-label">
-        Membership
-    </label>
+        <label class="form-label">
+            Membership
+        </label>
 
-    <select
-        name="membership"
-        class="form-select">
+        <select
+            name="membership"
+            class="form-select">
 
-        <option value="Member"
-            {{if eq .Registration.Membership "Member"}}selected{{end}}>
-            Member
-        </option>
+            <option value="Member"
+                {{if eq .Registration.Membership "Member"}}selected{{end}}>
+                Member
+            </option>
 
-        <option value="Non Member"
-            {{if eq .Registration.Membership "Non Member"}}selected{{end}}>
-            Non Member
-        </option>
+            <option value="Non Member"
+                {{if eq .Registration.Membership "Non Member"}}selected{{end}}>
+                Non Member
+            </option>
 
-    </select>
+        </select>
 
-    <label class="form-label mt-3">
-        Position/Office Held
-    </label>
+    </div>
 
-    <input
-        type="text"
-        name="position"
-        class="form-control"
-        placeholder="Example- President, Secretary, Treasurer, Financial Secretary, Member"
-        value="{{.Registration.Position}}">
+    <div class="col-md-6">
+
+        <label class="form-label">
+            Position
+        </label>
+
+        <input
+            type="text"
+            name="position"
+            class="form-control"
+            placeholder="President, Secretary, Treasurer, Financial Secretary, Choir, Member..."
+            value="{{.Registration.Position}}">
+
+    </div>
 
 </div>
 
