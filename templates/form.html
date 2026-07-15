@@ -393,32 +393,36 @@ required>
 
 <div class="col-md-6">
 
-<label>Membership</label>
+    <label class="form-label">
+        Membership
+    </label>
 
-<select
-class="form-select"
-name="membership">
+    <select
+        name="membership"
+        class="form-select">
 
-<option value="Member"
-{{if eq .Registration.Membership "Member"}}selected{{end}}>
-Member
-</option>
+        <option value="Member"
+            {{if eq .Registration.Membership "Member"}}selected{{end}}>
+            Member
+        </option>
 
-<option value="Non-Member"
-{{if eq .Registration.Membership "Non-Member"}}selected{{end}}>
-Non-Member
-</option>
+        <option value="Non Member"
+            {{if eq .Registration.Membership "Non Member"}}selected{{end}}>
+            Non Member
+        </option>
 
-</div>
+    </select>
 
-<div class="col-md-6">
+    <label class="form-label mt-3">
+        Position/Office Held
+    </label>
 
-<label>Position Held</label>
-
-<input
-class="form-control"
-name="position"
-value="{{.Registration.Position}}">
+    <input
+        type="text"
+        name="position"
+        class="form-control"
+        placeholder="Example- President, Secretary, Treasurer, Financial Secretary, Member"
+        value="{{.Registration.Position}}">
 
 </div>
 
