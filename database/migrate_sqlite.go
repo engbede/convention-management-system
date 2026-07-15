@@ -156,6 +156,27 @@ CREATE TABLE IF NOT EXISTS notices (
 
 );
 `)
+
+	_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS document_files (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    document_id INTEGER NOT NULL,
+
+    file_name TEXT NOT NULL,
+
+    file_path TEXT NOT NULL,
+
+    file_type TEXT,
+
+    uploaded_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY(document_id)
+    REFERENCES documents(id)
+
+);
+`)
 	_, _ = DB.Exec(`
 CREATE TABLE IF NOT EXISTS documents (
 

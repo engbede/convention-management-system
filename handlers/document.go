@@ -129,9 +129,20 @@ func ViewDocument(
 	r *http.Request,
 ) {
 
-	id, _ := strconv.Atoi(
+	id, err := strconv.Atoi(
 		r.URL.Query().Get("id"),
 	)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			"Invalid document ID",
+			http.StatusBadRequest,
+		)
+
+		return
+	}
 
 	document, err := repository.GetDocumentByID(id)
 
@@ -146,10 +157,33 @@ func ViewDocument(
 		return
 	}
 
+	files, err := repository.GetDocumentFiles(document.ID)
+
+	if err != nil {
+
+		http.Error(
+			w,
+			err.Error(),
+			http.StatusInternalServerError,
+		)
+
+		return
+	}
+
+	data := struct {
+		Title    string
+		Document interface{}
+		Files    interface{}
+	}{
+		Title:    "View Document",
+		Document: document,
+		Files:    files,
+	}
+
 	Render(
 		w,
 		"document_view.html",
-		document,
+		data,
 	)
 }
 func EditDocument(

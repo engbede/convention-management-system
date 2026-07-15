@@ -350,6 +350,30 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.DeleteDocument,
 		),
 	)
+	mux.HandleFunc(
+		"/documents/upload",
+		middleware.RequireAuth(
+			handlers.UploadDocumentFile,
+		),
+	)
+	mux.HandleFunc(
+		"/documents/download",
+		middleware.RequireAuth(
+			handlers.DownloadDocumentFile,
+		),
+	)
+	mux.HandleFunc(
+		"/documents/workspace",
+		middleware.RequireAuth(
+			handlers.DocumentWorkspace,
+		),
+	)
+	mux.HandleFunc(
+		"/documents/attach",
+		middleware.RequireAuth(
+			handlers.UploadDocumentPage,
+		),
+	)
 	mux.HandleFunc("/finance", handlers.ListFinance)
 
 	mux.HandleFunc("/finance/new", handlers.NewFinance)

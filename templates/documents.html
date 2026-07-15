@@ -19,7 +19,7 @@ rel="stylesheet">
 
 <div class="container mt-5">
 
-<div class="d-flex justify-content-between mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4">
 
 <h2>Documentation & Minutes</h2>
 
@@ -33,7 +33,7 @@ New Document
 
 </div>
 
-<table class="table table-bordered table-hover">
+<table class="table table-bordered table-hover align-middle">
 
 <thead class="table-dark">
 
@@ -46,6 +46,8 @@ New Document
 <th>Convention</th>
 
 <th>Year</th>
+
+<th>Files</th>
 
 <th>Created</th>
 
@@ -61,13 +63,27 @@ New Document
 
 <tr>
 
-<td>{{.Title}}</td>
+<td>
+
+<strong>{{.Title}}</strong>
+
+</td>
 
 <td>{{.Category}}</td>
 
 <td>{{.Convention}}</td>
 
 <td>{{.Year}}</td>
+
+<td class="text-center">
+
+<span class="badge bg-primary">
+
+📎 {{.AttachmentCount}}
+
+</span>
+
+</td>
 
 <td>{{.CreatedAt.Format "02 Jan 2006"}}</td>
 
@@ -78,6 +94,14 @@ href="/documents/view?id={{.ID}}"
 class="btn btn-sm btn-primary">
 
 View
+
+</a>
+
+<a
+href="/documents/attach?id={{.ID}}"
+class="btn btn-sm btn-success">
+
+Attach
 
 </a>
 
@@ -106,7 +130,7 @@ Delete
 
 <tr>
 
-<td colspan="6" class="text-center">
+<td colspan="7" class="text-center">
 
 No documents available.
 

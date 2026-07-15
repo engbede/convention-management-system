@@ -9,16 +9,29 @@ func GetAllDocuments() ([]models.Document, error) {
 
 	rows, err := database.DB.Query(`
 SELECT
-	id,
-	title,
-	category,
-	convention,
-	year,
-	description,
-	content,
-	created_by,
-	created_at
-FROM documents
+    d.id,
+    d.title,
+    d.category,
+    d.convention,
+    d.year,
+    d.description,
+    d.content,
+    d.created_by,
+    d.created_at,
+    COUNT(f.id) AS attachment_count
+FROM documents d
+LEFT JOIN document_files f
+ON d.id = f.document_id
+GROUP BY
+    d.id,
+    d.title,
+    d.category,
+    d.convention,
+    d.year,
+    d.description,
+    d.content,
+    d.created_by,
+    d.created_at
 ORDER BY year DESC, created_at DESC
 `)
 
@@ -44,6 +57,7 @@ ORDER BY year DESC, created_at DESC
 			&d.Content,
 			&d.CreatedBy,
 			&d.CreatedAt,
+			&d.AttachmentCount,
 		)
 
 		if err != nil {

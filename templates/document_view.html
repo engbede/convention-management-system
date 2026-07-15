@@ -31,7 +31,7 @@ rel="stylesheet">
 
 <strong>Category:</strong>
 
-{{.Category}}
+{{.Document.Category}}
 
 </p>
 
@@ -39,7 +39,7 @@ rel="stylesheet">
 
 <strong>Convention:</strong>
 
-{{.Convention}}
+{{.Document.Convention}}
 
 </p>
 
@@ -47,7 +47,7 @@ rel="stylesheet">
 
 <strong>Year:</strong>
 
-{{.Year}}
+{{.Document.Year}}
 
 </p>
 
@@ -55,21 +55,126 @@ rel="stylesheet">
 
 <strong>Description:</strong>
 
-{{.Description}}
+{{.Document.Description}}
 
 </p>
 
 <hr>
 
 <div style="white-space:pre-wrap;">
-
-{{.Content}}
-
+{{.Document.Content}}
 </div>
 
 </div>
 
 <div class="card-footer">
+
+    <hr>
+
+<h4 class="mt-4">
+Attachments
+</h4>
+
+<form
+    method="POST"
+    action="/documents/upload"
+    enctype="multipart/form-data">
+
+    <input
+        type="hidden"
+        name="document_id"
+        value="{{.Document.ID}}">
+
+    <div class="row">
+
+        <div class="col-md-8">
+
+            <input
+                type="file"
+                name="file"
+                class="form-control"
+                required>
+
+        </div>
+
+        <div class="col-md-4">
+
+            <button
+                class="btn btn-primary w-100">
+
+                Upload File
+
+            </button>
+
+        </div>
+
+    </div>
+
+</form>
+
+<hr>
+
+{{if .Files}}
+
+<table class="table table-striped">
+
+<thead>
+
+<tr>
+
+<th>File Name</th>
+
+<th>Type</th>
+
+<th>Uploaded</th>
+
+<th></th>
+
+</tr>
+
+</thead>
+
+<tbody>
+
+{{range .Files}}
+
+<tr>
+
+<td>{{.FileName}}</td>
+
+<td>{{.FileType}}</td>
+
+<td>{{.UploadedAt.Format "02 Jan 2006 15:04"}}</td>
+
+<td>
+
+<a
+href="/documents/download?id={{.ID}}"
+class="btn btn-success btn-sm">
+
+Download
+
+</a>
+
+</td>
+
+</tr>
+
+{{end}}
+
+</tbody>
+
+</table>
+
+{{else}}
+
+<div class="alert alert-secondary">
+
+No files uploaded yet.
+
+</div>
+
+{{end}}
 
 <a
 href="/documents"
@@ -80,7 +185,7 @@ Back
 </a>
 
 <a
-href="/documents/edit?id={{.ID}}"
+href="/documents/edit?id={{.Document.ID}}"
 class="btn btn-warning">
 
 Edit

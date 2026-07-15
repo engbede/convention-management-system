@@ -15,9 +15,13 @@ func NewFinance(
 ) {
 
 	data := struct {
-		Title string
+		Title   string
+		Action  string
+		Finance models.Finance
 	}{
-		Title: "New Finance Record",
+		Title:   "New Finance Record",
+		Action:  "/finance/create",
+		Finance: models.Finance{},
 	}
 
 	Render(
