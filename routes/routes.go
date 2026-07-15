@@ -374,6 +374,22 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.UploadDocumentPage,
 		),
 	)
+	mux.HandleFunc(
+		"/contact",
+		handlers.ContactPage,
+	)
+
+	mux.HandleFunc(
+		"/contact/send",
+		handlers.SubmitInquiry,
+	)
+
+	mux.HandleFunc(
+		"/admin/inquiries",
+		middleware.RequireAuth(
+			handlers.ListInquiries,
+		),
+	)
 	mux.HandleFunc("/finance", handlers.ListFinance)
 
 	mux.HandleFunc("/finance/new", handlers.NewFinance)
