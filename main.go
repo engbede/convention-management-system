@@ -20,17 +20,22 @@ func main() {
 	}
 
 	// Initialize database
-	if err := database.Init(); err != nil {
-		log.Fatal(err)
-	}
+if err := database.Init(); err != nil {
+    log.Fatal(err)
+}
 
-	if err := database.SeedAdmin(); err != nil {
-		log.Fatal(err)
-	}
+// Run database migrations
+if err := database.Migrate(); err != nil {
+    log.Fatal(err)
+}
 
-	if err := database.SeedConvention(); err != nil {
-		log.Fatal(err)
-	}
+if err := database.SeedAdmin(); err != nil {
+    log.Fatal(err)
+}
+
+if err := database.SeedConvention(); err != nil {
+    log.Fatal(err)
+}
 
 	mux := http.NewServeMux()
 	routes.RegisterRoutes(mux)
