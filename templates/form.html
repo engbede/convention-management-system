@@ -246,19 +246,45 @@ type="hidden"
 name="id"
 value="{{.Registration.ID}}">
 
+<div class="mb-5">
+
+    <div class="progress" style="height:10px;">
+
+        <div
+            class="progress-bar bg-success"
+            role="progressbar"
+            style="width:25%;">
+
+        </div>
+
+    </div>
+
+    <div class="d-flex justify-content-between mt-2 small text-muted">
+
+        <span>Personal</span>
+
+        <span>Church</span>
+
+        <span>Emergency</span>
+
+        <span>Submit</span>
+
+    </div>
+
+</div>
 <!-- ======================= -->
 
 <!-- PERSONAL INFORMATION -->
 
 <!-- ======================= -->
 
-<div class="card shadow mb-4">
+<div class="card shadow border-0 mb-4">
 
     <div class="card-header bg-primary text-white">
 
-        <h5 class="mb-0">
-            Personal Information
-        </h5>
+        <h4 class="mb-0">
+            👤 Personal Information
+        </h4>
 
     </div>
 
@@ -266,74 +292,137 @@ value="{{.Registration.ID}}">
 
         <div class="row">
 
-            <div class="col-md-6 mb-3">
+            <!-- Full Name -->
 
-                <label class="form-label">
-                    Full Name *
+            <div class="col-lg-6 mb-3">
+
+                <label class="form-label fw-bold">
+
+                    Full Name <span class="text-danger">*</span>
+
                 </label>
 
                 <input
                     type="text"
-                    class="form-control"
                     name="fullname"
+                    class="form-control"
+                    placeholder="Enter your full name"
                     value="{{.Registration.FullName}}"
                     required>
 
             </div>
 
-            <div class="col-md-3 mb-3">
+            <!-- Gender -->
 
-               <select
-    class="form-select"
-    name="gender"
-    required>
+            <div class="col-lg-3 mb-3">
 
-    <option value="">Select Gender</option>
+                <label class="form-label fw-bold">
 
-    <option value="Male"
-        {{if eq .Registration.Gender "Male"}}selected{{end}}>
-        Male
-    </option>
+                    Gender
 
-    <option value="Female"
-        {{if eq .Registration.Gender "Female"}}selected{{end}}>
-        Female
-    </option>
+                </label>
+
+                <select
+                    name="gender"
+                    class="form-select"
+                    required>
+
+                    <option value="">Select Gender</option>
+
+                    <option value="Male">Male</option>
+
+                    <option value="Female">Female</option>
 
                 </select>
 
             </div>
 
-            <div class="col-md-3 mb-3">
+            <!-- Age -->
 
-                <label class="form-label">
+            <div class="col-lg-3 mb-3">
+
+                <label class="form-label fw-bold">
+
                     Age
+
                 </label>
 
                 <input
                     type="number"
-                    class="form-control"
+                    min="1"
+                    max="120"
                     name="age"
-                    value="{{.Registration.Age}}">
+                    class="form-control"
+                    value="{{if gt .Registration.Age 0}}{{.Registration.Age}}{{end}}"
+                    placeholder="Age">
+
             </div>
 
         </div>
 
         <div class="row">
 
-            <div class="col-md-6">
+            <!-- Phone -->
 
-                <label class="form-label">
-                    Phone Number *
+            <div class="col-lg-4 mb-3">
+
+                <label class="form-label fw-bold">
+
+                    Phone Number <span class="text-danger">*</span>
+
                 </label>
 
                 <input
                     type="text"
-                    maxlength="11"
-                    class="form-control"
                     name="phone"
+                    class="form-control"
+                    placeholder="08012345678"
                     value="{{.Registration.Phone}}"
                     required>
+
+                <div class="form-text">
+
+                    Must be an active phone number.
+
+                </div>
+
+            </div>
+
+            <!-- Email -->
+
+            <div class="col-lg-4 mb-3">
+
+                <label class="form-label fw-bold">
+
+                    Email Address
+
+                </label>
+
+                <input
+                    type="email"
+                    name="email"
+                    class="form-control"
+                    placeholder="Optional">
+
+            </div>
+
+            <!-- Occupation -->
+
+            <div class="col-lg-4 mb-3">
+
+                <label class="form-label fw-bold">
+
+                    Occupation
+
+                </label>
+
+                <input
+                    type="text"
+                    name="occupation"
+                    class="form-control"
+                    value="{{.Registration.Occupation}}"
+                    placeholder="Teacher, Student, Farmer...">
+
             </div>
 
         </div>
@@ -341,6 +430,7 @@ value="{{.Registration.ID}}">
     </div>
 
 </div>
+
 <!-- ======================= -->
 
 <!-- CHURCH INFORMATION -->
@@ -351,11 +441,11 @@ value="{{.Registration.ID}}">
 
 <div class="card-header bg-success text-white">
 
-<h5 class="mb-0">
+<h4 class="mb-0">
 
-Church Information
+    ⛪ Church Details
 
-</h5>
+</h4>
 
 </div>
 
@@ -371,6 +461,7 @@ Church Information
 class="form-control"
 name="circuit"
 value="{{.Registration.Circuit}}"
+placeholder="Enter your Circuit Name here"
 required>
 
 </div>
@@ -383,6 +474,7 @@ required>
 class="form-control"
 name="local_church"
 value="{{.Registration.LocalChurch}}"
+placeholder="Enter your Local Church Name here"
 required>
 
 </div>
@@ -443,89 +535,103 @@ required>
 
 <!-- ========================= -->
 
-<div class="card shadow mb-4">
+<div class="card shadow border-0 mb-4">
 
-<div class="card-header bg-warning">
+    <div class="card-header bg-warning text-dark">
 
-<h5 class="mb-0">
+        <h4 class="mb-0">
+            📋 Personal Details
+        </h4>
 
-Personal Details
+    </div>
 
-</h5>
+    <div class="card-body">
 
-</div>
+        <div class="row">
 
-<div class="card-body">
+            <div class="col-md-6 mb-3">
 
-<div class="row">
+                <label class="form-label fw-bold">
 
-<div class="col-md-6">
+                    Marital Status
 
-<label>Marital Status</label>
+                </label>
 
-<select
-class="form-select"
-name="marital_status">
+                <select
+                    name="marital_status"
+                    class="form-select">
 
-<option value="Single"
-{{if eq .Registration.MaritalStatus "Single"}}selected{{end}}>
-Single
-</option>
+                    <option>Single</option>
+                    <option>Married</option>
+                    <option>Divorced</option>
+                    <option>Widowed</option>
 
-<option value="Married"
-{{if eq .Registration.MaritalStatus "Married"}}selected{{end}}>
-Married
-</option>
+                </select>
 
-<option value="Divorced"
-{{if eq .Registration.MaritalStatus "Divorced"}}selected{{end}}>
-Divorced
-</option>
+            </div>
 
-</select>
+            <div class="col-md-6 mb-3">
 
-</div>
+                <label class="form-label fw-bold">
 
-<div class="col-md-6">
+                    Occupation
 
-<label>Occupation</label>
+                </label>
 
-<input
-class="form-control"
-name="occupation"
-value="{{.Registration.Occupation}}">
+                <input
+                    type="text"
+                    name="occupation"
+                    class="form-control"
+                    placeholder="Student, Teacher, Farmer...">
 
-</div>
+            </div>
 
-</div>
+        </div>
 
-<div class="row mt-3">
+        <div class="row">
 
-<div class="col-md-6">
+            <div class="col-md-6">
 
-<label>First Time Attendee</label>
+                <label class="form-label fw-bold">
 
-<select
-class="form-select"
-name="first_time_attendee">
+                    First Time Attendee
 
-<option value="Yes"
-{{if .Registration.FirstTimeAttendee}}selected{{end}}>
-Yes
-</option>
+                </label>
 
-<option value="No"
-{{if not .Registration.FirstTimeAttendee}}selected{{end}}>
-No
-</option>
+                <select
+                    name="first_time_attendee"
+                    class="form-select">
 
-</select>
+                    <option>No</option>
+                    <option>Yes</option>
 
-</div>
+                </select>
 
-</div>
+            </div>
 
-</div>
+            <div class="col-md-6">
+
+                <label class="form-label fw-bold">
+
+                    Bible Study Group
+
+                </label>
+
+                <select
+                    name="bible_study_group"
+                    class="form-select">
+
+                    <option value="">
+                        Select Group
+                    </option>
+
+                </select>
+
+            </div>
+
+        </div>
+
+    </div>
 
 </div>
 <!-- ========================= -->
@@ -534,50 +640,93 @@ No
 
 <!-- ========================= -->
 
-<div class="card shadow mb-4">
+<!-- ================= Emergency Contact ================= -->
 
-<div class="card-header bg-danger text-white">
+<div class="card shadow-sm mt-4">
 
-<h5>
+    <div class="card-header bg-danger text-white">
 
-Emergency Contact
+        <h4 class="mb-0">
+            🚨 Emergency Contact
+        </h4>
 
-</h5>
+    </div>
 
-</div>
+    <div class="card-body">
 
-<div class="card-body">
+        <div class="row g-4">
 
-<div class="row">
+            <div class="col-md-6">
 
-<div class="col-md-6">
+                <label class="form-label fw-bold">
+                    Contact Name <span class="text-danger">*</span>
+                </label>
 
-<label>Emergency Contact Name</label>
+                <input
+                    type="text"
+                    name="emergency_contact"
+                    class="form-control"
+                    placeholder="Enter full name"
+                    required>
 
-<input
-class="form-control"
-name="emergency_contact_name"
-value="{{.Registration.EmergencyContactName}}"
-required>
+            </div>
 
-</div>
+            <div class="col-md-6">
 
-<div class="col-md-6">
+                <label class="form-label fw-bold">
+                    Contact Phone <span class="text-danger">*</span>
+                </label>
 
-<label>Emergency Contact Phone</label>
+                <input
+                    type="text"
+                    name="emergency_phone"
+                    class="form-control"
+                    placeholder="08012345678"
+                    required>
 
-<input
-class="form-control"
-name="emergency_contact_phone"
-maxlength="11"
-value="{{.Registration.EmergencyContactPhone}}"
-required>
+            </div>
 
-</div>
+            <div class="col-md-6">
 
-</div>
+                <label class="form-label fw-bold">
+                    Relationship
+                </label>
 
-</div>
+                <select
+                    name="relationship"
+                    class="form-select">
+
+                    <option value="">Select Relationship</option>
+                    <option>Father</option>
+                    <option>Mother</option>
+                    <option>Spouse</option>
+                    <option>Brother</option>
+                    <option>Sister</option>
+                    <option>Guardian</option>
+                    <option>Friend</option>
+                    <option>Other</option>
+
+                </select>
+
+            </div>
+
+            <div class="col-md-6">
+
+                <label class="form-label fw-bold">
+                    Home Address
+                </label>
+
+                <textarea
+                    name="address"
+                    rows="2"
+                    class="form-control"
+                    placeholder="Residential address"></textarea>
+
+            </div>
+
+        </div>
+
+    </div>
 
 </div>
 <!-- ========================= -->
