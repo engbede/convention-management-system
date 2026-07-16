@@ -390,6 +390,33 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.ListInquiries,
 		),
 	)
+
+	mux.HandleFunc(
+		"/admin/inquiry",
+		middleware.RequireAuth(
+			handlers.ViewInquiry,
+		),
+	)
+
+	mux.HandleFunc(
+		"/admin/inquiry/status",
+		middleware.RequireAuth(
+			handlers.UpdateInquiryStatus,
+		),
+	)
+
+	mux.HandleFunc(
+		"/admin/inquiry/delete",
+		middleware.RequireAuth(
+			handlers.DeleteInquiry,
+		),
+	)
+
+	mux.HandleFunc(
+		"/admin/inquiry/reply",
+		middleware.RequireAuth(handlers.SubmitInquiryReply),
+	)
+
 	mux.HandleFunc("/finance", handlers.ListFinance)
 
 	mux.HandleFunc("/finance/new", handlers.NewFinance)

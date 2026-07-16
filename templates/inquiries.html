@@ -1,0 +1,367 @@
+{{define "inquiries.html"}}
+
+{{template "admin_layout" .}}
+
+{{end}}
+
+{{define "content"}}
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h2>📥 Inquiry Management</h2>
+
+    </div>
+
+    <div class="row mb-4">
+
+    <div class="col-md-4">
+
+        <div class="card border-primary shadow-sm">
+
+            <div class="card-body text-center">
+
+                <h6 class="text-muted">
+                    Total Inquiries
+                </h6>
+
+                <h2 class="mb-0">
+                    {{.Stats.Total}}
+                </h2>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-4">
+
+        <div class="card border-warning shadow-sm">
+
+            <div class="card-body text-center">
+
+                <h6 class="text-muted">
+                    Pending
+                </h6>
+
+                <h2 class="mb-0">
+                    {{.Stats.Pending}}
+                </h2>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="col-md-4">
+
+        <div class="card border-success shadow-sm">
+
+            <div class="card-body text-center">
+
+                <h6 class="text-muted">
+                    Resolved
+                </h6>
+
+                <h2 class="mb-0">
+                    {{.Stats.Resolved}}
+                </h2>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div class="card shadow-sm mb-4">
+
+    <div class="card-body">
+
+        <form
+    method="GET"
+    action="/admin/inquiries">
+
+    <div class="row g-2 align-items-center">
+
+        <div class="col-md-10">
+
+            <input
+                type="text"
+                name="search"
+                class="form-control"
+                placeholder="🔍 Search by name, phone, email or subject..."
+                value="{{.Search}}">
+
+        </div>
+
+        <div class="col-md-2">
+
+            <div class="d-grid gap-2">
+
+                <button
+                    type="submit"
+                    class="btn btn-primary">
+
+                    🔍 Search
+
+                </button>
+
+                <a
+                    href="/admin/inquiries"
+                    class="btn btn-outline-secondary">
+
+                    Clear
+
+                </a>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="mt-3">
+
+        <div class="btn-group" role="group">
+
+            <a
+                href="/admin/inquiries"
+                class="btn {{if eq .Status ""}}btn-primary{{else}}btn-outline-primary{{end}}">
+
+                All
+
+                <span class="badge bg-light text-dark ms-1">
+
+                    {{.Stats.Total}}
+
+                </span>
+
+            </a>
+
+            <a
+                href="/admin/inquiries?status=Pending"
+                class="btn {{if eq .Status "Pending"}}btn-warning{{else}}btn-outline-warning{{end}}">
+
+                Pending
+
+                <span class="badge bg-light text-dark ms-1">
+
+                    {{.Stats.Pending}}
+
+                </span>
+
+            </a>
+
+            <a
+                href="/admin/inquiries?status=Resolved"
+                class="btn {{if eq .Status "Resolved"}}btn-success{{else}}btn-outline-success{{end}}">
+
+                Resolved
+
+                <span class="badge bg-light text-dark ms-1">
+
+                    {{.Stats.Resolved}}
+
+                </span>
+
+            </a>
+
+        </div>
+
+    </div>
+
+</form>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+    <table class="table table-bordered table-hover align-middle">
+
+        <thead class="table-dark">
+
+            <tr>
+
+                <th>Name</th>
+                <th>Subject</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th width="260">Actions</th>
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+        {{range .Inquiries}}
+
+            <tr>
+
+                <td>{{.Name}}</td>
+
+                <td>{{.Subject}}</td>
+
+                <td>{{.Phone}}</td>
+
+                <td>
+
+                    {{if eq .Status "Resolved"}}
+
+                        <span class="badge bg-success">
+
+                            Resolved
+
+                        </span>
+
+                    {{else}}
+
+                        <form
+                            action="/admin/inquiry/status"
+                            method="POST"
+                            style="display:inline;">
+
+                            <input
+                                type="hidden"
+                                name="id"
+                                value="{{.ID}}">
+
+                            <input
+                                type="hidden"
+                                name="status"
+                                value="Resolved">
+
+                            <button
+                                class="btn btn-success btn-sm"
+                                type="submit">
+
+                                Resolve
+
+                            </button>
+
+                        </form>
+
+                    {{end}}
+
+                </td>
+
+                <td>{{.CreatedAt.Format "02 Jan 2006, 03:04 PM"}}</td>
+
+                <td>
+
+                    <div class="d-flex gap-2">
+
+                        <a
+                            href="/admin/inquiry?id={{.ID}}"
+                            class="btn btn-primary btn-sm">
+
+                            👁 View
+
+                        </a>
+
+                        <form
+                            action="/admin/inquiry/delete"
+                            method="POST"
+                            style="display:inline;"
+                            onsubmit="return confirm('Delete this inquiry?');">
+
+                            <input
+                                type="hidden"
+                                name="id"
+                                value="{{.ID}}">
+
+                            <button
+                                class="btn btn-danger btn-sm"
+                                type="submit">
+
+                                🗑 Delete
+
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </td>
+
+            </tr>
+
+        {{else}}
+
+            <tr>
+
+                <td colspan="6" class="text-center">
+
+                    No inquiries received.
+
+                </td>
+
+            </tr>
+
+        {{end}}
+
+        </tbody>
+
+    </table>
+   {{if gt .TotalPages 1}}
+
+<div class="d-flex justify-content-between align-items-center mt-4">
+
+    <div>
+
+        {{if gt .Page 1}}
+
+        <a
+            class="btn btn-outline-primary"
+            href="/admin/inquiries?search={{.Search}}&status={{.Status}}&page={{.PrevPage}}">
+
+            ← Previous
+
+        </a>
+
+        {{end}}
+
+    </div>
+
+    <div>
+
+        <strong>
+
+            Page {{.Page}} of {{.TotalPages}}
+
+        </strong>
+
+    </div>
+
+    <div>
+
+        {{if lt .Page .TotalPages}}
+
+        <a
+            class="btn btn-outline-primary"
+            href="/admin/inquiries?search={{.Search}}&status={{.Status}}&page={{.NextPage}}">
+
+            Next →
+
+        </a>
+
+        {{end}}
+
+    </div>
+
+</div>
+
+{{end}}
+
+</div>
+
+{{end}}

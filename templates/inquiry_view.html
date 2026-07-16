@@ -1,0 +1,195 @@
+{{define "inquiry_view.html"}}
+{{template "admin_layout" .}}
+{{end}}
+
+{{define "content"}}
+
+<div class="container-fluid">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>📩 Inquiry Details</h2>
+
+        <a href="/admin/inquiries" class="btn btn-secondary">
+            ← Back to Inquiries
+        </a>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Inquiry Information</h5>
+        </div>
+
+        <div class="card-body">
+
+            <div class="row mb-2">
+                <div class="col-md-6">
+                    <strong>Name:</strong><br>
+                    {{.Inquiry.Name}}
+                </div>
+
+                <div class="col-md-6">
+                    <strong>Phone:</strong><br>
+                    {{.Inquiry.Phone}}
+                </div>
+            </div>
+
+            <div class="row mb-2">
+
+                <div class="col-md-6">
+                    <strong>Email:</strong><br>
+                    {{.Inquiry.Email}}
+                </div>
+
+                <div class="col-md-6">
+                    <strong>Subject:</strong><br>
+                    {{.Inquiry.Subject}}
+                </div>
+
+            </div>
+
+            <div class="row mb-3">
+
+                <div class="col-md-6">
+                    <strong>Status:</strong><br>
+
+                    {{if eq .Inquiry.Status "Resolved"}}
+
+                        <span class="badge bg-success">
+                            Resolved
+                        </span>
+
+                    {{else}}
+
+                        <span class="badge bg-warning text-dark">
+                            Pending
+                        </span>
+
+                    {{end}}
+
+                </div>
+
+                <div class="col-md-6">
+                    <strong>Date:</strong><br>
+                    {{.Inquiry.CreatedAt.Format "02 Jan 2006, 03:04 PM"}}
+                </div>
+
+            </div>
+
+            <hr>
+
+            <label class="fw-bold mb-2">
+                Message
+            </label>
+
+            <div class="border rounded p-3 bg-light">
+                {{.Inquiry.Message}}
+            </div>
+
+        </div>
+
+    </div>
+
+    <div class="card shadow-sm mb-4">
+
+        <div class="card-header">
+            <h5 class="mb-0">Conversation</h5>
+        </div>
+
+        <div class="card-body">
+
+            {{if .Replies}}
+
+                {{range .Replies}}
+
+                <div class="card border-success mb-3">
+
+                    <div class="card-header bg-success text-white">
+
+                        {{.AdminName}}
+
+                        <span class="float-end">
+                            {{.CreatedAt.Format "02 Jan 2006, 03:04 PM"}}
+                        </span>
+
+                    </div>
+
+                    <div class="card-body">
+
+                        {{.Message}}
+
+                    </div>
+
+                </div>
+
+                {{end}}
+
+            {{else}}
+
+                <p class="text-muted mb-0">
+                    No replies yet.
+                </p>
+
+            {{end}}
+
+        </div>
+
+    </div>
+
+    <div class="card shadow-sm">
+
+        <div class="card-header bg-primary text-white">
+
+            <h5 class="mb-0">
+                📤 Reply to Attendee
+            </h5>
+
+        </div>
+
+        <div class="card-body">
+
+            <form
+                action="/admin/inquiry/reply"
+                method="POST">
+
+                <input
+                    type="hidden"
+                    name="inquiry_id"
+                    value="{{.Inquiry.ID}}">
+
+                <div class="mb-3">
+
+                    <label class="form-label fw-bold">
+                        Your Reply
+                    </label>
+
+                    <textarea
+                        name="message"
+                        class="form-control"
+                        rows="8"
+                        placeholder="Type your reply..."
+                        required></textarea>
+
+                </div>
+
+                <div class="text-end">
+
+                    <button
+                        type="submit"
+                        class="btn btn-success">
+
+                        📤 Send Reply
+
+                    </button>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+{{end}}

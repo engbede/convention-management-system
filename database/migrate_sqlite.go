@@ -158,6 +158,73 @@ CREATE TABLE IF NOT EXISTS notices (
 `)
 
 	_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS notices (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    title TEXT NOT NULL,
+
+    message TEXT NOT NULL,
+
+    audience TEXT NOT NULL,
+
+    priority TEXT NOT NULL,
+
+    pinned INTEGER DEFAULT 0,
+
+    start_date TEXT,
+
+    end_date TEXT,
+
+    created_by TEXT,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+);
+`)
+
+	_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS inquiries (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    name TEXT NOT NULL,
+
+    phone TEXT,
+
+    email TEXT,
+
+    subject TEXT,
+
+    message TEXT NOT NULL,
+
+    status TEXT DEFAULT 'Pending',
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+
+);
+`)
+
+	_, _ = DB.Exec(`
+CREATE TABLE IF NOT EXISTS inquiry_replies (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    inquiry_id INTEGER NOT NULL,
+
+    admin_name TEXT NOT NULL,
+
+    message TEXT NOT NULL,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (inquiry_id)
+        REFERENCES inquiries(id)
+        ON DELETE CASCADE
+
+);
+`)
+	_, _ = DB.Exec(`
 CREATE TABLE IF NOT EXISTS document_files (
 
     id INTEGER PRIMARY KEY AUTOINCREMENT,
