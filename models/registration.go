@@ -5,27 +5,28 @@ type Registration struct {
 	ConventionID       int
 	RegistrationNumber string
 	QRCode             string
-	FullName           string
-	Gender             string
-	Age                int
+
+	FullName string
+	Gender   string
+	Age      int
 
 	Phone string
+	Email string
 
-	Circuit string
-
+	Circuit     string
 	LocalChurch string
 
 	Membership string
-
-	Position string
+	Position   string
 
 	MaritalStatus string
+	Occupation     string
 
-	Occupation string
-
-	EmergencyContactName string
-
+	EmergencyContactName  string
 	EmergencyContactPhone string
+
+	Relationship string
+	Address      string
 
 	ArrivalDate string
 

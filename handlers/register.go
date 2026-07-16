@@ -83,16 +83,23 @@ func Register(
 	fullName := r.FormValue("fullname")
 	gender := r.FormValue("gender")
 	phone := r.FormValue("phone")
+	email := r.FormValue("email")
+
 	circuit := r.FormValue("circuit")
 	localChurch := r.FormValue("local_church")
 	membership := r.FormValue("membership")
 	position := r.FormValue("position")
+
 	maritalStatus := r.FormValue("marital_status")
 	occupation := r.FormValue("occupation")
+
 	emergencyName := r.FormValue("emergency_contact_name")
 	emergencyPhone := r.FormValue("emergency_contact_phone")
-	arrivalDate := r.FormValue("arrival_date")
-	// Convert age
+
+	relationship := r.FormValue("relationship")
+	address := r.FormValue("address")
+
+	arrivalDate := r.FormValue("arrival_date") // Convert age
 	age, err := strconv.Atoi(r.FormValue("age"))
 	if err != nil {
 		age = 0
@@ -112,7 +119,9 @@ func Register(
 		FullName: fullName,
 		Gender:   gender,
 		Age:      age,
-		Phone:    phone,
+
+		Phone: phone,
+		Email: email,
 
 		Circuit:     circuit,
 		LocalChurch: localChurch,
@@ -124,6 +133,9 @@ func Register(
 
 		EmergencyContactName:  emergencyName,
 		EmergencyContactPhone: emergencyPhone,
+
+		Relationship: relationship,
+		Address:      address,
 
 		ArrivalDate: arrivalDate,
 
@@ -164,7 +176,25 @@ func Register(
 		)
 		return
 	}
+	if email != "" {
 
+		matched, _ := regexp.MatchString(
+			`^[^\s@]+@[^\s@]+\.[^\s@]+$`,
+			email,
+		)
+
+		if !matched {
+
+			renderRegistrationForm(
+				w,
+				reg,
+				"Please enter a valid email address or leave it blank.",
+			)
+
+			return
+		}
+	}
+	
 	activeConvention, err := repository.GetActiveConvention()
 
 	if err != nil {

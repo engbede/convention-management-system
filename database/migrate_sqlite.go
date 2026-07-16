@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS registrations (
 
 	phone TEXT NOT NULL UNIQUE,
 
+    email TEXT,
+
 	circuit TEXT NOT NULL,
 
 	local_church TEXT NOT NULL,
@@ -32,6 +34,10 @@ CREATE TABLE IF NOT EXISTS registrations (
 	emergency_contact_name TEXT,
 
 	emergency_contact_phone TEXT,
+
+    relationship TEXT,
+
+    address TEXT,
 
 	arrival_date TEXT,
 
@@ -295,6 +301,20 @@ CREATE TABLE IF NOT EXISTS documents (
 	_, _ = DB.Exec(`
     ALTER TABLE registrations
     ADD COLUMN qr_code TEXT
+`)
+	_, _ = DB.Exec(`
+ALTER TABLE registrations
+ADD COLUMN email TEXT
+`)
+
+	_, _ = DB.Exec(`
+ALTER TABLE registrations
+ADD COLUMN relationship TEXT
+`)
+
+	_, _ = DB.Exec(`
+ALTER TABLE registrations
+ADD COLUMN address TEXT
 `)
 	return nil
 }

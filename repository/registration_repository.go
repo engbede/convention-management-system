@@ -25,27 +25,31 @@ func CreateRegistration(reg *models.Registration) error {
 
 	query := `
 	INSERT INTO registrations(
-		convention_id,
-		full_name,
-		gender,
-		age,
-		phone,
-		circuit,
-		local_church,
-		membership,
-		position,
-		marital_status,
-		occupation,
-		emergency_contact_name,
-		emergency_contact_phone,
-		arrival_date,
-		first_time_attendee,
-		bible_study_group
-	)
+    convention_id,
+    full_name,
+    gender,
+    age,
+    phone,
+    email,
+    circuit,
+    local_church,
+    membership,
+    position,
+    marital_status,
+    occupation,
+    emergency_contact_name,
+    emergency_contact_phone,
+    relationship,
+    address,
+    arrival_date,
+    first_time_attendee,
+    bible_study_group
+)
 	VALUES(
-		$1,$2,$3,$4,$5,$6,$7,$8,
-		$9,$10,$11,$12,$13,$14,$15,$16
-	)
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,
+    $10,$11,$12,$13,$14,$15,$16,
+    $17,$18,$19
+)
 	RETURNING id
 	`
 
@@ -56,6 +60,7 @@ func CreateRegistration(reg *models.Registration) error {
 		reg.Gender,
 		reg.Age,
 		reg.Phone,
+		reg.Email,
 		reg.Circuit,
 		reg.LocalChurch,
 		reg.Membership,
@@ -64,6 +69,8 @@ func CreateRegistration(reg *models.Registration) error {
 		reg.Occupation,
 		reg.EmergencyContactName,
 		reg.EmergencyContactPhone,
+		reg.Relationship,
+		reg.Address,
 		reg.ArrivalDate,
 		reg.FirstTimeAttendee,
 		reg.BibleStudyGroup,
@@ -80,6 +87,7 @@ func GetAllRegistrations() ([]models.Registration, error) {
 			gender,
 			age,
 			phone,
+			COALESCE(email, ''),
 			circuit,
 			local_church,
 			membership,
@@ -88,6 +96,8 @@ func GetAllRegistrations() ([]models.Registration, error) {
 			occupation,
 			emergency_contact_name,
 			emergency_contact_phone,
+			COALESCE(relationship, ''),
+			COALESCE(address, ''),
 			arrival_date,
 			first_time_attendee,
 			checked_in,
@@ -114,6 +124,7 @@ func GetAllRegistrations() ([]models.Registration, error) {
 			&reg.Gender,
 			&reg.Age,
 			&reg.Phone,
+			&reg.Email,
 			&reg.Circuit,
 			&reg.LocalChurch,
 			&reg.Membership,
@@ -122,6 +133,8 @@ func GetAllRegistrations() ([]models.Registration, error) {
 			&reg.Occupation,
 			&reg.EmergencyContactName,
 			&reg.EmergencyContactPhone,
+			&reg.Relationship,
+			&reg.Address,
 			&reg.ArrivalDate,
 			&reg.FirstTimeAttendee,
 			&reg.CheckedIn,
@@ -156,25 +169,28 @@ func GetRegistrationsPaginated(
 	offset := (page - 1) * pageSize
 
 	rows, err := database.DB.Query(`
-		SELECT
-			id,
-			convention_id,
-			full_name,
-			gender,
-			age,
-			phone,
-			circuit,
-			local_church,
-			membership,
-			position,
-			marital_status,
-			occupation,
-			emergency_contact_name,
-			emergency_contact_phone,
-			arrival_date,
-			first_time_attendee,
-			checked_in,
-			bible_study_group
+	SELECT
+    id,
+    convention_id,
+    full_name,
+    gender,
+    age,
+    phone,
+    COALESCE(email, ''),
+    circuit,
+    local_church,
+    membership,
+    position,
+    marital_status,
+    occupation,
+    emergency_contact_name,
+    emergency_contact_phone,
+    COALESCE(relationship, ''),
+    COALESCE(address, ''),
+    arrival_date,
+    first_time_attendee,
+    checked_in,
+    bible_study_group
 		FROM registrations
 		WHERE convention_id = $1
 		ORDER BY id DESC
@@ -201,6 +217,7 @@ func GetRegistrationsPaginated(
 			&reg.Gender,
 			&reg.Age,
 			&reg.Phone,
+			&reg.Email,
 			&reg.Circuit,
 			&reg.LocalChurch,
 			&reg.Membership,
@@ -209,6 +226,8 @@ func GetRegistrationsPaginated(
 			&reg.Occupation,
 			&reg.EmergencyContactName,
 			&reg.EmergencyContactPhone,
+			&reg.Relationship,
+			&reg.Address,
 			&reg.ArrivalDate,
 			&reg.FirstTimeAttendee,
 			&reg.CheckedIn,
@@ -263,24 +282,28 @@ func SearchRegistrations(
 
 	query := `
 	SELECT
-		id,
-		convention_id,
-		full_name,
-		gender,
-		age,
-		phone,
-		circuit,
-		local_church,
-		membership,
-		position,
-		marital_status,
-		occupation,
-		emergency_contact_name,
-		emergency_contact_phone,
-		arrival_date,
-		first_time_attendee,
-		checked_in,
-		bible_study_group
+    id,
+    convention_id,
+    full_name,
+    gender,
+    age,
+    phone,
+    COALESCE(email, ''),
+    circuit,
+    local_church,
+    membership,
+    position,
+    marital_status,
+    occupation,
+    emergency_contact_name,
+    emergency_contact_phone,
+    COALESCE(relationship, ''),
+    COALESCE(address, ''),
+    arrival_date,
+    first_time_attendee,
+    checked_in,
+    bible_study_group
+	
 	FROM registrations
 	WHERE convention_id = $1
 	AND (
@@ -316,6 +339,7 @@ func SearchRegistrations(
 			&reg.Gender,
 			&reg.Age,
 			&reg.Phone,
+			&reg.Email,
 			&reg.Circuit,
 			&reg.LocalChurch,
 			&reg.Membership,
@@ -324,6 +348,8 @@ func SearchRegistrations(
 			&reg.Occupation,
 			&reg.EmergencyContactName,
 			&reg.EmergencyContactPhone,
+			&reg.Relationship,
+			&reg.Address,
 			&reg.ArrivalDate,
 			&reg.FirstTimeAttendee,
 			&reg.CheckedIn,

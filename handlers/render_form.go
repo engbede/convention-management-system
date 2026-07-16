@@ -15,12 +15,15 @@ func renderRegistrationForm(
 
 	convention, _ := repository.GetActiveConvention()
 
+	notices, _ := repository.GetActiveNotices()
+
 	data := models.FormData{
 		Title:        "Youth Convention Registration",
 		Action:       "/submit-registration",
 		ButtonText:   "Register",
 		Convention:   convention,
 		Registration: reg,
+		Notices:      notices,
 		Error:        errMsg,
 	}
 
