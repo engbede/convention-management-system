@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS registrations (
 		return err
 	}
 
-_, err := DB.Exec(`
+	_, err := DB.Exec(`
 ALTER TABLE registrations
 ADD COLUMN IF NOT EXISTS registration_number TEXT;
 
@@ -77,9 +77,9 @@ ALTER TABLE registrations
 ADD COLUMN IF NOT EXISTS qr_code TEXT;
 `)
 
-if err != nil {
-    return err
-}
+	if err != nil {
+		return err
+	}
 
 	DB.Exec(`
 ALTER TABLE registrations
@@ -175,6 +175,28 @@ CREATE TABLE IF NOT EXISTS finance (
 	}
 
 	fmt.Println("Creating finance table...")
+
+	// ----------------------------
+	// Inquiries
+	// ----------------------------
+	inquiriesTable := `
+CREATE TABLE IF NOT EXISTS inquiries (
+	id BIGSERIAL PRIMARY KEY,
+	name TEXT NOT NULL,
+	phone TEXT NOT NULL,
+	email TEXT,
+	subject TEXT NOT NULL,
+	message TEXT NOT NULL,
+	status TEXT DEFAULT 'Pending',
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`
+
+	if _, err := DB.Exec(inquiriesTable); err != nil {
+		return err
+	}
+
+	fmt.Println("Creating inquiries table...")
 
 	return nil
 }
