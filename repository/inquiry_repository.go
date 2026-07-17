@@ -172,31 +172,30 @@ func GetInquiryStats() (models.InquiryStats, error) {
 
 	var stats models.InquiryStats
 
-	err := database.DB.QueryRow(
-		`
+	err := database.DB.QueryRow(`
 		SELECT
-
 			COUNT(*) AS total,
 
-			SUM(
-				CASE
-					WHEN status = 'Pending'
-					THEN 1
-					ELSE 0
-				END
-			),
+			COALESCE(
+				SUM(
+					CASE
+						WHEN status = 'Pending' THEN 1
+						ELSE 0
+					END
+				), 0
+			) AS pending,
 
-			SUM(
-				CASE
-					WHEN status = 'Resolved'
-					THEN 1
-					ELSE 0
-				END
-			)
+			COALESCE(
+				SUM(
+					CASE
+						WHEN status = 'Resolved' THEN 1
+						ELSE 0
+					END
+				), 0
+			) AS resolved
 
 		FROM inquiries
-		`,
-	).Scan(
+	`).Scan(
 		&stats.Total,
 		&stats.Pending,
 		&stats.Resolved,
@@ -204,6 +203,7 @@ func GetInquiryStats() (models.InquiryStats, error) {
 
 	return stats, err
 }
+
 func SearchInquiries(search string) ([]models.Inquiry, error) {
 
 	query := fmt.Sprintf(`
