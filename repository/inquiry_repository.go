@@ -19,7 +19,7 @@ func CreateInquiry(inquiry models.Inquiry) error {
 			message
 		)
 		VALUES
-		(?,?,?,?,?)
+		VALUES ($1, $2, $3, $4, $5)
 		`,
 
 		inquiry.Name,
@@ -102,7 +102,7 @@ func GetInquiryByID(id int) (models.Inquiry, error) {
 			status,
 			created_at
 		FROM inquiries
-		WHERE id = ?
+		WHERE id = $1
 		`,
 		id,
 	).Scan(
@@ -126,8 +126,8 @@ func UpdateInquiryStatus(
 	_, err := database.DB.Exec(
 		`
 		UPDATE inquiries
-		SET status = ?
-		WHERE id = ?
+		SET status = $1
+		WHERE id = $2
 		`,
 		status,
 		id,
@@ -141,7 +141,7 @@ func DeleteInquiry(id int) error {
 		`
 		DELETE
 		FROM inquiries
-		WHERE id = ?
+		WHERE id = $1
 		`,
 		id,
 	)
@@ -199,10 +199,10 @@ func SearchInquiries(search string) ([]models.Inquiry, error) {
 			created_at
 		FROM inquiries
 		WHERE
-			name LIKE ?
-			OR phone LIKE ?
-			OR email LIKE ?
-			OR subject LIKE ?
+   	 		name LIKE $1
+    		OR phone LIKE $2
+    		OR email LIKE $3
+    		OR subject LIKE $4
 		ORDER BY created_at DESC
 		`,
 		"%"+search+"%",
@@ -260,7 +260,7 @@ func GetInquiriesByStatus(
 			status,
 			created_at
 		FROM inquiries
-		WHERE status = ?
+		WHERE status = $1
 		ORDER BY created_at DESC
 		`,
 		status,
@@ -331,10 +331,10 @@ func FilterInquiries(
 
 		query += `
 		AND (
-			name LIKE ?
-			OR phone LIKE ?
-			OR email LIKE ?
-			OR subject LIKE ?
+			name LIKE $1
+    		OR phone LIKE $2
+    		OR email LIKE $3
+    		OR subject LIKE $4
 		)
 		`
 
@@ -352,7 +352,7 @@ func FilterInquiries(
 	if status != "" {
 
 		query += `
-		AND status = ?
+		AND status = $1
 		`
 
 		args = append(
@@ -363,8 +363,8 @@ func FilterInquiries(
 
 	query += `
 	ORDER BY created_at DESC
-	LIMIT ?
-	OFFSET ?
+	LIMIT $1
+	OFFSET $2
 	`
 
 	args = append(
@@ -434,8 +434,8 @@ func GetInquiriesPage(
 			created_at
 		FROM inquiries
 		ORDER BY created_at DESC
-		LIMIT ?
-		OFFSET ?
+		LIMIT $1
+		OFFSET $2
 		`,
 		pageSize,
 		offset,
@@ -494,10 +494,10 @@ func CountInquiries(
 
 		query += `
 		AND (
-			name LIKE ?
-			OR phone LIKE ?
-			OR email LIKE ?
-			OR subject LIKE ?
+			name LIKE $1
+    		OR phone LIKE $2
+    		OR email LIKE $3
+    		OR subject LIKE $4
 		)
 		`
 
@@ -515,7 +515,7 @@ func CountInquiries(
 	if status != "" {
 
 		query += `
-		AND status = ?
+		AND status = $1
 		`
 
 		args = append(
