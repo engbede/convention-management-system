@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS registrations (
 	}
 
 	DB.Exec(`
+_, err := DB.Exec(`
 ALTER TABLE registrations
 ADD COLUMN IF NOT EXISTS registration_number TEXT;
 
@@ -72,7 +73,14 @@ ADD COLUMN IF NOT EXISTS relationship TEXT;
 
 ALTER TABLE registrations
 ADD COLUMN IF NOT EXISTS address TEXT;
+
+ALTER TABLE registrations
+ADD COLUMN IF NOT EXISTS qr_code TEXT;
 `)
+
+if err != nil {
+    return err
+}
 
 	DB.Exec(`
 ALTER TABLE registrations
