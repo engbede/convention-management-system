@@ -13,30 +13,30 @@ func GetRegistrationByID(id int) (models.Registration, error) {
 	var reg models.Registration
 
 	err := database.DB.QueryRow(`
-		SELECT
-			id,
-			full_name,
-			gender,
-			age,
-			phone,
-			email,
-			circuit,
-			local_church,
-			membership,
-			position,
-			marital_status,
-			occupation,
-			emergency_contact_name,
-			emergency_contact_phone,
-			relationship,
-			address,
-			arrival_date,
-			first_time_attendee,
-			checked_in,
-			bible_study_group
-		FROM registrations
-		WHERE id = $1
-	`, id).Scan(
+    SELECT
+        id,
+        full_name,
+        gender,
+        age,
+        phone,
+        COALESCE(email, ''),
+        circuit,
+        local_church,
+        membership,
+        position,
+        marital_status,
+        occupation,
+        emergency_contact_name,
+        emergency_contact_phone,
+        COALESCE(relationship, ''),
+        COALESCE(address, ''),
+        arrival_date,
+        first_time_attendee,
+        checked_in,
+        bible_study_group
+    FROM registrations
+    WHERE id = $1
+`, id).Scan(
 		&reg.ID,
 		&reg.FullName,
 		&reg.Gender,
