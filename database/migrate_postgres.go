@@ -229,5 +229,32 @@ CREATE TABLE IF NOT EXISTS documents (
 
 	fmt.Println("Creating documents table...")
 
+	// ----------------------------
+	// Document Files
+	// ----------------------------
+	documentFilesTable := `
+CREATE TABLE IF NOT EXISTS document_files (
+	id BIGSERIAL PRIMARY KEY,
+
+	document_id BIGINT NOT NULL
+		REFERENCES documents(id)
+		ON DELETE CASCADE,
+
+	file_name TEXT NOT NULL,
+
+	file_path TEXT NOT NULL,
+
+	file_type TEXT,
+
+	uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`
+
+	if _, err := DB.Exec(documentFilesTable); err != nil {
+		return err
+	}
+
+	fmt.Println("Creating document_files table...")
+
 	return nil
 }
