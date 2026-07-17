@@ -60,7 +60,6 @@ CREATE TABLE IF NOT EXISTS registrations (
 		return err
 	}
 
-	DB.Exec(`
 _, err := DB.Exec(`
 ALTER TABLE registrations
 ADD COLUMN IF NOT EXISTS registration_number TEXT;
