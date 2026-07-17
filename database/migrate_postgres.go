@@ -198,5 +198,36 @@ CREATE TABLE IF NOT EXISTS inquiries (
 
 	fmt.Println("Creating inquiries table...")
 
+	// ----------------------------
+	// Documents
+	// ----------------------------
+	documentsTable := `
+CREATE TABLE IF NOT EXISTS documents (
+	id BIGSERIAL PRIMARY KEY,
+
+	title TEXT NOT NULL,
+
+	category TEXT NOT NULL,
+
+	convention TEXT,
+
+	year INTEGER,
+
+	description TEXT,
+
+	content TEXT,
+
+	created_by TEXT,
+
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+`
+
+	if _, err := DB.Exec(documentsTable); err != nil {
+		return err
+	}
+
+	fmt.Println("Creating documents table...")
+
 	return nil
 }
