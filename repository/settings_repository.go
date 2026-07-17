@@ -7,7 +7,7 @@ func GetSetting(key string) string {
 	var value string
 
 	_ = database.DB.QueryRow(
-		"SELECT value FROM settings WHERE key=?",
+		"SELECT value FROM settings WHERE key = $1",
 		key,
 	).Scan(&value)
 
@@ -20,10 +20,10 @@ func SaveSetting(
 ) error {
 
 	_, err := database.DB.Exec(`
-INSERT INTO settings(key,value)
-VALUES(?,?)
+INSERT INTO settings(key, value)
+VALUES($1, $2)
 ON CONFLICT(key)
-DO UPDATE SET value=excluded.value
+DO UPDATE SET value = EXCLUDED.value
 `,
 		key,
 		value,

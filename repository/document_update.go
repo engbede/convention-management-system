@@ -10,13 +10,13 @@ func UpdateDocument(d models.Document) error {
 	_, err := database.DB.Exec(`
 UPDATE documents
 SET
-	title=?,
-	category=?,
-	convention=?,
-	year=?,
-	description=?,
-	content=?
-WHERE id=?
+	title = $1,
+	category = $2,
+	convention = $3,
+	year = $4,
+	description = $5,
+	content = $6
+WHERE id = $7
 `,
 		d.Title,
 		d.Category,

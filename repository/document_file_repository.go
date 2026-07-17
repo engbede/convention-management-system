@@ -8,16 +8,16 @@ import (
 func SaveDocumentFile(file models.DocumentFile) error {
 
 	_, err := database.DB.Exec(
-
-		`INSERT INTO document_files
+		`
+		INSERT INTO document_files
 		(
 			document_id,
 			file_name,
 			file_path,
 			file_type
 		)
-		VALUES (?, ?, ?, ?)`,
-
+		VALUES ($1, $2, $3, $4)
+		`,
 		file.DocumentID,
 		file.FileName,
 		file.FilePath,
@@ -30,8 +30,8 @@ func SaveDocumentFile(file models.DocumentFile) error {
 func GetDocumentFiles(documentID int) ([]models.DocumentFile, error) {
 
 	rows, err := database.DB.Query(
-
-		`SELECT
+		`
+		SELECT
 			id,
 			document_id,
 			file_name,
@@ -39,9 +39,9 @@ func GetDocumentFiles(documentID int) ([]models.DocumentFile, error) {
 			file_type,
 			uploaded_at
 		FROM document_files
-		WHERE document_id=?
-		ORDER BY uploaded_at DESC`,
-
+		WHERE document_id = $1
+		ORDER BY uploaded_at DESC
+		`,
 		documentID,
 	)
 
@@ -58,7 +58,6 @@ func GetDocumentFiles(documentID int) ([]models.DocumentFile, error) {
 		var f models.DocumentFile
 
 		err := rows.Scan(
-
 			&f.ID,
 			&f.DocumentID,
 			&f.FileName,
@@ -72,6 +71,10 @@ func GetDocumentFiles(documentID int) ([]models.DocumentFile, error) {
 		}
 
 		files = append(files, f)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return files, nil

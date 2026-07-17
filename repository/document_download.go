@@ -15,8 +15,8 @@ func GetDocumentFileByID(
 	var file models.DocumentFile
 
 	err := database.DB.QueryRow(
-
-		`SELECT
+		`
+		SELECT
 			id,
 			document_id,
 			file_name,
@@ -24,11 +24,10 @@ func GetDocumentFileByID(
 			file_type,
 			uploaded_at
 		FROM document_files
-		WHERE id=?`,
-
+		WHERE id = $1
+		`,
 		id,
 	).Scan(
-
 		&file.ID,
 		&file.DocumentID,
 		&file.FileName,

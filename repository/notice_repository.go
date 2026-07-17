@@ -18,7 +18,7 @@ func CreateNotice(n models.Notice) error {
 		end_date,
 		created_by
 	)
-	VALUES(?,?,?,?,?,?,?,?)
+	VALUES($1,$2,$3,$4,$5,$6,$7,$8)
 	`,
 		n.Title,
 		n.Message,

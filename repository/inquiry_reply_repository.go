@@ -19,9 +19,9 @@ func CreateInquiryReply(
 		)
 		VALUES
 		(
-			?,
-			?,
-			?
+			$1,
+			$2,
+			$3
 		)
 		`,
 		reply.InquiryID,
@@ -45,7 +45,7 @@ func GetRepliesByInquiry(
 			message,
 			created_at
 		FROM inquiry_replies
-		WHERE inquiry_id = ?
+		WHERE inquiry_id = $1
 		ORDER BY created_at ASC
 		`,
 		inquiryID,
@@ -75,10 +75,11 @@ func GetRepliesByInquiry(
 			return nil, err
 		}
 
-		replies = append(
-			replies,
-			reply,
-		)
+		replies = append(replies, reply)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return replies, nil

@@ -21,7 +21,7 @@ SELECT
 	created_by,
 	created_at
 FROM documents
-WHERE id=?
+WHERE id = $1
 `,
 		id,
 	).Scan(
