@@ -63,6 +63,15 @@ CREATE TABLE IF NOT EXISTS registrations (
 	DB.Exec(`
 ALTER TABLE registrations
 ADD COLUMN IF NOT EXISTS registration_number TEXT;
+
+ALTER TABLE registrations
+ADD COLUMN IF NOT EXISTS email TEXT;
+
+ALTER TABLE registrations
+ADD COLUMN IF NOT EXISTS relationship TEXT;
+
+ALTER TABLE registrations
+ADD COLUMN IF NOT EXISTS address TEXT;
 `)
 
 	DB.Exec(`
