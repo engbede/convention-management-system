@@ -23,11 +23,11 @@ func UpdateRegistration(reg models.Registration) error {
 		occupation = $11,
 		emergency_contact_name = $12,
 		emergency_contact_phone = $13,
-		relationahip = $14
-		address = &15
+		relationahip = $14,
+		address = &15,
 		arrival_date = $16,
 		first_time_attendee = $17,
-		bible_study_group = $18
+		bible_study_group = $18,
 	WHERE id = $19
 	`
 
