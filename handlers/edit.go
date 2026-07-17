@@ -116,38 +116,33 @@ func UpdateRegistration(
 		r.FormValue("first_time_attendee") == "Yes"
 
 	reg := models.Registration{
-
 		ID: id,
 
 		FullName: r.FormValue("fullname"),
-
-		Gender: r.FormValue("gender"),
-
-		Age: age,
+		Gender:   r.FormValue("gender"),
+		Age:      age,
 
 		Phone: r.FormValue("phone"),
+		Email: r.FormValue("email"),
 
-		Circuit: r.FormValue("circuit"),
-
+		Circuit:     r.FormValue("circuit"),
 		LocalChurch: r.FormValue("local_church"),
-
-		Membership: r.FormValue("membership"),
-
-		Position: r.FormValue("position"),
+		Membership:  r.FormValue("membership"),
+		Position:    r.FormValue("position"),
 
 		MaritalStatus: r.FormValue("marital_status"),
+		Occupation:    r.FormValue("occupation"),
 
-		Occupation: r.FormValue("occupation"),
-
-		EmergencyContactName: r.FormValue("emergency_contact_name"),
-
+		EmergencyContactName:  r.FormValue("emergency_contact_name"),
 		EmergencyContactPhone: r.FormValue("emergency_contact_phone"),
+
+		Relationship: r.FormValue("relationship"),
+		Address:      r.FormValue("address"),
 
 		ArrivalDate: r.FormValue("arrival_date"),
 
 		FirstTimeAttendee: firstTime,
-
-		BibleStudyGroup: group,
+		BibleStudyGroup:   group,
 	}
 
 	err = repository.UpdateRegistration(reg)
