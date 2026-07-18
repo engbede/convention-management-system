@@ -324,13 +324,16 @@ func Register(
 	)
 
 	// Send SMS without delaying registration
-	go func(phone, msg string) {
+	fmt.Println("Preparing to send SMS...")
+	fmt.Println("Phone:", smsPhone)
 
-		if err := services.SendSMS(phone, msg); err != nil {
-			fmt.Println("SMS Error:", err)
-		}
+	err = services.SendSMS(smsPhone, message)
 
-	}(smsPhone, message)
+	if err != nil {
+		fmt.Println("SMS Error:", err)
+	} else {
+		fmt.Println("SMS sent successfully from registration.")
+	}
 
 	Render(
 		w,
