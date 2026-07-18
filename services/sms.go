@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 )
@@ -64,7 +65,6 @@ func SendSMS(phone, message string) error {
 		baseURL+"/sms/2/text/advanced",
 		bytes.NewBuffer(jsonData),
 	)
-
 	if err != nil {
 		return err
 	}
@@ -82,9 +82,18 @@ func SendSMS(phone, message string) error {
 
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= http.StatusMultipleChoices {
-		return fmt.Errorf("infobip returned %s", resp.Status)
+	body, _ := io.ReadAll(resp.Body)
+
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf(
+			"Infobip error (%d): %s",
+			resp.StatusCode,
+			string(body),
+		)
 	}
+
+	fmt.Println("Infobip response:")
+	fmt.Println(string(body))
 
 	return nil
 }
