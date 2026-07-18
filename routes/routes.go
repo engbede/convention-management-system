@@ -417,6 +417,11 @@ func RegisterRoutes(mux *http.ServeMux) {
 		middleware.RequireAuth(handlers.SubmitInquiryReply),
 	)
 
+	mux.HandleFunc(
+		"/test-sms",
+		handlers.TestSMS,
+	)
+
 	mux.HandleFunc("/finance", handlers.ListFinance)
 
 	mux.HandleFunc("/finance/new", handlers.NewFinance)

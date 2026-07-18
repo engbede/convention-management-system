@@ -4,69 +4,86 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 )
 
-type TermiiRequest struct {
-	To      string `json:"to"`
-	From    string `json:"from"`
-	SMS     string `json:"sms"`
-	Type    string `json:"type"`
-	Channel string `json:"channel"`
-	ApiKey  string `json:"api_key"`
+type smsRequest struct {
+	Messages []smsMessage `json:"messages"`
 }
 
-func SendSMS(phone string, message string) error {
-	key := os.Getenv("TERMII_API_KEY")
+type smsMessage struct {
+	From         string           `json:"from"`
+	Destinations []smsDestination `json:"destinations"`
+	Text         string           `json:"text"`
+}
 
-	fmt.Printf("API Key length: %d\n", len(key))
+type smsDestination struct {
+	To string `json:"to"`
+}
 
-	if len(key) >= 8 {
-		fmt.Printf("API Key prefix: %s...\n", key[:8])
+func SendSMS(phone, message string) error {
+
+	baseURL := os.Getenv("INFOBIP_BASE_URL")
+	apiKey := os.Getenv("INFOBIP_API_KEY")
+	sender := os.Getenv("INFOBIP_SENDER")
+
+	if baseURL == "" {
+		return fmt.Errorf("INFOBIP_BASE_URL is not configured")
 	}
-	fmt.Println("TERMII_API_KEY:", os.Getenv("TERMII_API_KEY"))
-	fmt.Println("TERMII_SENDER:", os.Getenv("TERMII_SENDER"))
-	request := TermiiRequest{
-		To:      phone,
-		From:    os.Getenv("TERMII_SENDER"),
-		SMS:     message,
-		Type:    "plain",
-		Channel: "generic",
-		ApiKey:  os.Getenv("TERMII_API_KEY"),
+
+	if apiKey == "" {
+		return fmt.Errorf("INFOBIP_API_KEY is not configured")
 	}
 
-	body, err := json.Marshal(request)
+	if sender == "" {
+		return fmt.Errorf("INFOBIP_SENDER is not configured")
+	}
 
+	payload := smsRequest{
+		Messages: []smsMessage{
+			{
+				From: sender,
+				Destinations: []smsDestination{
+					{
+						To: phone,
+					},
+				},
+				Text: message,
+			},
+		},
+	}
+
+	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	resp, err := http.Post(
-		"https://api.ng.termii.com/api/sms/send",
-		"application/json",
-		bytes.NewBuffer(body),
+	req, err := http.NewRequest(
+		http.MethodPost,
+		baseURL+"/sms/2/text/advanced",
+		bytes.NewBuffer(jsonData),
 	)
 
 	if err != nil {
 		return err
 	}
 
+	req.Header.Set("Authorization", "App "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+
 	defer resp.Body.Close()
 
-	responseBody, _ := io.ReadAll(resp.Body)
-
-	fmt.Println("========== TERMII RESPONSE ==========")
-	fmt.Println(string(responseBody))
-	fmt.Println("=====================================")
-
-	if resp.StatusCode != http.StatusOK {
-
-		return fmt.Errorf(
-			"termii returned %s",
-			resp.Status,
-		)
+	if resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("infobip returned %s", resp.Status)
 	}
 
 	return nil
