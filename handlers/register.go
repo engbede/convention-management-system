@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"convention-management-system/models"
 	"convention-management-system/repository"
@@ -194,7 +195,7 @@ func Register(
 			return
 		}
 	}
-	
+
 	activeConvention, err := repository.GetActiveConvention()
 
 	if err != nil {
@@ -242,6 +243,7 @@ func Register(
 		return
 	}
 
+	// Generate registration number
 	reg.RegistrationNumber = repository.GenerateRegistrationNumber(reg.ID)
 
 	err = repository.SaveRegistrationNumber(
@@ -250,24 +252,29 @@ func Register(
 	)
 
 	if err != nil {
+
 		http.Error(
 			w,
 			err.Error(),
 			http.StatusInternalServerError,
 		)
+
 		return
 	}
 
+	// Generate QR Code
 	qrPath, err := services.GenerateQRCode(
 		reg.RegistrationNumber,
 	)
 
 	if err != nil {
+
 		http.Error(
 			w,
 			err.Error(),
 			http.StatusInternalServerError,
 		)
+
 		return
 	}
 
@@ -279,36 +286,51 @@ func Register(
 	)
 
 	if err != nil {
+
 		http.Error(
 			w,
 			err.Error(),
 			http.StatusInternalServerError,
 		)
+
 		return
 	}
 
+	// Convert phone number to international format for SMS
+	smsPhone := reg.Phone
+
+	if strings.HasPrefix(smsPhone, "0") {
+		smsPhone = "234" + smsPhone[1:]
+	}
+
+	// SMS Message
 	message := fmt.Sprintf(
 		"Dear %s,\n\n"+
 			"Your registration for %s has been received successfully.\n\n"+
+			"Registration No: %s\n"+
 			"Venue: %s\n"+
 			"Arrival Date: %s\n"+
 			"Bible Study Group: %d\n\n"+
-			"Thank you for registering.\n\n"+
+			"Please keep your registration number. It will be required during check-in.\n\n"+
+			"Thank you.\n\n"+
 			"Methodist Church Nigeria\n"+
 			"Apa Diocesan Youth Fellowship",
 		reg.FullName,
 		activeConvention.Name,
+		reg.RegistrationNumber,
 		activeConvention.Venue,
 		reg.ArrivalDate,
 		reg.BibleStudyGroup,
 	)
 
-	if err := services.SendSMS(reg.Phone, message); err != nil {
+	// Send SMS without delaying registration
+	go func(phone, msg string) {
 
-		// Don't stop registration because SMS failed.
-		fmt.Println("SMS Error:", err)
+		if err := services.SendSMS(phone, msg); err != nil {
+			fmt.Println("SMS Error:", err)
+		}
 
-	}
+	}(smsPhone, message)
 
 	Render(
 		w,
