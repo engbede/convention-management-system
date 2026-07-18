@@ -84,6 +84,10 @@ func SendSMS(phone, message string) error {
 
 	body, _ := io.ReadAll(resp.Body)
 
+	fmt.Println("Status Code:", resp.StatusCode)
+	fmt.Println("Response:")
+	fmt.Println(string(body))
+
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf(
 			"Infobip error (%d): %s",
@@ -91,9 +95,6 @@ func SendSMS(phone, message string) error {
 			string(body),
 		)
 	}
-
-	fmt.Println("Infobip response:")
-	fmt.Println(string(body))
 
 	return nil
 }
