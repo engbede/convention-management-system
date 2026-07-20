@@ -303,29 +303,23 @@ func Register(
 		smsPhone = "234" + smsPhone[1:]
 	}
 
-	// SMS Message
+	fmt.Println("========== SMS DEBUG ==========")
+	fmt.Println("Original Phone :", reg.Phone)
+	fmt.Println("Converted Phone:", smsPhone)
+	fmt.Println("Recipient Name :", reg.FullName)
+	fmt.Println("Registration No:", reg.RegistrationNumber)
+	fmt.Println("Convention     :", activeConvention.Name)
+	fmt.Println("===============================")
+
+	// Short message for testing
 	message := fmt.Sprintf(
-		"Dear %s,\n\n"+
-			"Your registration for %s has been received successfully.\n\n"+
-			"Registration No: %s\n"+
-			"Venue: %s\n"+
-			"Arrival Date: %s\n"+
-			"Bible Study Group: %d\n\n"+
-			"Please keep your registration number. It will be required during check-in.\n\n"+
-			"Thank you.\n\n"+
-			"Methodist Church Nigeria\n"+
-			"Apa Diocesan Youth Fellowship",
+		"Hello %s, your registration was successful. Registration No: %s",
 		reg.FullName,
-		activeConvention.Name,
 		reg.RegistrationNumber,
-		activeConvention.Venue,
-		reg.ArrivalDate,
-		reg.BibleStudyGroup,
 	)
 
-	// Send SMS without delaying registration
+	fmt.Println("Message:", message)
 	fmt.Println("Preparing to send SMS...")
-	fmt.Println("Phone:", smsPhone)
 
 	err = services.SendSMS(smsPhone, message)
 
