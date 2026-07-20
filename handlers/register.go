@@ -296,26 +296,21 @@ func Register(
 		return
 	}
 
-	// Convert phone number to international format for SMS
-	smsPhone := reg.Phone
+	// Clean phone number
+	smsPhone := strings.TrimSpace(reg.Phone)
 
+	// Convert Nigerian phone number to international format
 	if strings.HasPrefix(smsPhone, "0") {
 		smsPhone = "234" + smsPhone[1:]
 	}
 
-	fmt.Println("========== SMS DEBUG ==========")
-	fmt.Println("Original Phone :", reg.Phone)
-	fmt.Println("Converted Phone:", smsPhone)
-	fmt.Println("Recipient Name :", reg.FullName)
-	fmt.Println("Registration No:", reg.RegistrationNumber)
-	fmt.Println("Convention     :", activeConvention.Name)
-	fmt.Println("===============================")
+	// Debug phone number
+	fmt.Printf("Original Phone: %q\n", reg.Phone)
+	fmt.Printf("Converted Phone: %q\n", smsPhone)
 
 	// Short message for testing
 	message := fmt.Sprintf(
-		"Dear %s, your registration for %s was successful. Registration No: %s. Please keep this number for check-in. Thank you.",
-		reg.FullName,
-		activeConvention.Name,
+		"Registration successful. Reg No: %s",
 		reg.RegistrationNumber,
 	)
 
