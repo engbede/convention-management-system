@@ -84,9 +84,14 @@ func SendSMS(phone, message string) error {
 
 	body, _ := io.ReadAll(resp.Body)
 
+	fmt.Println("========================================")
+	fmt.Println("INFOBIP SMS DEBUG")
+	fmt.Println("Phone:", phone)
+	fmt.Println("Sender:", sender)
 	fmt.Println("Status Code:", resp.StatusCode)
-	fmt.Println("Response:")
+	fmt.Println("Response Body:")
 	fmt.Println(string(body))
+	fmt.Println("========================================")
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf(
