@@ -313,8 +313,9 @@ func Register(
 
 	// Short message for testing
 	message := fmt.Sprintf(
-		"Dear %s, your registration was successful. Registration No: %s",
+		"Dear %s, your registration for %s was successful. Registration No: %s. Please keep this number for check-in. Thank you.",
 		reg.FullName,
+		activeConvention.Name,
 		reg.RegistrationNumber,
 	)
 
