@@ -314,21 +314,13 @@ func Register(
 	// Short message for testing
 	message := fmt.Sprintf(
 		"Dear %s,\n\n"+
-			"Your registration for %s has been received successfully.\n\n"+
+			"Your registration for %s was successful.\n"+
 			"Registration No: %s\n\n"+
-			"Venue: %s\n"+
-			"Arrival Date: %s\n"+
-			"Bible Study Group: %d\n\n"+
-			"Please keep your registration number. It will be required during check-in.\n\n"+
-			"Thank you.\n\n"+
-			"Methodist Church Nigeria\n"+
-			"Apa Diocesan Youth Fellowship",
+			"Please keep this number for check-in.\n\n"+
+			"Thank you.",
 		reg.FullName,
 		activeConvention.Name,
 		reg.RegistrationNumber,
-		activeConvention.Venue,
-		reg.ArrivalDate,
-		reg.BibleStudyGroup,
 	)
 
 	fmt.Println("Message:", message)
