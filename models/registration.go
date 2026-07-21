@@ -20,7 +20,7 @@ type Registration struct {
 	Position   string
 
 	MaritalStatus string
-	Occupation     string
+	Occupation    string
 
 	EmergencyContactName  string
 	EmergencyContactPhone string

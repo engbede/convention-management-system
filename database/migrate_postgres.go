@@ -256,5 +256,68 @@ CREATE TABLE IF NOT EXISTS document_files (
 
 	fmt.Println("Creating document_files table...")
 
+	_, err = DB.Exec(`
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    full_name TEXT NOT NULL,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT UNIQUE,
+    phone TEXT UNIQUE,
+
+    password_hash TEXT NOT NULL,
+
+    role TEXT DEFAULT 'attendee',
+
+    profile_photo TEXT,
+
+    bio TEXT,
+
+    gender TEXT,
+
+    date_of_birth DATE,
+
+    circuit TEXT,
+
+    local_church TEXT,
+
+    country TEXT,
+
+    state TEXT,
+
+    city TEXT,
+
+    website TEXT,
+
+    verified BOOLEAN DEFAULT FALSE,
+
+    is_private BOOLEAN DEFAULT FALSE,
+
+    last_seen TIMESTAMP,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS posts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    content TEXT NOT NULL,
+    image TEXT,
+    likes INTEGER DEFAULT 0,
+    comments INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY(user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+);
+`)
+
+	if err != nil {
+		return err
+	}
+
 	return nil
 }

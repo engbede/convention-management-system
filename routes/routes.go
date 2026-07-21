@@ -152,9 +152,9 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
-		"/logout",
+		"/admin/logout",
 		middleware.RequireAuth(
-			handlers.Logout,
+			handlers.AdminLogout,
 		),
 	)
 	mux.HandleFunc(
@@ -421,6 +421,22 @@ func RegisterRoutes(mux *http.ServeMux) {
 		"/test-sms",
 		handlers.TestSMS,
 	)
+	mux.HandleFunc(
+		"/profile",
+		middleware.RequireLogin(
+			handlers.Profile,
+		),
+	)
+	mux.HandleFunc(
+		"/community",
+		middleware.RequireLogin(
+			handlers.Community,
+		),
+	)
+
+	mux.HandleFunc("/signup", handlers.ShowSignup)
+
+	mux.HandleFunc("/create-account", handlers.Signup)
 
 	mux.HandleFunc("/finance", handlers.ListFinance)
 
@@ -434,7 +450,7 @@ func RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/finance/delete", handlers.DeleteFinance)
 
-	mux.HandleFunc("/login", handlers.Login)
+	mux.HandleFunc("/admin/login", handlers.AdminLogin)
 
 	mux.HandleFunc("/healthz", handlers.Health)
 
