@@ -426,6 +426,32 @@ CREATE TABLE IF NOT EXISTS reactions (
 `); err != nil {
 		return err
 	}
+	// Upgrade old posts table
+
+	DB.Exec(`
+ALTER TABLE posts
+ADD COLUMN video TEXT
+`)
+
+	DB.Exec(`
+ALTER TABLE posts
+ADD COLUMN visibility TEXT DEFAULT 'public'
+`)
+
+	DB.Exec(`
+ALTER TABLE posts
+ADD COLUMN shares INTEGER DEFAULT 0
+`)
+
+	DB.Exec(`
+ALTER TABLE posts
+ADD COLUMN is_edited INTEGER DEFAULT 0
+`)
+
+	DB.Exec(`
+ALTER TABLE posts
+ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+`)
 
 	if err := execMigration(`
 CREATE TABLE IF NOT EXISTS follows (

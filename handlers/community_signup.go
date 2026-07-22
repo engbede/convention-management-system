@@ -131,7 +131,7 @@ func Signup(
 	http.Redirect(
 		w,
 		r,
-		"/login",
+		"/community/login",
 		http.StatusSeeOther,
 	)
 }

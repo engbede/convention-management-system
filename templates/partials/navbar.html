@@ -1,0 +1,128 @@
+{{define "navbar"}}
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-success shadow-sm sticky-top">
+
+    <div class="container">
+
+        <!-- Logo -->
+
+        <a class="navbar-brand fw-bold me-4" href="/community">
+
+            <i class="bi bi-people-fill"></i>
+
+            Youth Community
+
+        </a>
+
+        <!-- Mobile Button -->
+
+        <button
+            class="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#navbarMenu">
+
+            <span class="navbar-toggler-icon"></span>
+
+        </button>
+
+        <!-- Navbar -->
+
+        <div class="collapse navbar-collapse" id="navbarMenu">
+
+            <!-- Search -->
+
+            <form class="mx-auto w-50">
+
+                <input
+                    class="form-control rounded-pill"
+                    type="search"
+                    placeholder="Search people, posts or groups">
+
+            </form>
+
+            <!-- Menu -->
+
+            <ul class="navbar-nav ms-auto align-items-center">
+
+                <li class="nav-item mx-1">
+
+                    <a class="nav-link active" href="/community">
+
+                        <i class="bi bi-house-door-fill"></i>
+
+                        Home
+
+                    </a>
+
+                </li>
+
+                <li class="nav-item mx-1">
+
+                    <a class="nav-link" href="/profile">
+
+                        <i class="bi bi-person-circle"></i>
+
+                        Profile
+
+                    </a>
+
+                </li>
+
+                <li class="nav-item mx-1">
+
+                    <a class="nav-link" href="/messages">
+
+                        <i class="bi bi-chat-dots"></i>
+
+                        Messages
+
+                    </a>
+
+                </li>
+
+                <li class="nav-item mx-1">
+
+                    <a class="nav-link" href="/notifications">
+
+                        <i class="bi bi-bell"></i>
+
+                        Notifications
+
+                    </a>
+
+                </li>
+
+                <li class="nav-item mx-1">
+
+                    <a class="nav-link" href="/settings">
+
+                        <i class="bi bi-gear"></i>
+
+                        Settings
+
+                    </a>
+
+                </li>
+
+                <li class="nav-item mx-1">
+
+                    <a class="nav-link text-warning" href="/logout">
+
+                        <i class="bi bi-box-arrow-right"></i>
+
+                        Logout
+
+                    </a>
+
+                </li>
+
+            </ul>
+
+        </div>
+
+    </div>
+
+</nav>
+
+{{end}}

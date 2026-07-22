@@ -434,6 +434,23 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 
+	mux.HandleFunc(
+		"/community/post",
+		middleware.RequireLogin(
+			handlers.CreateCommunityPost,
+		),
+	)
+
+	mux.HandleFunc(
+		"/community/login",
+		handlers.CommunityLogin,
+	)
+
+	mux.HandleFunc(
+		"/community/logout",
+		handlers.CommunityLogout,
+	)
+
 	mux.HandleFunc("/signup", handlers.ShowSignup)
 
 	mux.HandleFunc("/create-account", handlers.Signup)
