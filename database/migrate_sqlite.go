@@ -378,23 +378,33 @@ CREATE TABLE IF NOT EXISTS posts (
 	if err := execMigration(`
 CREATE TABLE IF NOT EXISTS comments (
 
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-	post_id INTEGER NOT NULL,
+    post_id INTEGER NOT NULL,
 
-	user_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
 
-	content TEXT NOT NULL,
+    parent_id INTEGER,
 
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    content TEXT NOT NULL,
 
-	FOREIGN KEY(post_id)
-	REFERENCES posts(id)
-	ON DELETE CASCADE,
+    is_edited BOOLEAN DEFAULT 0,
 
-	FOREIGN KEY(user_id)
-	REFERENCES users(id)
-	ON DELETE CASCADE
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY(post_id)
+        REFERENCES posts(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(parent_id)
+        REFERENCES comments(id)
+        ON DELETE CASCADE
 
 );
 `); err != nil {
@@ -402,25 +412,48 @@ CREATE TABLE IF NOT EXISTS comments (
 	}
 
 	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_comments_post
+ON comments(post_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_comments_user
+ON comments(user_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_comments_parent
+ON comments(parent_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
 CREATE TABLE IF NOT EXISTS reactions (
 
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-	post_id INTEGER NOT NULL,
+    post_id INTEGER NOT NULL,
 
-	user_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
 
-	reaction TEXT NOT NULL,
+    reaction TEXT NOT NULL,
 
-	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
-	FOREIGN KEY(post_id)
-	REFERENCES posts(id)
-	ON DELETE CASCADE,
+    UNIQUE(post_id, user_id),
 
-	FOREIGN KEY(user_id)
-	REFERENCES users(id)
-	ON DELETE CASCADE
+    FOREIGN KEY(post_id)
+        REFERENCES posts(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(user_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
 
 );
 `); err != nil {

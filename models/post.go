@@ -28,4 +28,9 @@ type Post struct {
 	UpdatedAt time.Time
 
 	User User
+
+	// Community features
+	ReactionSummary ReactionSummary
+
+	CommentsList []Comment
 }

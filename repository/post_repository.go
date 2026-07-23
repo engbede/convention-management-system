@@ -88,6 +88,19 @@ func GetAllPosts() ([]models.Post, error) {
 		if err != nil {
 			return nil, err
 		}
+		// Load reaction summary
+		summary, err := GetReactionSummary(post.ID)
+		if err == nil {
+			post.ReactionSummary = summary
+			post.Likes = summary.Total
+		}
+
+		// Load comments
+		comments, err := GetCommentsByPost(post.ID)
+		if err == nil {
+			post.CommentsList = comments
+			post.Comments = len(comments)
+		}
 
 		posts = append(posts, post)
 	}

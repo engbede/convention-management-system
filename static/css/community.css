@@ -171,3 +171,25 @@ body{
         width:100%;
     }
 }
+
+/* ---------- PREVIEW AREA ---------- */
+#previewArea img{
+
+    width:100%;
+    border-radius:15px;
+
+}
+
+#previewArea video{
+
+    width:100%;
+    border-radius:15px;
+
+}
+
+#createPost textarea{
+
+    resize:none;
+
+}
+

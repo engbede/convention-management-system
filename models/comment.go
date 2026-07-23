@@ -9,9 +9,15 @@ type Comment struct {
 
 	UserID int
 
+	ParentID *int
+
 	Content string
 
+	IsEdited bool
+
 	CreatedAt time.Time
+
+	UpdatedAt time.Time
 
 	User User
 }

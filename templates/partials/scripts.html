@@ -1,33 +1,28 @@
-{{define "footer"}}
+{{define "scripts"}}
 
 <script>
 
 document.addEventListener("DOMContentLoaded", function () {
 
-    const textarea =
-        document.querySelector(
-            "textarea[name='content']"
-        );
+    const textarea = document.querySelector(
+        "textarea[name='content']"
+    );
 
-    const counter =
-        document.getElementById(
-            "charCount"
-        );
+    const counter = document.getElementById(
+        "charCount"
+    );
 
-    const imageInput =
-        document.getElementById(
-            "imageInput"
-        );
+    const preview = document.getElementById(
+        "previewArea"
+    );
 
-    const videoInput =
-        document.getElementById(
-            "videoInput"
-        );
+    const imageInput = document.getElementById(
+        "imageInput"
+    );
 
-    const preview =
-        document.getElementById(
-            "previewArea"
-        );
+    const videoInput = document.getElementById(
+        "videoInput"
+    );
 
     if (textarea && counter) {
 
@@ -52,9 +47,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 preview.innerHTML = "";
 
-                const file = this.files[0];
-
-                if (!file) {
+                if (!this.files.length) {
 
                     return;
 
@@ -64,13 +57,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     document.createElement("img");
 
                 img.src =
-                    URL.createObjectURL(file);
+                    URL.createObjectURL(this.files[0]);
 
                 img.className =
-                    "img-fluid rounded-4 shadow-sm";
-
-                img.style.maxHeight =
-                    "400px";
+                    "img-fluid rounded-4 shadow-sm mt-2";
 
                 preview.appendChild(img);
 
@@ -87,9 +77,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 preview.innerHTML = "";
 
-                const file = this.files[0];
-
-                if (!file) {
+                if (!this.files.length) {
 
                     return;
 
@@ -98,16 +86,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 const video =
                     document.createElement("video");
 
-                video.src =
-                    URL.createObjectURL(file);
-
                 video.controls = true;
 
                 video.className =
-                    "img-fluid rounded-4 shadow-sm";
+                    "img-fluid rounded-4 shadow-sm mt-2";
 
-                video.style.maxHeight =
-                    "400px";
+                video.src =
+                    URL.createObjectURL(this.files[0]);
 
                 preview.appendChild(video);
 
@@ -119,9 +104,5 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 
 </script>
-
-</body>
-
-</html>
 
 {{end}}

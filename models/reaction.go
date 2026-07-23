@@ -13,3 +13,19 @@ type Reaction struct {
 
 	CreatedAt time.Time
 }
+
+type ReactionSummary struct {
+	Like int
+
+	Love int
+
+	Amen int
+
+	Clap int
+
+	Fire int
+
+	Celebrate int
+
+	Total int
+}

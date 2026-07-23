@@ -32,11 +32,18 @@ func Render(
 
 	case "community.html":
 
-		tmpl, err = template.ParseFiles(
-			"templates/partials/header.html",
-			"templates/partials/navbar.html",
-			"templates/partials/footer.html",
-			"templates/community.html",
+		tmpl = template.Must(
+			template.ParseFiles(
+				"templates/partials/header.html",
+				"templates/partials/navbar.html",
+				"templates/partials/left_sidebar.html",
+				"templates/partials/create_post.html",
+				"templates/partials/post_card.html",
+				"templates/partials/right_sidebar.html",
+				"templates/partials/footer.html",
+				"templates/partials/scripts.html",
+				"templates/community.html",
+			),
 		)
 
 	default:

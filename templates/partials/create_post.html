@@ -1,0 +1,170 @@
+{{define "create_post"}}
+
+<div class="card shadow-sm border-0 rounded-4 mb-4">
+
+    <div class="card-body">
+
+        <div class="d-flex align-items-center mb-3">
+
+            <div
+                class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center me-3"
+                style="width:50px;height:50px;font-size:22px;font-weight:bold;">
+
+                Y
+
+            </div>
+
+            <div>
+
+                <h6 class="mb-0 fw-bold">
+
+                    Youth Community
+
+                </h6>
+
+                <small class="text-muted">
+
+                    Share encouragement, testimonies and announcements
+
+                </small>
+
+            </div>
+
+        </div>
+
+        <form
+            action="/community/post"
+            method="POST"
+            enctype="multipart/form-data">
+
+            <textarea
+                class="form-control border-0 shadow-none"
+                rows="4"
+                name="content"
+                maxlength="500"
+                placeholder="What's on your mind?"
+                required></textarea>
+
+            <div class="text-end mt-1">
+
+                <small
+                    id="charCount"
+                    class="text-muted">
+
+                    0 / 500
+
+                </small>
+
+            </div>
+
+            <div
+                id="previewArea"
+                class="mt-3">
+
+            </div>
+
+            <hr>
+
+            <div class="row g-2 align-items-center">
+
+                <div class="col-md">
+
+                    <label
+                        class="btn btn-outline-success w-100">
+
+                        📷 Photo
+
+                        <input
+                            id="imageInput"
+                            type="file"
+                            name="image"
+                            accept="image/*"
+                            hidden>
+
+                    </label>
+
+                </div>
+
+                <div class="col-md">
+
+                    <label
+                        class="btn btn-outline-primary w-100">
+
+                        🎥 Video
+
+                        <input
+                            id="videoInput"
+                            type="file"
+                            name="video"
+                            accept="video/*"
+                            hidden>
+
+                    </label>
+
+                </div>
+
+                <div class="col-md">
+
+                    <button
+                        type="button"
+                        class="btn btn-outline-warning w-100">
+
+                        😀 Emoji
+
+                    </button>
+
+                </div>
+
+                <div class="col-md">
+
+                    <select
+                        class="form-select"
+                        name="visibility">
+
+                        <option value="public">
+
+                            🌍 Public
+
+                        </option>
+
+                        <option value="members">
+
+                            👥 Members
+
+                        </option>
+
+                        <option value="private">
+
+                            🔒 Private
+
+                        </option>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+            <hr>
+
+            <div class="text-end">
+
+                <button
+                    type="submit"
+                    class="btn btn-success px-4">
+
+                    <i class="bi bi-send-fill"></i>
+
+                    Post
+
+                </button>
+
+            </div>
+
+        </form>
+
+    </div>
+
+</div>
+
+{{end}}

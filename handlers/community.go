@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"convention-management-system/repository"
+	"convention-management-system/services"
 )
 
 func Community(
@@ -11,7 +11,7 @@ func Community(
 	r *http.Request,
 ) {
 
-	posts, err := repository.GetAllPosts()
+	posts, err := services.GetCommunityFeed()
 
 	if err != nil {
 

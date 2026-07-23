@@ -1,0 +1,299 @@
+{{define "post_card"}}
+
+{{range .Posts}}
+
+<div class="card shadow-sm border-0 rounded-4 mb-4 post-card">
+
+    <div class="card-body">
+
+        <!-- Header -->
+
+        <div class="d-flex align-items-center">
+
+            <div
+                class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center me-3"
+                style="width:50px;height:50px;font-size:22px;font-weight:bold;">
+
+                {{printf "%.1s" .User.FullName}}
+
+            </div>
+
+            <div class="flex-grow-1">
+
+                <h6 class="fw-bold mb-0">
+
+                    {{.User.FullName}}
+
+                </h6>
+
+                <small class="text-muted">
+
+                    @{{.User.Username}}
+
+                </small>
+
+                <br>
+
+                <small class="text-muted">
+
+                    {{.CreatedAt.Format "02 Jan 2006 03:04 PM"}}
+
+                </small>
+
+            </div>
+
+            <button
+                class="btn btn-light btn-sm">
+
+                ⋮
+
+            </button>
+
+        </div>
+
+        <hr>
+
+        <!-- Content -->
+
+        <p class="fs-5">
+
+            {{.Content}}
+
+        </p>
+
+        {{if .Image}}
+
+        <img
+            src="/uploads/{{.Image}}"
+            class="img-fluid rounded-4 mb-3">
+
+        {{end}}
+
+        {{if .Video}}
+
+        <video
+            controls
+            class="w-100 rounded-4 mb-3">
+
+            <source src="/uploads/{{.Video}}">
+
+        </video>
+
+        {{end}}
+
+        <!-- Statistics -->
+
+        <div class="reaction-summary d-flex justify-content-between align-items-center mb-3">
+
+    <div class="d-flex flex-wrap gap-3">
+
+        {{if gt .ReactionSummary.Like 0}}
+        <span>👍 {{.ReactionSummary.Like}}</span>
+        {{end}}
+
+        {{if gt .ReactionSummary.Love 0}}
+        <span>❤️ {{.ReactionSummary.Love}}</span>
+        {{end}}
+
+        {{if gt .ReactionSummary.Amen 0}}
+        <span>🙏 {{.ReactionSummary.Amen}}</span>
+        {{end}}
+
+        {{if gt .ReactionSummary.Clap 0}}
+        <span>👏 {{.ReactionSummary.Clap}}</span>
+        {{end}}
+
+        {{if gt .ReactionSummary.Fire 0}}
+        <span>🔥 {{.ReactionSummary.Fire}}</span>
+        {{end}}
+
+        {{if gt .ReactionSummary.Celebrate 0}}
+        <span>🎉 {{.ReactionSummary.Celebrate}}</span>
+        {{end}}
+
+    </div>
+
+    <div class="text-muted">
+
+        {{.ReactionSummary.Total}} Reactions
+
+        •
+
+        {{.Comments}} Comments
+
+        •
+
+        {{.Shares}} Shares
+
+    </div>
+
+</div>
+
+        <hr>
+
+        <!-- Buttons -->
+
+        <div class="row text-center">
+
+            <div class="col">
+
+                <form
+                    action="/community/react"
+                    method="POST">
+
+                    <input
+                        type="hidden"
+                        name="post_id"
+                        value="{{.ID}}">
+
+                    <input
+                        type="hidden"
+                        name="reaction"
+                        value="like">
+
+                    <button
+                        class="btn btn-light w-100">
+
+                        👍 Like
+
+                    </button>
+
+                </form>
+
+            </div>
+
+            <div class="col">
+
+                <button
+                    class="btn btn-light w-100">
+
+                    💬 Comment
+
+                </button>
+
+            </div>
+
+            <div class="col">
+
+                <button
+                    class="btn btn-light w-100">
+
+                    🔄 Share
+
+                </button>
+
+            </div>
+
+        </div>
+
+        <!-- Comments -->
+
+<div class="mt-3">
+
+    <h6 class="fw-bold mb-3">
+
+        Comments
+
+    </h6>
+
+    {{range .CommentsList}}
+
+    <div class="border rounded-3 p-3 mb-2 bg-light">
+
+        <div class="d-flex justify-content-between">
+
+            <div>
+
+                <strong>
+
+                    {{.User.FullName}}
+
+                </strong>
+
+                <br>
+
+                <small class="text-muted">
+
+                    @{{.User.Username}}
+
+                </small>
+
+            </div>
+
+            <small class="text-muted">
+
+                {{.CreatedAt.Format "02 Jan 2006 03:04 PM"}}
+
+            </small>
+
+        </div>
+
+        <p class="mt-2 mb-0">
+
+            {{.Content}}
+
+        </p>
+
+    </div>
+
+    {{else}}
+
+    <p class="text-muted">
+
+        No comments yet.
+
+    </p>
+
+    {{end}}
+
+    <form
+        action="/community/comment"
+        method="POST"
+        class="mt-3">
+
+        <input
+            type="hidden"
+            name="post_id"
+            value="{{.ID}}">
+
+        <div class="input-group">
+
+            <input
+                type="text"
+                name="content"
+                class="form-control"
+                maxlength="300"
+                placeholder="Write a comment..."
+                required>
+
+            <button
+                type="submit"
+                class="btn btn-success">
+
+                Comment
+
+            </button>
+
+        </div>
+
+    </form>
+
+</div>
+
+    </div>
+
+</div>
+
+{{else}}
+
+<div class="alert alert-info text-center shadow-sm rounded-4">
+
+    No posts yet.
+
+    Be the first to share something with the Youth Community.
+
+</div>
+
+{{end}}
+
+{{end}}

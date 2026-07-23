@@ -442,6 +442,18 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 
 	mux.HandleFunc(
+		"/community/comment",
+		middleware.RequireLogin(
+			handlers.CreateComment,
+		),
+	)
+	
+	mux.HandleFunc(
+		"/community/react",
+		handlers.ReactToPost,
+	)
+
+	mux.HandleFunc(
 		"/community/login",
 		handlers.CommunityLogin,
 	)
