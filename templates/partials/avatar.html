@@ -1,0 +1,24 @@
+{{define "avatar"}}
+
+<div class="avatar-wrapper">
+
+    {{if .ProfilePhoto}}
+
+    <img
+        src="/uploads/profiles/{{.ProfilePhoto}}"
+        class="rounded-circle border border-4 border-white avatar-image">
+
+    {{else}}
+
+    <div
+        class="rounded-circle bg-success text-white border border-4 border-white d-flex justify-content-center align-items-center avatar-image fw-bold">
+
+        {{.Initials}}
+
+    </div>
+
+    {{end}}
+
+</div>
+
+{{end}}

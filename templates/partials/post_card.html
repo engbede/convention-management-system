@@ -8,50 +8,50 @@
 
         <!-- Header -->
 
-        <div class="d-flex align-items-center">
+<div class="d-flex align-items-start">
 
-            <div
-                class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center me-3"
-                style="width:50px;height:50px;font-size:22px;font-weight:bold;">
+    <div class="me-3">
 
-                {{printf "%.1s" .User.FullName}}
+        {{if .User.ProfilePhoto}}
 
-            </div>
+        <img
+            src="/uploads/profiles/{{.User.ProfilePhoto}}"
+            class="rounded-circle border"
+            style="width:50px;height:50px;object-fit:cover;">
 
-            <div class="flex-grow-1">
+        {{else}}
 
-                <h6 class="fw-bold mb-0">
+        <div
+            class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold"
+            style="width:50px;height:50px;">
 
-                    {{.User.FullName}}
-
-                </h6>
-
-                <small class="text-muted">
-
-                    @{{.User.Username}}
-
-                </small>
-
-                <br>
-
-                <small class="text-muted">
-
-                    {{.CreatedAt.Format "02 Jan 2006 03:04 PM"}}
-
-                </small>
-
-            </div>
-
-            <button
-                class="btn btn-light btn-sm">
-
-                ⋮
-
-            </button>
+            {{.User.Initials}}
 
         </div>
 
-        <hr>
+        {{end}}
+
+    </div>
+
+    <div class="flex-grow-1">
+
+        <h6 class="fw-bold mb-0">
+            {{.User.FullName}}
+        </h6>
+
+        <small class="text-muted">
+            @{{.User.Username}} • {{.CreatedAt.Format "02 Jan 2006 03:04 PM"}}
+        </small>
+
+    </div>
+
+    <button class="btn btn-light btn-sm">
+        ⋮
+    </button>
+
+</div>
+
+<hr>
 
         <!-- Content -->
 

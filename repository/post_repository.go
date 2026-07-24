@@ -3,6 +3,7 @@ package repository
 import (
 	"convention-management-system/database"
 	"convention-management-system/models"
+	"convention-management-system/utils"
 )
 
 func CreatePost(post *models.Post) error {
@@ -85,6 +86,9 @@ func GetAllPosts() ([]models.Post, error) {
 			&post.User.ProfilePhoto,
 		)
 
+		post.User.Initials = utils.Initials(
+			post.User.FullName,
+		)
 		if err != nil {
 			return nil, err
 		}

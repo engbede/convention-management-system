@@ -1,0 +1,118 @@
+{{template "header" .}}
+{{template "navbar" .}}
+
+<div class="container mt-5" style="max-width:800px;">
+
+    <div class="card shadow-sm border-0 rounded-4">
+
+        <div class="card-header bg-success text-white">
+
+            <h3 class="mb-0">Edit Profile</h3>
+
+        </div>
+
+        <div class="card-body">
+
+            <form action="/profile/edit" method="POST">
+
+                <div class="mb-3">
+
+                    <label class="form-label">Full Name</label>
+
+                    <input
+                        type="text"
+                        class="form-control"
+                        name="full_name"
+                        value="{{.User.FullName}}">
+
+                </div>
+
+                <div class="mb-3">
+
+                    <label class="form-label">Bio</label>
+
+                    <textarea
+                        class="form-control"
+                        rows="4"
+                        name="bio">{{.User.Bio}}</textarea>
+
+                </div>
+
+                <div class="mb-3">
+
+                    <label class="form-label">Location</label>
+
+                    <input
+                        type="text"
+                        class="form-control"
+                        name="location"
+                        value="{{.User.Location}}">
+
+                </div>
+
+                <div class="mb-3">
+
+                    <label class="form-label">Website</label>
+
+                    <input
+                        type="text"
+                        class="form-control"
+                        name="website"
+                        value="{{.User.Website}}">
+
+                </div>
+
+                <div class="mb-3">
+
+                    <label class="form-label">Gender</label>
+
+                    <select
+                        class="form-select"
+                        name="gender">
+
+                        <option value="">Select</option>
+
+                        <option value="Male">Male</option>
+
+                        <option value="Female">Female</option>
+
+                    </select>
+
+                </div>
+
+                <div class="mb-4">
+
+                    <label class="form-label">Birth Date</label>
+
+                    <input
+                        type="date"
+                        class="form-control"
+                        name="birth_date"
+                        value="{{.User.BirthDate}}">
+
+                </div>
+
+                <button
+                    class="btn btn-success">
+
+                    Save Changes
+
+                </button>
+
+                <a
+                    href="/profile"
+                    class="btn btn-secondary">
+
+                    Cancel
+
+                </a>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+{{template "footer" .}}

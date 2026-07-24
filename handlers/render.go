@@ -36,6 +36,7 @@ func Render(
 			template.ParseFiles(
 				"templates/partials/header.html",
 				"templates/partials/navbar.html",
+				"templates/partials/avatar.html",
 				"templates/partials/left_sidebar.html",
 				"templates/partials/create_post.html",
 				"templates/partials/post_card.html",
@@ -43,6 +44,20 @@ func Render(
 				"templates/partials/footer.html",
 				"templates/partials/scripts.html",
 				"templates/community.html",
+			),
+		)
+
+	case "profile.html",
+		"edit_profile.html":
+
+		tmpl = template.Must(
+			template.ParseFiles(
+				"templates/partials/header.html",
+				"templates/partials/navbar.html",
+				"templates/partials/avatar.html",
+				"templates/partials/footer.html",
+				"templates/profile.html",
+				"templates/edit_profile.html",
 			),
 		)
 

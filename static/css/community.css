@@ -193,3 +193,81 @@ body{
 
 }
 
+/* Avatar Component */
+
+.avatar-wrapper{
+
+    display:inline-block;
+
+}
+
+.avatar-image{
+
+    width:160px;
+
+    height:160px;
+
+    object-fit:cover;
+
+    font-size:56px;
+
+}
+
+/* ===========================================
+   PROFILE PHOTO CAMERA BUTTON
+=========================================== */
+
+.profile-avatar{
+    position:relative;
+    display:inline-block;
+}
+
+.camera-btn{
+
+    position:absolute;
+
+    right:8px;
+
+    bottom:8px;
+
+    width:42px;
+
+    height:42px;
+
+    border-radius:50%;
+
+    background:#fff;
+
+    border:2px solid #ddd;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    cursor:pointer;
+
+    box-shadow:0 2px 8px rgba(0,0,0,.2);
+
+    transition:.25s;
+}
+
+.camera-btn:hover{
+
+    background:#198754;
+
+    color:#fff;
+
+    border-color:#198754;
+}
+
+.camera-btn input{
+
+    display:none;
+}
+
+.camera-btn i{
+
+    font-size:18px;
+}

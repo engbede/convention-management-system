@@ -427,6 +427,28 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.Profile,
 		),
 	)
+
+	mux.HandleFunc(
+		"/profile/edit",
+		middleware.RequireLogin(
+			handlers.EditProfile,
+		),
+	)
+
+	mux.HandleFunc(
+		"/profile/upload-photo",
+		middleware.RequireLogin(
+			handlers.UploadProfilePhoto,
+		),
+	)
+
+	mux.HandleFunc(
+		"/profile/upload-cover",
+		middleware.RequireLogin(
+			handlers.UploadCoverPhoto,
+		),
+	)
+
 	mux.HandleFunc(
 		"/community",
 		middleware.RequireLogin(
@@ -447,7 +469,7 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.CreateComment,
 		),
 	)
-	
+
 	mux.HandleFunc(
 		"/community/react",
 		handlers.ReactToPost,
@@ -490,4 +512,10 @@ func RegisterRoutes(mux *http.ServeMux) {
 		http.StripPrefix("/static/", fs),
 	)
 
+	uploads := http.FileServer(http.Dir("uploads"))
+
+	mux.Handle(
+		"/uploads/",
+		http.StripPrefix("/uploads/", uploads),
+	)
 }

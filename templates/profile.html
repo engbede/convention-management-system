@@ -1,19 +1,347 @@
+{{template "header" .}}
+
+{{template "navbar" .}}
+
 <div class="container mt-5">
 
-    <h2>Welcome to Youth Community</h2>
+    <!-- PROFILE HEADER -->
 
-    <hr>
+    <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
 
-    <p><strong>Username:</strong> {{.Username}}</p>
+        <!-- Cover -->
 
-    <p><strong>Role:</strong> {{.Role}}</p>
+        <div class="position-relative">
 
-    <a
-        href="/logout"
-        class="btn btn-danger">
+            {{if .User.CoverPhoto}}
 
-        Logout
+<img
+    src="/uploads/covers/{{.User.CoverPhoto}}"
+    class="w-100"
+    style="height:280px;object-fit:cover;">
 
-    </a>
+{{else}}
+
+<div
+    class="bg-secondary"
+    style="height:280px;"></div>
+
+{{end}}
+
+<div
+    class="position-absolute"
+    style="top:20px;right:20px;">
+
+    <form
+        action="/profile/upload-cover"
+        method="POST"
+        enctype="multipart/form-data">
+
+        <label
+            class="btn btn-light btn-sm">
+
+            📷 Change Cover
+
+            <input
+                type="file"
+                name="cover_photo"
+                accept="image/*"
+                onchange="this.form.submit()"
+                hidden>
+
+        </label>
+
+    </form>
 
 </div>
+
+        </div>
+
+        <div class="card-body text-center">
+            
+            <div
+    class="profile-avatar position-relative d-inline-block"
+    style="margin-top:-80px; z-index:10;">
+
+    <div
+    class="position-relative d-inline-block"
+    style="margin-top:-80px; z-index:10;">
+
+    <form
+        action="/profile/upload-photo"
+        method="POST"
+        enctype="multipart/form-data">
+
+        <label style="cursor:pointer;">
+
+            {{if .User.ProfilePhoto}}
+
+            <img
+                src="/uploads/profiles/{{.User.ProfilePhoto}}"
+                class="rounded-circle border border-4 border-white"
+                style="width:160px;height:160px;object-fit:cover;">
+
+            {{else}}
+
+            <div
+                class="rounded-circle bg-success text-white border border-4 border-white d-flex justify-content-center align-items-center fw-bold"
+                style="width:160px;height:160px;font-size:56px;">
+
+                {{.User.Initials}}
+
+            </div>
+
+            {{end}}
+
+            <input
+                type="file"
+                name="profile_photo"
+                accept="image/*"
+                onchange="this.form.submit()"
+                hidden>
+
+        </label>
+
+    </form>
+
+</div>
+
+    <h2 class="fw-bold mt-4">
+
+        {{.User.FullName}}
+
+    </h2>
+
+            <p class="text-muted">
+
+                @{{.User.Username}}
+
+            </p>
+
+            <a
+    href="/profile/edit"
+    class="btn btn-success btn-sm mt-2">
+
+    ✏️ Edit Profile
+
+</a>
+            {{if .User.Bio}}
+
+            <p class="lead">
+
+                {{.User.Bio}}
+
+            </p>
+
+            {{else}}
+
+            <p class="text-muted">
+
+                Tell everyone something about yourself.
+
+            </p>
+
+            {{end}}
+
+        </div>
+
+    </div>
+
+    <!-- STATISTICS -->
+
+    <div class="row mt-4">
+
+        <div class="col-md-2 col-6 mb-3">
+
+            <div class="card shadow-sm text-center">
+
+                <div class="card-body">
+
+                    <h3>0</h3>
+
+                    <small>Posts</small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-2 col-6 mb-3">
+
+            <div class="card shadow-sm text-center">
+
+                <div class="card-body">
+
+                    <h3>{{.User.Followers}}</h3>
+
+                    <small>Followers</small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-2 col-6 mb-3">
+
+            <div class="card shadow-sm text-center">
+
+                <div class="card-body">
+
+                    <h3>{{.User.Following}}</h3>
+
+                    <small>Following</small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-2 col-6 mb-3">
+
+            <div class="card shadow-sm text-center">
+
+                <div class="card-body">
+
+                    <h3>0</h3>
+
+                    <small>Comments</small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <div class="col-md-2 col-6 mb-3">
+
+            <div class="card shadow-sm text-center">
+
+                <div class="card-body">
+
+                    <h3>0</h3>
+
+                    <small>Reactions</small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- ABOUT + POSTS -->
+
+    <div class="row mt-4">
+
+        <!-- LEFT -->
+
+        <div class="col-lg-4">
+
+            <div class="card shadow-sm border-0 rounded-4">
+
+                <div class="card-body">
+
+                    <h4>About</h4>
+
+                    <hr>
+
+                    <p>
+
+                        📍
+
+                        {{if .User.Location}}
+
+                            {{.User.Location}}
+
+                        {{else}}
+
+                            Not specified
+
+                        {{end}}
+
+                    </p>
+
+                    <p>
+
+                        🌐
+
+                        {{if .User.Website}}
+
+                            <a
+                                href="{{.User.Website}}"
+                                target="_blank">
+
+                                {{.User.Website}}
+
+                            </a>
+
+                        {{else}}
+
+                            Not specified
+
+                        {{end}}
+
+                    </p>
+
+                    <p>
+
+                        👤 {{.User.Role}}
+
+                    </p>
+
+                    <p>
+
+                        📅 Joined
+
+                        {{.User.CreatedAt.Format "02 Jan 2006"}}
+
+                    </p>
+
+                    <hr>
+
+                    <a
+                        href="/logout"
+                        class="btn btn-outline-danger w-100">
+
+                        Logout
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- RIGHT -->
+
+        <div class="col-lg-8">
+
+            <div class="card shadow-sm border-0 rounded-4">
+
+                <div class="card-body">
+
+                    <h4>Recent Posts</h4>
+
+                    <hr>
+
+                    <div class="text-center text-muted py-5">
+
+                        Your recent posts will appear here.
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+{{template "footer" .}}

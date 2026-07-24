@@ -3,13 +3,16 @@ package models
 import "time"
 
 type User struct {
-	ID int
-
+	// Identity
+	ID       int
 	FullName string
 	Username string
-	Email    string
-	Phone    string
 
+	// Contact
+	Email string
+	Phone string
+
+	// Authentication
 	PasswordHash string
 	Role         string
 
@@ -21,6 +24,7 @@ type User struct {
 	Website      string
 	ProfilePhoto string
 	CoverPhoto   string
+	Initials     string
 
 	// Account Status
 	IsVerified bool
@@ -30,7 +34,7 @@ type User struct {
 	Followers int
 	Following int
 
-	// Dates
+	// Timestamps
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
