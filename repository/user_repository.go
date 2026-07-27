@@ -3,6 +3,7 @@ package repository
 import (
 	"convention-management-system/database"
 	"convention-management-system/models"
+	"strings"
 )
 
 func CreateUser(user *models.User) error {
@@ -111,6 +112,21 @@ func GetUserByUsername(username string) (*models.User, error) {
 		return nil, err
 	}
 
+	parts := strings.Fields(user.FullName)
+
+	switch len(parts) {
+
+	case 0:
+		user.Initials = "?"
+
+	case 1:
+		user.Initials = strings.ToUpper(parts[0][:1])
+
+	default:
+		user.Initials = strings.ToUpper(
+			parts[0][:1] + parts[len(parts)-1][:1],
+		)
+	}
 	return &user, nil
 }
 

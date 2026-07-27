@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"convention-management-system/models"
 	"convention-management-system/services"
 	"convention-management-system/sessions"
 )
@@ -42,11 +43,20 @@ func Profile(
 		return
 	}
 
+	posts, err := services.GetPostsByUser(user.ID)
+	if err != nil {
+		posts = []models.Post{}
+	}
+
+	unread, _ := services.CountUnreadNotifications(userID)
+
 	Render(
 		w,
 		"profile.html",
 		map[string]any{
-			"User": user,
+			"User":        user,
+			"Posts":       posts,
+			"UnreadCount": unread,
 		},
 	)
 }

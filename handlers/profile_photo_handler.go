@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"path/filepath"
 
 	"convention-management-system/services"
 	"convention-management-system/sessions"
@@ -30,6 +31,18 @@ func UploadProfilePhoto(
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	oldProfilePhoto, _, err := services.GetProfilePhotos(userID)
+	if err == nil && oldProfilePhoto != "" {
+
+		utils.DeleteFile(
+			filepath.Join(
+				"uploads/profiles",
+				oldProfilePhoto,
+			),
+		)
+
 	}
 
 	filename, err := utils.SaveUploadedFile(
@@ -75,6 +88,18 @@ func UploadCoverPhoto(
 		return
 	}
 
+	_, oldCoverPhoto, err := services.GetProfilePhotos(userID)
+	if err == nil && oldCoverPhoto != "" {
+
+		utils.DeleteFile(
+			filepath.Join(
+				"uploads/covers",
+				oldCoverPhoto,
+			),
+		)
+
+	}
+	
 	filename, err := utils.SaveUploadedFile(
 		file,
 		header,

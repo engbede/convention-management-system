@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"convention-management-system/services"
+	"convention-management-system/sessions"
 )
 
 func Community(
@@ -12,21 +13,29 @@ func Community(
 ) {
 
 	posts, err := services.GetCommunityFeed()
-
 	if err != nil {
-
 		http.Error(
 			w,
 			err.Error(),
 			http.StatusInternalServerError,
 		)
-
 		return
 	}
 
-	data := map[string]any{
+	unread := 0
 
-		"Posts": posts,
+	session, _ := sessions.Store.Get(
+		r,
+		"youth-community",
+	)
+
+	if userID, ok := session.Values["user_id"].(int); ok {
+		unread, _ = services.CountUnreadNotifications(userID)
+	}
+
+	data := map[string]any{
+		"Posts":       posts,
+		"UnreadCount": unread,
 	}
 
 	Render(

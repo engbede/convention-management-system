@@ -48,16 +48,21 @@ func Render(
 		)
 
 	case "profile.html",
-		"edit_profile.html":
+		"public_profile.html",
+		"edit_profile.html",
+		"notifications.html":
 
 		tmpl = template.Must(
 			template.ParseFiles(
 				"templates/partials/header.html",
 				"templates/partials/navbar.html",
 				"templates/partials/avatar.html",
+				"templates/partials/post_card.html",
 				"templates/partials/footer.html",
 				"templates/profile.html",
+				"templates/public_profile.html",
 				"templates/edit_profile.html",
+				"templates/notifications.html",
 			),
 		)
 

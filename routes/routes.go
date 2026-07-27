@@ -429,6 +429,13 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 
 	mux.HandleFunc(
+		"/user/",
+		middleware.RequireLogin(
+			handlers.PublicProfile,
+		),
+	)
+
+	mux.HandleFunc(
 		"/profile/edit",
 		middleware.RequireLogin(
 			handlers.EditProfile,
@@ -449,6 +456,27 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 
+	mux.HandleFunc(
+		"/follow",
+		middleware.RequireLogin(
+			handlers.FollowUser,
+		),
+	)
+
+	mux.HandleFunc(
+		"/unfollow",
+		middleware.RequireLogin(
+			handlers.UnfollowUser,
+		),
+	)
+
+	mux.HandleFunc(
+		"/notifications",
+		middleware.RequireLogin(
+			handlers.Notifications,
+		),
+	)
+	
 	mux.HandleFunc(
 		"/community",
 		middleware.RequireLogin(

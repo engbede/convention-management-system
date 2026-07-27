@@ -17,6 +17,10 @@ func CreatePost(
 	return repository.CreatePost(post)
 }
 
+func GetPostsByUser(userID int) ([]models.Post, error) {
+	return repository.GetPostsByUser(userID)
+}
+
 // func DeletePost(
 // 	postID int,
 // 	userID int,

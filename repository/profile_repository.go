@@ -152,3 +152,28 @@ func UpdateCoverPhoto(
 
 	return err
 }
+
+func GetProfilePhotos(userID int) (string, string, error) {
+
+	var profilePhoto string
+	var coverPhoto string
+
+	query := `
+	SELECT
+		profile_photo,
+		cover_photo
+	FROM users
+	WHERE id = ?
+	`
+
+	err := database.DB.QueryRow(query, userID).Scan(
+		&profilePhoto,
+		&coverPhoto,
+	)
+
+	if err != nil {
+		return "", "", err
+	}
+
+	return profilePhoto, coverPhoto, nil
+}

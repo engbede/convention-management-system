@@ -12,6 +12,10 @@
 
     <div class="me-3">
 
+    <a
+        href="/user/{{.User.Username}}"
+        class="text-decoration-none">
+
         {{if .User.ProfilePhoto}}
 
         <img
@@ -31,17 +35,39 @@
 
         {{end}}
 
-    </div>
+    </a>
+
+</div>
 
     <div class="flex-grow-1">
 
         <h6 class="fw-bold mb-0">
-            {{.User.FullName}}
-        </h6>
 
-        <small class="text-muted">
-            @{{.User.Username}} • {{.CreatedAt.Format "02 Jan 2006 03:04 PM"}}
-        </small>
+    <a
+        href="/user/{{.User.Username}}"
+        class="text-decoration-none text-dark">
+
+        {{.User.FullName}}
+
+    </a>
+
+</h6>
+
+<small class="text-muted">
+
+    <a
+        href="/user/{{.User.Username}}"
+        class="text-decoration-none text-muted">
+
+        @{{.User.Username}}
+
+    </a>
+
+    •
+
+    {{.CreatedAt.Format "02 Jan 2006 03:04 PM"}}
+
+</small>
 
     </div>
 
@@ -198,29 +224,27 @@
 
     {{range .CommentsList}}
 
-    <div class="border rounded-3 p-3 mb-2 bg-light">
+<div class="border rounded-3 p-3 mb-2 bg-light">
 
-        <div class="d-flex justify-content-between">
+    <div class="d-flex justify-content-between">
 
-            <div>
+        <div>
 
-                <strong>
+            <a
+                href="/user/{{.User.Username}}"
+                class="text-decoration-none text-dark">
 
-                    {{.User.FullName}}
+                <strong>{{.User.FullName}}</strong>
 
-                </strong>
+            </a>
 
-                <br>
-
-                <small class="text-muted">
-
-                    @{{.User.Username}}
-
-                </small>
-
-            </div>
+            <br>
 
             <small class="text-muted">
+
+                @{{.User.Username}}
+
+                •
 
                 {{.CreatedAt.Format "02 Jan 2006 03:04 PM"}}
 
@@ -228,15 +252,17 @@
 
         </div>
 
-        <p class="mt-2 mb-0">
-
-            {{.Content}}
-
-        </p>
-
     </div>
 
-    {{else}}
+    <p class="mt-2 mb-0">
+
+        {{.Content}}
+
+    </p>
+
+</div>
+
+{{else}}
 
     <p class="text-muted">
 

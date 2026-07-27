@@ -34,6 +34,11 @@ type User struct {
 	Followers int
 	Following int
 
+	PostsCount     int
+	FollowersCount int
+	FollowingCount int
+	IsFollowing    bool
+
 	// Timestamps
 	CreatedAt time.Time
 	UpdatedAt time.Time

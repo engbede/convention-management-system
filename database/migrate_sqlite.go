@@ -509,6 +509,115 @@ CREATE TABLE IF NOT EXISTS follows (
 `); err != nil {
 		return err
 	}
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS follows (
 
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    follower_id INTEGER NOT NULL,
+
+    following_id INTEGER NOT NULL,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(follower_id, following_id),
+
+    FOREIGN KEY(follower_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(following_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE
+
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS notifications (
+
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    sender_id INTEGER NOT NULL,
+
+    receiver_id INTEGER NOT NULL,
+
+    post_id INTEGER,
+
+    comment_id INTEGER,
+
+    type TEXT NOT NULL,
+
+    message TEXT,
+
+    is_read INTEGER DEFAULT 0,
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY(sender_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(receiver_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(post_id)
+        REFERENCES posts(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(comment_id)
+        REFERENCES comments(id)
+        ON DELETE CASCADE
+
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS notifications (
+
+    id SERIAL PRIMARY KEY,
+
+    sender_id INTEGER NOT NULL,
+
+    receiver_id INTEGER NOT NULL,
+
+    post_id INTEGER,
+
+    comment_id INTEGER,
+
+    type TEXT NOT NULL,
+
+    message TEXT,
+
+    is_read BOOLEAN DEFAULT FALSE,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY(sender_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(receiver_id)
+        REFERENCES users(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(post_id)
+        REFERENCES posts(id)
+        ON DELETE CASCADE,
+
+    FOREIGN KEY(comment_id)
+        REFERENCES comments(id)
+        ON DELETE CASCADE
+
+);
+`); err != nil {
+		return err
+	}
+	
 	return nil
 }
