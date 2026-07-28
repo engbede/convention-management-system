@@ -50,7 +50,9 @@ func Render(
 	case "profile.html",
 		"public_profile.html",
 		"edit_profile.html",
-		"notifications.html":
+		"notifications.html",
+		"friends_dashboard.html",
+		"discover.html":
 
 		tmpl = template.Must(
 			template.ParseFiles(
@@ -63,6 +65,8 @@ func Render(
 				"templates/public_profile.html",
 				"templates/edit_profile.html",
 				"templates/notifications.html",
+				"templates/friends_dashboard.html",
+				"templates/discover.html",
 			),
 		)
 

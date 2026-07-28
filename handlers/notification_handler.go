@@ -15,6 +15,12 @@ func Notifications(w http.ResponseWriter, r *http.Request) {
 	)
 
 	userID, ok := session.Values["user_id"].(int)
+
+	println("================================")
+	println("Notification page opened")
+	println("Logged-in user ID =", userID)
+	println("================================")
+
 	if !ok {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
@@ -27,6 +33,11 @@ func Notifications(w http.ResponseWriter, r *http.Request) {
 	}
 
 	unread, _ := services.CountUnreadNotifications(userID)
+
+	println("================================")
+	println("Handler received:", len(notifications), "notifications")
+	println("Unread:", unread)
+	println("================================")
 
 	Render(
 		w,

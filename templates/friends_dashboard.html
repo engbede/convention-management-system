@@ -1,0 +1,305 @@
+{{template "header" .}}
+
+{{template "navbar" .}}
+
+<div class="container mt-5">
+
+    <h2 class="fw-bold mb-4">
+        👥 Friends Dashboard
+    </h2>
+
+
+    <!-- SUMMARY CARDS -->
+
+    <div class="row mb-4">
+
+        <div class="col-md-4 mb-3">
+
+            <div class="card shadow-sm border-0 rounded-4 text-center">
+
+                <div class="card-body">
+
+                    <h3>
+                        {{len .Friends}}
+                    </h3>
+
+                    <p class="text-muted mb-0">
+                        My Friends
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="col-md-4 mb-3">
+
+            <div class="card shadow-sm border-0 rounded-4 text-center">
+
+                <div class="card-body">
+
+                    <h3>
+                        {{len .Incoming}}
+                    </h3>
+
+                    <p class="text-muted mb-0">
+                        Friend Requests
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="col-md-4 mb-3">
+
+            <div class="card shadow-sm border-0 rounded-4 text-center">
+
+                <div class="card-body">
+
+                    <h3>
+                        {{len .Outgoing}}
+                    </h3>
+
+                    <p class="text-muted mb-0">
+                        Sent Requests
+                    </p>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- INCOMING REQUESTS -->
+
+    <div class="card shadow-sm border-0 rounded-4 mb-4">
+
+        <div class="card-body">
+
+            <h4>
+                📥 Friend Requests
+            </h4>
+
+            <hr>
+
+
+            {{if .Incoming}}
+
+                {{range .Incoming}}
+
+                <div class="d-flex align-items-center justify-content-between mb-3">
+
+
+                    <div class="d-flex align-items-center">
+
+
+                        {{if .Sender.ProfilePhoto}}
+
+                        <img
+                        src="/uploads/profiles/{{.Sender.ProfilePhoto}}"
+                        class="rounded-circle me-3"
+                        style="width:60px;height:60px;object-fit:cover;">
+
+                        {{else}}
+
+                        <div
+                        class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center me-3 fw-bold"
+                        style="width:60px;height:60px;">
+
+                            {{.Sender.Initials}}
+
+                        </div>
+
+                        {{end}}
+
+
+
+                        <div>
+
+                            <h6 class="mb-0">
+                                {{.Sender.FullName}}
+                            </h6>
+
+                            <small>
+                                @{{.Sender.Username}}
+                            </small>
+
+                        </div>
+
+
+                    </div>
+
+
+
+                    <div>
+
+                        <form action="/friend/accept" method="POST" class="d-inline">
+
+                            <input
+                            type="hidden"
+                            name="request_id"
+                            value="{{.ID}}">
+
+                            <button class="btn btn-success btn-sm">
+                                Accept
+                            </button>
+
+                        </form>
+
+
+                        <form action="/friend/decline" method="POST" class="d-inline">
+
+                            <input
+                            type="hidden"
+                            name="request_id"
+                            value="{{.ID}}">
+
+                            <button class="btn btn-outline-danger btn-sm">
+                                Decline
+                            </button>
+
+                        </form>
+
+
+                    </div>
+
+
+                </div>
+
+
+                {{end}}
+
+
+            {{else}}
+
+            <p class="text-muted">
+                No pending friend requests.
+            </p>
+
+            {{end}}
+
+
+        </div>
+
+    </div>
+
+
+
+
+    <!-- MY FRIENDS -->
+
+
+    <div class="card shadow-sm border-0 rounded-4 mb-4">
+
+
+        <div class="card-body">
+
+
+            <h4>
+                👥 My Friends
+            </h4>
+
+            <hr>
+
+
+            {{if .Friends}}
+
+
+            <div class="row">
+
+
+            {{range .Friends}}
+
+
+                <div class="col-md-4 mb-3">
+
+
+                    <div class="card border-0 shadow-sm">
+
+
+                        <div class="card-body text-center">
+
+
+                            {{if .User.ProfilePhoto}}
+
+                            <img
+                            src="/uploads/profiles/{{.User.ProfilePhoto}}"
+                            class="rounded-circle"
+                            style="width:80px;height:80px;object-fit:cover;">
+
+                            {{else}}
+
+                            <div
+                            class="rounded-circle bg-success text-white mx-auto d-flex justify-content-center align-items-center fw-bold"
+                            style="width:80px;height:80px;font-size:30px;">
+
+                                {{.User.Initials}}
+
+                            </div>
+
+                            {{end}}
+
+
+                            <h5 class="mt-3">
+                                {{.User.FullName}}
+                            </h5>
+
+
+                            <p class="text-muted">
+                                @{{.User.Username}}
+                            </p>
+
+
+                            <a
+                            href="/user/{{.User.Username}}"
+                            class="btn btn-outline-success btn-sm">
+
+                                View Profile
+
+                            </a>
+
+
+                        </div>
+
+
+                    </div>
+
+
+                </div>
+
+
+            {{end}}
+
+
+            </div>
+
+
+            {{else}}
+
+            <p class="text-muted">
+                You have no friends yet.
+            </p>
+
+            {{end}}
+
+
+        </div>
+
+
+    </div>
+
+
+
+</div>
+
+
+{{template "footer" .}}

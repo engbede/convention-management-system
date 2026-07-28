@@ -429,6 +429,21 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 
 	mux.HandleFunc(
+		"/friends",
+		handlers.FriendsDashboard,
+	)
+
+	mux.HandleFunc(
+		"/discover",
+		handlers.Discover,
+	)
+
+	mux.HandleFunc(
+		"/friend/request",
+		handlers.SendFriendRequest,
+	)
+
+	mux.HandleFunc(
 		"/user/",
 		middleware.RequireLogin(
 			handlers.PublicProfile,
@@ -476,7 +491,7 @@ func RegisterRoutes(mux *http.ServeMux) {
 			handlers.Notifications,
 		),
 	)
-	
+
 	mux.HandleFunc(
 		"/community",
 		middleware.RequireLogin(
@@ -513,6 +528,11 @@ func RegisterRoutes(mux *http.ServeMux) {
 		handlers.CommunityLogout,
 	)
 
+	mux.HandleFunc("/friends/request", handlers.SendFriendRequest)
+	mux.HandleFunc("/friends/accept", handlers.AcceptFriendRequest)
+	mux.HandleFunc("/friends/decline", handlers.DeclineFriendRequest)
+	mux.HandleFunc("/friends/cancel", handlers.CancelFriendRequest)
+	mux.HandleFunc("/friends/remove", handlers.RemoveFriend)
 	mux.HandleFunc("/signup", handlers.ShowSignup)
 
 	mux.HandleFunc("/create-account", handlers.Signup)

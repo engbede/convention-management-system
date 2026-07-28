@@ -43,10 +43,18 @@ func Profile(
 		return
 	}
 
+	// This is my own profile
+	user.IsOwner = true
+
+	// Social statistics
+	user.FriendsCount, _ = services.GetFriendCount(user.ID)
+
 	posts, err := services.GetPostsByUser(user.ID)
 	if err != nil {
 		posts = []models.Post{}
 	}
+
+	user.PostsCount = len(posts)
 
 	unread, _ := services.CountUnreadNotifications(userID)
 

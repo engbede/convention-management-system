@@ -1,0 +1,113 @@
+{{template "header" .}}
+{{template "navbar" .}}
+
+<div class="container mt-5">
+
+    <h2 class="fw-bold mb-4">
+        🔍 Discover People
+    </h2>
+
+    <div class="row">
+
+        {{range .Users}}
+
+        <div class="col-md-4 mb-4">
+
+            <div class="card shadow-sm border-0 rounded-4">
+
+                <div class="card-body text-center">
+
+                    {{if .ProfilePhoto}}
+
+                    <img
+                        src="/uploads/profiles/{{.ProfilePhoto}}"
+                        class="rounded-circle mb-3"
+                        style="width:90px;height:90px;object-fit:cover;">
+
+                    {{else}}
+
+                    <div
+                        class="rounded-circle bg-success text-white mx-auto d-flex justify-content-center align-items-center fw-bold mb-3"
+                        style="width:90px;height:90px;font-size:30px;">
+
+                        {{.Initials}}
+
+                    </div>
+
+                    {{end}}
+
+                    <h5>{{.FullName}}</h5>
+
+                    <p class="text-muted">
+                        @{{.Username}}
+                    </p>
+
+                    {{if .Location}}
+                    <p>📍 {{.Location}}</p>
+                    {{end}}
+
+                    {{if .Bio}}
+                    <p>{{.Bio}}</p>
+                    {{end}}
+
+                    <a
+                        href="/user/{{.Username}}"
+                        class="btn btn-outline-success btn-sm">
+                        View Profile
+                    </a>
+
+                    {{if eq .FriendStatus "none"}}
+
+<form action="/friend/request" method="POST" class="d-inline">
+
+    <input
+        type="hidden"
+        name="receiver_id"
+        value="{{.ID}}">
+
+    <button
+        class="btn btn-success btn-sm">
+        Add Friend
+    </button>
+
+</form>
+
+{{else if eq .FriendStatus "pending"}}
+
+<button
+    class="btn btn-secondary btn-sm"
+    disabled>
+    Pending
+</button>
+
+{{else if eq .FriendStatus "received"}}
+
+<a
+    href="/friends"
+    class="btn btn-warning btn-sm">
+    Respond
+</a>
+
+{{else if eq .FriendStatus "friends"}}
+
+<button
+    class="btn btn-primary btn-sm"
+    disabled>
+    Friends
+</button>
+
+{{end}}
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {{end}}
+
+    </div>
+
+</div>
+
+{{template "footer" .}}

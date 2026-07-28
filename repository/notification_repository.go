@@ -18,6 +18,12 @@ func CreateNotification(notification models.Notification) error {
 	)
 	VALUES (?, ?, ?, ?, ?, ?)
 	`
+	println("================================")
+	println("Creating notification")
+	println("SenderID   =", notification.SenderID)
+	println("ReceiverID =", notification.ReceiverID)
+	println("Type       =", notification.Type)
+	println("================================")
 
 	_, err := database.DB.Exec(
 		query,
@@ -28,6 +34,15 @@ func CreateNotification(notification models.Notification) error {
 		notification.Type,
 		notification.Message,
 	)
+
+	if err != nil {
+		println("================================")
+		println("CreateNotification failed:")
+		println(err.Error())
+		println("================================")
+	} else {
+		println("Notification inserted successfully")
+	}
 
 	return err
 }
@@ -69,8 +84,8 @@ func GetNotificationsByUser(userID int) ([]models.Notification, error) {
 		u.username,
 		u.profile_photo
 	FROM notifications n
-	INNER JOIN users u
-		ON n.sender_id = u.id
+	LEFT JOIN users u
+	ON n.sender_id = u.id
 	WHERE n.receiver_id = ?
 	ORDER BY n.created_at DESC
 	`
@@ -103,6 +118,10 @@ func GetNotificationsByUser(userID int) ([]models.Notification, error) {
 			&notification.Sender.ProfilePhoto,
 		)
 		if err != nil {
+			println("================================")
+			println("Scan error:")
+			println(err.Error())
+			println("================================")
 			return nil, err
 		}
 
@@ -112,6 +131,10 @@ func GetNotificationsByUser(userID int) ([]models.Notification, error) {
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
+
+	println("================================")
+	println("Notifications found:", len(notifications))
+	println("================================")
 
 	return notifications, nil
 }

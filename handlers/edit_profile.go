@@ -61,12 +61,51 @@ func EditProfile(
 
 			ID: userID,
 
-			FullName:  r.FormValue("full_name"),
-			Bio:       r.FormValue("bio"),
-			Location:  r.FormValue("location"),
-			Website:   r.FormValue("website"),
-			Gender:    r.FormValue("gender"),
-			BirthDate: r.FormValue("birth_date"),
+			// Basic Information
+			FullName:   r.FormValue("full_name"),
+			Bio:        r.FormValue("bio"),
+			Gender:     r.FormValue("gender"),
+			BirthDate:  r.FormValue("birth_date"),
+			Occupation: r.FormValue("occupation"),
+
+			// Location
+			Country:  r.FormValue("country"),
+			State:    r.FormValue("state"),
+			Location: r.FormValue("location"),
+			Website:  r.FormValue("website"),
+
+			// Church Information
+			ChurchName:  r.FormValue("church_name"),
+			Circuit:     r.FormValue("circuit"),
+			LocalChurch: r.FormValue("local_church"),
+			Department:  r.FormValue("department"),
+			Position:    r.FormValue("position"),
+
+			// Faith Journey
+			FavoriteBibleVerse: r.FormValue("favorite_bible_verse"),
+			LifeVerse:          r.FormValue("life_verse"),
+			Calling:            r.FormValue("calling"),
+			SpiritualGifts:     r.FormValue("spiritual_gifts"),
+			SalvationTestimony: r.FormValue("salvation_testimony"),
+
+			WaterBaptized:      r.FormValue("water_baptized") != "",
+			HolySpiritBaptized: r.FormValue("holy_spirit_baptized") != "",
+
+			// Christian Interests
+			FavoritePreacher:      r.FormValue("favorite_preacher"),
+			FavoriteChristianBook: r.FormValue("favorite_christian_book"),
+			FavoriteWorshipSong:   r.FormValue("favorite_worship_song"),
+			FavoriteGospelArtist:  r.FormValue("favorite_gospel_artist"),
+
+			// Personal
+			Skills:    r.FormValue("skills"),
+			Languages: r.FormValue("languages"),
+			Hobbies:   r.FormValue("hobbies"),
+
+			// Mission & Vision
+			Mission:       r.FormValue("mission"),
+			Vision:        r.FormValue("vision"),
+			FavoriteQuote: r.FormValue("favorite_quote"),
 		}
 
 		err := services.UpdateUserProfile(user)

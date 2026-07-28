@@ -1,12 +1,11 @@
 package handlers
 
 import (
-        "net/http"
-        "strconv"
+	"net/http"
+	"strconv"
 
-        "convention-management-system/models"
-        "convention-management-system/services"
-        "convention-management-system/sessions"
+	"convention-management-system/services"
+	"convention-management-system/sessions"
 )
 
 func FollowUser(w http.ResponseWriter, r *http.Request) {
@@ -19,12 +18,23 @@ func FollowUser(w http.ResponseWriter, r *http.Request) {
 	session, _ := sessions.Store.Get(r, "youth-community")
 
 	followerID, ok := session.Values["user_id"].(int)
+
+	println("================================")
+	println("Follower session ID:", followerID)
+	println("================================")
+
 	if !ok {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 		return
 	}
 
 	followingID, err := strconv.Atoi(r.FormValue("user_id"))
+
+	println("================================")
+	println("Follower ID =", followerID)
+	println("Following ID =", followingID)
+	println("================================")
+
 	if err != nil {
 		http.Error(w, "Invalid user", http.StatusBadRequest)
 		return
@@ -41,19 +51,17 @@ func FollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	notification := models.Notification{
-        SenderID:   followerID,
-        ReceiverID: followingID,
-        Type:       "follow",
-        Message:    "started following you.",
-}
-
-_ = services.CreateNotification(notification)
-
 	err = services.NotifyFollow(
 		followerID,
 		followingID,
 	)
+
+	if err != nil {
+		println("================================")
+		println("NOTIFICATION ERROR:")
+		println(err.Error())
+		println("================================")
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
