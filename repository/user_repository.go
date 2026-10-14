@@ -256,64 +256,50 @@ func GetUserByID(id int) (models.User, error) {
 
 	query := `
 	SELECT
-
-	id,
-	full_name,
-	username,
-	email,
-	phone,
-	role,
-
-	bio,
-	gender,
-	birth_date,
-	occupation,
-
-	country,
-	state,
-	location,
-	website,
-
-	profile_photo,
-	cover_photo,
-
-	church_name,
-	circuit,
-	local_church,
-	department,
-	position,
-
-	favorite_bible_verse,
-	life_verse,
-	calling,
-	spiritual_gifts,
-	salvation_testimony,
-
-	favorite_preacher,
-	favorite_christian_book,
-	favorite_worship_song,
-	favorite_gospel_artist,
-
-	skills,
-	languages,
-	hobbies,
-
-	mission,
-	vision,
-	favorite_quote,
-
-	water_baptized,
-	holy_spirit_baptized,
-
-	is_verified,
-	is_active,
-
-	followers,
-	following,
-
-	created_at,
-	updated_at
-
+		id,
+		full_name,
+		username,
+		COALESCE(email, ''),
+		COALESCE(phone, ''),
+		COALESCE(role, 'attendee'),
+		COALESCE(bio, ''),
+		COALESCE(gender, ''),
+		COALESCE(birth_date, ''),
+		COALESCE(occupation, ''),
+		COALESCE(country, ''),
+		COALESCE(state, ''),
+		COALESCE(location, ''),
+		COALESCE(website, ''),
+		COALESCE(profile_photo, ''),
+		COALESCE(cover_photo, ''),
+		COALESCE(church_name, ''),
+		COALESCE(circuit, ''),
+		COALESCE(local_church, ''),
+		COALESCE(department, ''),
+		COALESCE(position, ''),
+		COALESCE(favorite_bible_verse, ''),
+		COALESCE(life_verse, ''),
+		COALESCE(calling, ''),
+		COALESCE(spiritual_gifts, ''),
+		COALESCE(salvation_testimony, ''),
+		COALESCE(favorite_preacher, ''),
+		COALESCE(favorite_christian_book, ''),
+		COALESCE(favorite_worship_song, ''),
+		COALESCE(favorite_gospel_artist, ''),
+		COALESCE(skills, ''),
+		COALESCE(languages, ''),
+		COALESCE(hobbies, ''),
+		COALESCE(mission, ''),
+		COALESCE(vision, ''),
+		COALESCE(favorite_quote, ''),
+		COALESCE(water_baptized, 0),
+		COALESCE(holy_spirit_baptized, 0),
+		COALESCE(is_verified, 0),
+		COALESCE(is_active, 1),
+		COALESCE(followers, 0),
+		COALESCE(following, 0),
+		created_at,
+		updated_at
 	FROM users
 	WHERE id = ?
 	`

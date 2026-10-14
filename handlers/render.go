@@ -70,6 +70,18 @@ func Render(
 			),
 		)
 
+	case "chat.html":
+
+		tmpl = template.Must(
+			template.ParseFiles(
+				"templates/partials/header.html",
+				"templates/partials/navbar.html",
+				"templates/partials/avatar.html",
+				"templates/partials/footer.html",
+				"templates/chat.html",
+			),
+		)
+
 	default:
 
 		tmpl, err = template.ParseFiles(

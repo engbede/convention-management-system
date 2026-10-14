@@ -1,6 +1,7 @@
 module convention-management-system
 
 go 1.25.0
+toolchain go1.26.9
 
 require (
 	github.com/go-pdf/fpdf v0.9.0

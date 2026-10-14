@@ -715,9 +715,315 @@ ON friends(user2_id);
 		return err
 	}
 
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL DEFAULT 'direct',
+    title TEXT,
+    category TEXT DEFAULT 'general',
+    description TEXT DEFAULT '',
+    avatar_url TEXT DEFAULT '',
+    call_permission TEXT DEFAULT 'all',
+    is_public INTEGER DEFAULT 1,
+    created_by INTEGER NOT NULL,
+    last_message_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_conversations_category ON conversations(category);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS conversation_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    last_read_message_id INTEGER DEFAULT 0,
+    last_read_at DATETIME,
+    is_muted BOOLEAN DEFAULT 0,
+    is_archived BOOLEAN DEFAULT 0,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(conversation_id, user_id),
+    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_conv_members_user
+ON conversation_members(user_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_conv_members_conv
+ON conversation_members(conversation_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    sender_id INTEGER NOT NULL,
+    message_type TEXT NOT NULL DEFAULT 'text',
+    body TEXT NOT NULL,
+    client_message_id TEXT,
+    reply_to_message_id INTEGER,
+    is_edited BOOLEAN DEFAULT 0,
+    is_deleted BOOLEAN DEFAULT 0,
+    attachment_url TEXT,
+    attachment_name TEXT,
+    attachment_size INTEGER DEFAULT 0,
+    attachment_type TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(reply_to_message_id) REFERENCES messages(id) ON DELETE SET NULL
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_messages_conv_created
+ON messages(conversation_id, created_at);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_messages_client_id
+ON messages(client_message_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS blocked_users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    blocker_id INTEGER NOT NULL,
+    blocked_id INTEGER NOT NULL,
+    reason TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(blocker_id, blocked_id),
+    FOREIGN KEY(blocker_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(blocked_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_blocked_users_blocker ON blocked_users(blocker_id);
+CREATE INDEX IF NOT EXISTS idx_blocked_users_blocked ON blocked_users(blocked_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS chat_reports (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporter_id INTEGER NOT NULL,
+    reported_user_id INTEGER NOT NULL,
+    conversation_id INTEGER,
+    message_id INTEGER,
+    reason TEXT NOT NULL,
+    details TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(reporter_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(reported_user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
+    FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE SET NULL
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_chat_reports_reporter ON chat_reports(reporter_id);
+CREATE INDEX IF NOT EXISTS idx_chat_reports_status ON chat_reports(status);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS call_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    caller_id INTEGER NOT NULL,
+    receiver_id INTEGER,
+    call_type TEXT NOT NULL DEFAULT 'audio',
+    status TEXT NOT NULL DEFAULT 'initiated',
+    duration_seconds INTEGER DEFAULT 0,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ended_at DATETIME,
+    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY(caller_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY(receiver_id) REFERENCES users(id) ON DELETE SET NULL
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_call_logs_conv ON call_logs(conversation_id);
+CREATE INDEX IF NOT EXISTS idx_call_logs_caller ON call_logs(caller_id);
+CREATE INDEX IF NOT EXISTS idx_call_logs_receiver ON call_logs(receiver_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS call_participants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    call_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    left_at DATETIME,
+    duration_seconds INTEGER DEFAULT 0,
+    FOREIGN KEY(call_id) REFERENCES call_logs(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_call_participants_call ON call_participants(call_id);
+CREATE INDEX IF NOT EXISTS idx_call_participants_user ON call_participants(user_id);
+`); err != nil {
+		return err
+	}
+
 	if err := migrateUserProfileColumns(); err != nil {
 		return err
 	}
+
+	if err := migrateChatMessageAttachmentColumns(); err != nil {
+		return err
+	}
+
+	if err := migrateConversationGroupColumns(); err != nil {
+		return err
+	}
+
+	if err := seedDefaultCommunityGroups(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func migrateConversationGroupColumns() error {
+	queries := []string{
+		`ALTER TABLE conversations ADD COLUMN category TEXT DEFAULT 'general'`,
+		`ALTER TABLE conversations ADD COLUMN description TEXT DEFAULT ''`,
+		`ALTER TABLE conversations ADD COLUMN avatar_url TEXT DEFAULT ''`,
+		`ALTER TABLE conversations ADD COLUMN call_permission TEXT DEFAULT 'all'`,
+		`ALTER TABLE conversations ADD COLUMN is_public INTEGER DEFAULT 1`,
+	}
+
+	for _, query := range queries {
+		if err := addColumn(query); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func seedDefaultCommunityGroups() error {
+	if DB == nil {
+		return nil
+	}
+
+	var firstUserID int
+	err := DB.QueryRow("SELECT id FROM users ORDER BY id ASC LIMIT 1").Scan(&firstUserID)
+	if err != nil {
+		// No users yet, skip seeding for now
+		return nil
+	}
+
+	type defaultGroup struct {
+		title       string
+		category    string
+		description string
+	}
+
+	groups := []defaultGroup{
+		{
+			title:       "Youth General Community",
+			category:    "general",
+			description: "Open fellowship space for all convention youth, announcements, and general discussions.",
+		},
+		{
+			title:       "Bible Study Fellowship",
+			category:    "bible_study",
+			description: "Weekly scripture reflections, topical bible studies, and word meditations.",
+		},
+		{
+			title:       "Youth Prayer Ministry",
+			category:    "prayer",
+			description: "Intercessory prayer requests, morning devotionals, and spiritual warfare declarations.",
+		},
+		{
+			title:       "Evangelism & Outreach Team",
+			category:    "evangelism",
+			description: "Gospel tract distribution, youth outreach missions, and evangelism training.",
+		},
+	}
+
+	for _, g := range groups {
+		var exists int
+		_ = DB.QueryRow("SELECT COUNT(*) FROM conversations WHERE type = 'group' AND title = ?", g.title).Scan(&exists)
+		if exists == 0 {
+			res, err := DB.Exec(`
+				INSERT INTO conversations (type, title, category, description, call_permission, is_public, created_by, created_at, updated_at)
+				VALUES ('group', ?, ?, ?, 'all', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+			`, g.title, g.category, g.description, firstUserID)
+			if err == nil {
+				if convID, err := res.LastInsertId(); err == nil && convID > 0 {
+					_, _ = DB.Exec(`
+						INSERT INTO conversation_members (conversation_id, user_id, role, joined_at)
+						VALUES (?, ?, 'owner', CURRENT_TIMESTAMP)
+					`, convID, firstUserID)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func migrateChatMessageAttachmentColumns() error {
+	queries := []string{
+		`ALTER TABLE messages ADD COLUMN attachment_url TEXT`,
+		`ALTER TABLE messages ADD COLUMN attachment_name TEXT`,
+		`ALTER TABLE messages ADD COLUMN attachment_size INTEGER DEFAULT 0`,
+		`ALTER TABLE messages ADD COLUMN attachment_type TEXT`,
+	}
+
+	for _, query := range queries {
+		if err := addColumn(query); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

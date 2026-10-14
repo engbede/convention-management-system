@@ -69,16 +69,16 @@
 
                 </li>
 
-                <li class="nav-item mx-1">
-
-                    <a class="nav-link" href="/messages">
-
-                        <i class="bi bi-chat-dots"></i>
-
-                        Messages
-
+                <li class="nav-item mx-1 position-relative">
+                    <a class="nav-link position-relative" href="/messages">
+                        <i class="bi bi-chat-dots fs-5"></i>
+                        {{if .UnreadMessagesCount}}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            {{.UnreadMessagesCount}}
+                        </span>
+                        {{end}}
+                        <span class="ms-1">Messages</span>
                     </a>
-
                 </li>
 
                 <li class="nav-item mx-1 position-relative">

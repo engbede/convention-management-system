@@ -100,3 +100,88 @@ func DeleteFile(path string) error {
 
 	return os.Remove(path)
 }
+
+var allowedChatExtensions = map[string]string{
+	// Images -> "image"
+	".jpg":  "image",
+	".jpeg": "image",
+	".png":  "image",
+	".webp": "image",
+	".gif":  "image",
+	// Voice / Audio -> "voice"
+	".mp3":  "voice",
+	".wav":  "voice",
+	".ogg":  "voice",
+	".m4a":  "voice",
+	".webm": "voice",
+	".aac":  "voice",
+	// Documents / Files -> "file"
+	".pdf":  "file",
+	".doc":  "file",
+	".docx": "file",
+	".txt":  "file",
+	".csv":  "file",
+	".xlsx": "file",
+	".xls":  "file",
+	".zip":  "file",
+}
+
+// SaveChatAttachment validates and stores an attachment for chat messaging.
+// Supports images, voice notes, and documents up to 10MB.
+func SaveChatAttachment(
+	file multipart.File,
+	header *multipart.FileHeader,
+	destination string,
+) (filename string, messageType string, contentType string, err error) {
+	defer file.Close()
+
+	const maxFileSize = 10 * 1024 * 1024 // 10 MB
+	if header.Size > maxFileSize {
+		return "", "", "", errors.New("attachment size must not exceed 10 MB")
+	}
+
+	ext := strings.ToLower(filepath.Ext(header.Filename))
+	msgType, allowed := allowedChatExtensions[ext]
+	if !allowed {
+		return "", "", "", errors.New("file format not supported for chat attachments")
+	}
+
+	buffer := make([]byte, 512)
+	_, err = file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", "", "", err
+	}
+	detectedType := http.DetectContentType(buffer)
+
+	_, err = file.Seek(0, io.SeekStart)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	random := make([]byte, 16)
+	_, err = rand.Read(random)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	filename = hex.EncodeToString(random) + ext
+
+	if err := os.MkdirAll(destination, 0755); err != nil {
+		return "", "", "", err
+	}
+
+	path := filepath.Join(destination, filename)
+	dst, err := os.Create(path)
+	if err != nil {
+		return "", "", "", err
+	}
+	defer dst.Close()
+
+	_, err = io.Copy(dst, file)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	return filename, msgType, detectedType, nil
+}
+

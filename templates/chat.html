@@ -1,0 +1,3351 @@
+{{template "header" .}}
+{{template "navbar" .}}
+
+<div class="container-fluid mt-3 mb-4">
+    <div class="card shadow-sm border-0 rounded-4 overflow-hidden" style="height: calc(100vh - 120px); min-height: 550px;">
+        <div class="row g-0 h-100">
+
+            <!-- LEFT PANEL: Conversations List -->
+            <div class="col-12 col-md-4 col-lg-3 border-end d-flex flex-column h-100 bg-white" id="conversationSidebar">
+                <!-- Sidebar Header -->
+                <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
+                    <h5 class="fw-bold mb-0 text-success">
+                        <i class="bi bi-chat-dots-fill me-1"></i> Youth Chat
+                    </h5>
+                    <div class="d-flex align-items-center gap-1">
+                        <button class="btn btn-sm btn-outline-success rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#exploreGroupsModal" title="Explore Community Groups">
+                            <i class="bi bi-compass me-1"></i>Explore
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary rounded-pill px-2" data-bs-toggle="modal" data-bs-target="#createGroupModal" title="Create Community Group">
+                            <i class="bi bi-people-fill me-1"></i>Group
+                        </button>
+                        <button class="btn btn-sm btn-success rounded-pill px-2 shadow-sm" data-bs-toggle="modal" data-bs-target="#newChatModal" title="Direct Message">
+                            <i class="bi bi-pencil-square me-1"></i>Chat
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search Filter Input -->
+                <div class="p-2 border-bottom">
+                    <div class="input-group input-group-sm mb-2">
+                        <span class="input-group-text bg-light border-0"><i class="bi bi-search text-muted"></i></span>
+                        <input type="text" id="chatSearchInput" class="form-control bg-light border-0" placeholder="Search conversations...">
+                        <button class="btn btn-light border-0 text-muted" type="button" data-bs-toggle="modal" data-bs-target="#searchMessagesModal" title="Search message history">
+                            <i class="bi bi-chat-text"></i>
+                        </button>
+                    </div>
+                    <!-- Filter Pills -->
+                    <div class="d-flex gap-1 overflow-x-auto pb-1" id="chatFilterPills">
+                        <button type="button" class="btn btn-xs btn-success rounded-pill px-2 py-1 filter-pill active" data-filter="all" style="font-size: 0.72rem;">All</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="direct" style="font-size: 0.72rem;">Direct</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="group" style="font-size: 0.72rem;">Groups</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="bible_study" style="font-size: 0.72rem;"><i class="bi bi-book-half me-1"></i>Bible</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="prayer" style="font-size: 0.72rem;"><i class="bi bi-heart-pulse me-1"></i>Prayer</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="evangelism" style="font-size: 0.72rem;"><i class="bi bi-megaphone me-1"></i>Evangelism</button>
+                    </div>
+                </div>
+
+                <!-- Conversation Items -->
+                <div class="flex-grow-1 overflow-y-auto" id="conversationList">
+                    {{if .Conversations}}
+                        {{range .Conversations}}
+                        <a href="/messages?c={{.ID}}" class="list-group-item list-group-item-action p-3 border-bottom d-flex align-items-center gap-3 text-decoration-none {{if .IsActive}}bg-light border-start border-4 border-success{{end}} conversation-item" data-name="{{if eq .Type "group"}}{{.Title}}{{else}}{{.OtherUser.FullName}}{{end}}" data-type="{{.Type}}" data-category="{{.Category}}">
+                            <!-- Avatar -->
+                            <div class="position-relative flex-shrink-0">
+                                {{if eq .Type "group"}}
+                                    {{if eq .Category "bible_study"}}
+                                        <div class="rounded-circle bg-primary-subtle text-primary border border-primary d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.3rem;">
+                                            <i class="bi bi-book-half"></i>
+                                        </div>
+                                    {{else if eq .Category "prayer"}}
+                                        <div class="rounded-circle bg-warning-subtle text-warning-emphasis border border-warning d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.3rem;">
+                                            <i class="bi bi-heart-pulse-fill"></i>
+                                        </div>
+                                    {{else if eq .Category "evangelism"}}
+                                        <div class="rounded-circle bg-danger-subtle text-danger border border-danger d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.3rem;">
+                                            <i class="bi bi-megaphone-fill"></i>
+                                        </div>
+                                    {{else}}
+                                        <div class="rounded-circle bg-success-subtle text-success border border-success d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.3rem;">
+                                            <i class="bi bi-people-fill"></i>
+                                        </div>
+                                    {{end}}
+                                {{else}}
+                                    {{if .OtherUser.ProfilePhoto}}
+                                        <img src="/uploads/profiles/{{.OtherUser.ProfilePhoto}}" alt="{{.OtherUser.FullName}}" class="rounded-circle object-fit-cover shadow-sm" style="width: 48px; height: 48px;">
+                                    {{else}}
+                                        <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.1rem;">
+                                            {{.OtherUser.Initials}}
+                                        </div>
+                                    {{end}}
+                                {{end}}
+                            </div>
+
+                            <!-- Conversation Content -->
+                            <div class="flex-grow-1 overflow-hidden">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h6 class="mb-0 fw-semibold text-truncate text-dark d-flex align-items-center">
+                                        <span>{{if eq .Type "group"}}{{.Title}}{{else}}{{.OtherUser.FullName}}{{end}}</span>
+                                        {{if eq .Type "group"}}
+                                            <span class="badge bg-light text-secondary border rounded-pill ms-2" style="font-size: 0.65rem;">
+                                                <i class="bi bi-people me-1"></i>{{.MemberCount}}
+                                            </span>
+                                        {{end}}
+                                        {{if .IsMuted}}<i class="bi bi-bell-slash text-muted ms-1 small" title="Muted"></i>{{end}}
+                                        {{if .IsArchived}}<i class="bi bi-archive text-muted ms-1 small" title="Archived"></i>{{end}}
+                                    </h6>
+                                    <small class="text-muted" style="font-size: 0.75rem;">
+                                        {{if not .LastMessageTime.IsZero}}{{.LastMessageTime.Format "15:04"}}{{end}}
+                                    </small>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <p class="mb-0 text-muted text-truncate small" style="max-width: 170px;">
+                                        {{if .LastMessage}}{{.LastMessage}}{{else}}<em class="text-secondary">No messages yet</em>{{end}}
+                                    </p>
+                                    {{if gt .UnreadCount 0}}
+                                        <span class="badge rounded-pill bg-danger shadow-sm">{{.UnreadCount}}</span>
+                                    {{end}}
+                                </div>
+                            </div>
+                        </a>
+                        {{end}}
+                    {{else}}
+                        <!-- Empty State: No Conversations -->
+                        <div class="text-center p-4 text-muted mt-5">
+                            <i class="bi bi-chat-square-heart text-success fs-1 mb-2 d-block"></i>
+                            <h6>No conversations yet</h6>
+                            <p class="small text-secondary mb-3">Connect and start chatting with other youth members.</p>
+
+                            <button class="btn btn-sm btn-outline-success rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#newChatModal">
+                                Start a Conversation
+                            </button>
+                        </div>
+                    {{end}}
+                </div>
+            </div>
+
+            <!-- CENTER PANEL: Active Conversation -->
+            <div class="col-12 col-md-8 col-lg-9 d-flex flex-column h-100 bg-light" id="chatMainArea" data-conv-id="{{if .ActiveConversation}}{{.ActiveConversation.ID}}{{end}}" data-conv-type="{{if .ActiveConversation}}{{.ActiveConversation.Type}}{{end}}">
+                {{if .ActiveConversation}}
+                    <!-- Chat Top Header -->
+                    <div class="p-3 bg-white border-bottom d-flex justify-content-between align-items-center shadow-sm">
+                        <div class="d-flex align-items-center gap-3">
+                            <a href="/messages" class="btn btn-sm btn-light d-md-none me-1"><i class="bi bi-chevron-left"></i></a>
+                            {{if .ActiveRecipient}}
+                                {{if .ActiveRecipient.ProfilePhoto}}
+                                    <img src="/uploads/profiles/{{.ActiveRecipient.ProfilePhoto}}" alt="{{.ActiveRecipient.FullName}}" class="rounded-circle object-fit-cover shadow-sm" style="width: 44px; height: 44px;">
+                                {{else}}
+                                    <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1rem;">
+                                        {{.ActiveRecipient.Initials}}
+                                    </div>
+                                {{end}}
+                                <div>
+                                    <h6 class="mb-0 fw-bold text-dark d-flex align-items-center">
+                                        {{.ActiveRecipient.FullName}}
+                                        <span class="badge {{if .IsActiveOnline}}bg-success{{else}}bg-secondary{{end}} rounded-pill ms-2 small d-inline-flex align-items-center gap-1" style="font-size: 0.65rem;" id="userPresenceBadge" data-user-id="{{.ActiveRecipient.ID}}">
+                                            {{if .IsActiveOnline}}
+                                                <span class="spinner-grow spinner-grow-sm" style="width: 0.4rem; height: 0.4rem;" role="status"></span> Online
+                                            {{else}}
+                                                Offline
+                                            {{end}}
+                                        </span>
+                                        {{if .IsActiveMuted}}<i class="bi bi-bell-slash text-warning ms-2 small" title="Muted"></i>{{end}}
+                                    </h6>
+                                    <small class="text-muted">@{{.ActiveRecipient.Username}}</small>
+                                </div>
+                            {{else}}
+                                <!-- Group Conversation Header -->
+                                <div class="position-relative flex-shrink-0">
+                                    {{if eq .ActiveConversation.Category "bible_study"}}
+                                        <div class="rounded-circle bg-primary-subtle text-primary border border-primary d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1.2rem;">
+                                            <i class="bi bi-book-half"></i>
+                                        </div>
+                                    {{else if eq .ActiveConversation.Category "prayer"}}
+                                        <div class="rounded-circle bg-warning-subtle text-warning-emphasis border border-warning d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1.2rem;">
+                                            <i class="bi bi-heart-pulse-fill"></i>
+                                        </div>
+                                    {{else if eq .ActiveConversation.Category "evangelism"}}
+                                        <div class="rounded-circle bg-danger-subtle text-danger border border-danger d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1.2rem;">
+                                            <i class="bi bi-megaphone-fill"></i>
+                                        </div>
+                                    {{else}}
+                                        <div class="rounded-circle bg-success-subtle text-success border border-success d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1.2rem;">
+                                            <i class="bi bi-people-fill"></i>
+                                        </div>
+                                    {{end}}
+                                </div>
+                                <div>
+                                    <h6 class="mb-0 fw-bold text-dark d-flex align-items-center">
+                                        {{.ActiveConversation.Title}}
+                                        {{if eq .ActiveConversation.Category "bible_study"}}
+                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill ms-2 small">Bible Study</span>
+                                        {{else if eq .ActiveConversation.Category "prayer"}}
+                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill ms-2 small">Prayer</span>
+                                        {{else if eq .ActiveConversation.Category "evangelism"}}
+                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill ms-2 small">Evangelism</span>
+                                        {{else}}
+                                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill ms-2 small">General</span>
+                                        {{end}}
+                                        {{if .IsActiveMuted}}<i class="bi bi-bell-slash text-warning ms-2 small" title="Muted"></i>{{end}}
+                                    </h6>
+                                    <small class="text-muted d-flex align-items-center gap-2">
+                                        <span><i class="bi bi-people me-1"></i>{{len .ActiveGroupMembers}} members</span>
+                                        {{if .ActiveUserRole}}
+                                            <span class="badge bg-light text-dark border text-capitalize" style="font-size: 0.65rem;">{{.ActiveUserRole}}</span>
+                                        {{end}}
+                                    </small>
+                                </div>
+                            {{end}}
+                        </div>
+
+                        <!-- Header Actions -->
+                        <div class="d-flex align-items-center gap-2">
+                            {{if .ActiveRecipient}}
+                                <a href="/user/{{.ActiveRecipient.Username}}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                    <i class="bi bi-person me-1"></i> Profile
+                                </a>
+                            {{end}}
+                            {{if eq .ActiveConversation.Type "group"}}
+                                {{if .ActiveGroupCall}}
+                                    <button class="btn btn-sm btn-success rounded-pill px-3 shadow-sm d-flex align-items-center gap-1 pulse-call-btn" type="button" id="joinActiveGroupCallBtn" data-call-id="{{.ActiveGroupCall.CallID}}" data-call-type="{{.ActiveGroupCall.CallType}}" title="Join Ongoing Call">
+                                        <span class="spinner-grow spinner-grow-sm text-white" role="status" style="width: 0.45rem; height: 0.45rem;"></span>
+                                        <span>Join Call ({{len .ActiveGroupCall.Participants}})</span>
+                                    </button>
+                                {{end}}
+                                {{if .CanStartCall}}
+                                    <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" id="startGroupAudioCallBtn" title="Start Group Audio Call" style="width: 34px; height: 34px;">
+                                        <i class="bi bi-telephone text-success"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" id="startGroupVideoCallBtn" title="Start Group Video Call" style="width: 34px; height: 34px;">
+                                        <i class="bi bi-camera-video text-primary"></i>
+                                    </button>
+                                {{else}}
+                                    <button class="btn btn-sm btn-light rounded-circle opacity-50 shadow-sm" type="button" disabled title="Only group administrators can start calls" style="width: 34px; height: 34px;">
+                                        <i class="bi bi-telephone text-muted"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-light rounded-circle opacity-50 shadow-sm" type="button" disabled title="Only group administrators can start calls" style="width: 34px; height: 34px;">
+                                        <i class="bi bi-camera-video text-muted"></i>
+                                    </button>
+                                {{end}}
+                            {{else if and .ActiveRecipient (not .IsRecipientBlocked) (not .IsBlockedByRecipient)}}
+                                <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" id="startAudioCallBtn" title="Start Audio Call" style="width: 34px; height: 34px;">
+                                    <i class="bi bi-telephone text-success"></i>
+                                </button>
+                                <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" id="startVideoCallBtn" title="Start Video Call" style="width: 34px; height: 34px;">
+                                    <i class="bi bi-camera-video text-primary"></i>
+                                </button>
+                            {{end}}
+                            <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#conversationDetailsOffcanvas" title="Conversation Details" style="width: 34px; height: 34px;">
+                                <i class="bi bi-info-circle text-secondary"></i>
+                            </button>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="width: 34px; height: 34px;">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3">
+                                    <li>
+                                        <form action="/messages/mute" method="POST" class="d-inline">
+                                            <input type="hidden" name="conversation_id" value="{{.ActiveConversation.ID}}">
+                                            <button type="submit" class="dropdown-item d-flex align-items-center gap-2 py-2">
+                                                {{if .IsActiveMuted}}
+                                                    <i class="bi bi-bell text-success"></i> Unmute Notifications
+                                                {{else}}
+                                                    <i class="bi bi-bell-slash text-warning"></i> Mute Notifications
+                                                {{end}}
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form action="/messages/archive" method="POST" class="d-inline">
+                                            <input type="hidden" name="conversation_id" value="{{.ActiveConversation.ID}}">
+                                            <button type="submit" class="dropdown-item d-flex align-items-center gap-2 py-2">
+                                                {{if .IsActiveArchived}}
+                                                    <i class="bi bi-box-arrow-up text-primary"></i> Unarchive Conversation
+                                                {{else}}
+                                                    <i class="bi bi-archive text-secondary"></i> Archive Conversation
+                                                {{end}}
+                                            </button>
+                                        </form>
+                                    </li>
+                                    {{if eq .ActiveConversation.Type "group"}}
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li>
+                                            <form action="/messages/group/leave" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to leave this group?');">
+                                                <input type="hidden" name="group_id" value="{{.ActiveConversation.ID}}">
+                                                <button type="submit" class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger">
+                                                    <i class="bi bi-box-arrow-right"></i> Leave Group
+                                                </button>
+                                            </form>
+                                        </li>
+                                    {{end}}
+
+                                    {{if .ActiveRecipient}}
+                                        <li><hr class="dropdown-divider"></li>
+                                        {{if .IsRecipientBlocked}}
+                                            <li>
+                                                <form action="/messages/unblock" method="POST" class="d-inline">
+                                                    <input type="hidden" name="user_id" value="{{.ActiveRecipient.ID}}">
+                                                    <button type="submit" class="dropdown-item d-flex align-items-center gap-2 py-2 text-success">
+                                                        <i class="bi bi-person-check"></i> Unblock Contact
+                                                    </button>
+                                                </form>
+                                            </li>
+                                        {{else}}
+                                            <li>
+                                                <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2 text-danger" data-bs-toggle="modal" data-bs-target="#blockUserModal">
+                                                    <i class="bi bi-slash-circle"></i> Block Contact
+                                                </button>
+                                            </li>
+                                        {{end}}
+                                        <li>
+                                            <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2 text-warning" data-bs-toggle="modal" data-bs-target="#reportAbuseModal">
+                                                <i class="bi bi-flag"></i> Report Abuse
+                                            </button>
+                                        </li>
+                                    {{end}}
+                                </ul>
+                            </div>
+                        </div>
+                    <!-- Active Group Call Banner (visible when live call in group) -->
+                    <div id="activeGroupCallBanner" class="px-3 py-2 bg-success text-white d-flex align-items-center justify-content-between shadow-sm" style="{{if not .ActiveGroupCall}}display: none !important;{{end}}">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="spinner-grow spinner-grow-sm text-white" role="status"></span>
+                            <span class="small fw-semibold" id="activeGroupCallBannerText">
+                                {{if .ActiveGroupCall}}
+                                    Live Group {{if eq .ActiveGroupCall.CallType "video"}}Video{{else}}Audio{{end}} Call in progress ({{len .ActiveGroupCall.Participants}} participant{{if ne (len .ActiveGroupCall.Participants) 1}}s{{end}})
+                                {{else}}
+                                    Live Group Call in progress
+                                {{end}}
+                            </span>
+                        </div>
+                        <button type="button" class="btn btn-xs btn-light rounded-pill px-3 fw-bold text-success" id="bannerJoinGroupCallBtn">
+                            Join Call
+                        </button>
+                    </div>
+
+                    <!-- Messages Scroll Body -->
+                    <div class="flex-grow-1 p-3 overflow-y-auto" id="messageContainer" style="background-color: #f7f9fa;">
+                        {{if .HasOlderMessages}}
+                            <div class="text-center my-2" id="loadOlderContainer">
+                                <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 shadow-sm" id="loadOlderBtn" data-offset="{{len .Messages}}">
+                                    <i class="bi bi-clock-history me-1"></i> Load Older Messages
+                                </button>
+                            </div>
+                        {{end}}
+                        {{if .Messages}}
+                            {{range .Messages}}
+                                {{if eq .MessageType "system"}}
+                                    <!-- System Notification Message -->
+                                    <div class="text-center my-2">
+                                        <span class="badge bg-light text-secondary border rounded-pill px-3 py-1 small fw-normal">
+                                            <i class="bi bi-info-circle me-1"></i> {{.Body}}
+                                        </span>
+                                    </div>
+                                {{else if eq .SenderID $.CurrentUser.ID}}
+                                    <!-- Outgoing Message (Me) -->
+                                    <div class="d-flex justify-content-end mb-3 message-bubble" data-message-id="{{.ID}}" data-client-id="{{.ClientMessageID}}">
+                                        <div class="text-end" style="max-width: 75%;">
+                                            <div class="bg-success text-white p-3 rounded-4 shadow-sm text-start" style="border-bottom-right-radius: 4px !important; word-wrap: break-word;">
+                                                {{if eq .MessageType "image"}}
+                                                    <div class="mb-2">
+                                                        <a href="{{.AttachmentURL}}" target="_blank">
+                                                            <img src="{{.AttachmentURL}}" alt="{{.AttachmentName}}" class="rounded-3 img-fluid shadow-sm" style="max-height: 250px; object-fit: cover;">
+                                                        </a>
+                                                    </div>
+                                                {{else if eq .MessageType "voice"}}
+                                                    <div class="mb-2">
+                                                        <audio controls class="w-100 rounded-pill" style="min-width: 220px; max-width: 280px; height: 36px;">
+                                                            <source src="{{.AttachmentURL}}" type="{{.AttachmentType}}">
+                                                        </audio>
+                                                    </div>
+                                                {{else if eq .MessageType "file"}}
+                                                    <div class="p-2 bg-white bg-opacity-25 rounded-3 border d-flex align-items-center gap-2 mb-2" style="max-width: 260px;">
+                                                        <i class="bi bi-file-earmark-arrow-down-fill fs-3 text-white"></i>
+                                                        <div class="overflow-hidden text-start flex-grow-1">
+                                                            <div class="small fw-bold text-truncate text-white">{{.AttachmentName}}</div>
+                                                            <small class="text-white opacity-75" style="font-size: 0.7rem;">{{.AttachmentSize}} bytes</small>
+                                                        </div>
+                                                        <a href="{{.AttachmentURL}}" download="{{.AttachmentName}}" class="btn btn-sm btn-light rounded-circle shadow-sm"><i class="bi bi-download"></i></a>
+                                                    </div>
+                                                {{end}}
+                                                {{if .Body}}<div class="message-content">{{.Body}}</div>{{end}}
+                                            </div>
+                                            <small class="text-muted me-1 mt-1 d-inline-block" style="font-size: 0.72rem;">
+                                                {{.CreatedAt.Format "15:04"}}
+                                                {{if .IsReadByRecipient}}
+                                                    <i class="bi bi-check2-all text-primary msg-check" title="Read"></i>
+                                                {{else}}
+                                                    <i class="bi bi-check2 text-muted msg-check" title="Delivered"></i>
+                                                {{end}}
+                                            </small>
+                                        </div>
+                                    </div>
+                                {{else}}
+                                    <!-- Incoming Message (Other) -->
+                                    <div class="d-flex justify-content-start mb-3 gap-2 message-bubble" data-message-id="{{.ID}}" data-client-id="{{.ClientMessageID}}">
+                                        {{if .Sender.ProfilePhoto}}
+                                            <img src="/uploads/profiles/{{.Sender.ProfilePhoto}}" alt="{{.Sender.FullName}}" class="rounded-circle object-fit-cover shadow-sm align-self-end mb-3" style="width: 32px; height: 32px;">
+                                        {{else}}
+                                            <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm align-self-end mb-3" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                                                {{.Sender.Initials}}
+                                            </div>
+                                        {{end}}
+                                        <div style="max-width: 75%;">
+                                            {{if eq $.ActiveConversation.Type "group"}}
+                                                <div class="d-flex align-items-center gap-1 mb-1">
+                                                    <span class="fw-bold small text-dark" style="font-size: 0.78rem;">{{.Sender.FullName}}</span>
+                                                    <small class="text-muted" style="font-size: 0.68rem;">@{{.Sender.Username}}</small>
+                                                </div>
+                                            {{end}}
+                                            <div class="bg-white text-dark p-3 rounded-4 shadow-sm border" style="border-bottom-left-radius: 4px !important; word-wrap: break-word;">
+                                                {{if eq .MessageType "image"}}
+                                                    <div class="mb-2">
+                                                        <a href="{{.AttachmentURL}}" target="_blank">
+                                                            <img src="{{.AttachmentURL}}" alt="{{.AttachmentName}}" class="rounded-3 img-fluid shadow-sm" style="max-height: 250px; object-fit: cover;">
+
+                                                        </a>
+                                                    </div>
+                                                {{else if eq .MessageType "voice"}}
+                                                    <div class="mb-2">
+                                                        <audio controls class="w-100 rounded-pill" style="min-width: 220px; max-width: 280px; height: 36px;">
+                                                            <source src="{{.AttachmentURL}}" type="{{.AttachmentType}}">
+                                                        </audio>
+                                                    </div>
+                                                {{else if eq .MessageType "file"}}
+                                                    <div class="p-2 bg-light rounded-3 border d-flex align-items-center gap-2 mb-2" style="max-width: 260px;">
+                                                        <i class="bi bi-file-earmark-arrow-down-fill fs-3 text-primary"></i>
+                                                        <div class="overflow-hidden text-start flex-grow-1">
+                                                            <div class="small fw-bold text-truncate text-dark">{{.AttachmentName}}</div>
+                                                            <small class="text-muted" style="font-size: 0.7rem;">{{.AttachmentSize}} bytes</small>
+                                                        </div>
+                                                        <a href="{{.AttachmentURL}}" download="{{.AttachmentName}}" class="btn btn-sm btn-light rounded-circle shadow-sm"><i class="bi bi-download"></i></a>
+                                                    </div>
+                                                {{end}}
+                                                {{if .Body}}<div class="message-content">{{.Body}}</div>{{end}}
+                                            </div>
+                                            <small class="text-muted ms-1 mt-1 d-inline-block" style="font-size: 0.72rem;">
+                                                {{.CreatedAt.Format "15:04"}}
+                                            </small>
+                                        </div>
+                                    </div>
+                                {{end}}
+                            {{end}}
+                        {{else}}
+                            <!-- Empty Conversation Notice -->
+                            <div class="h-100 d-flex flex-column justify-content-center align-items-center text-muted">
+                                <i class="bi bi-chat-text text-secondary opacity-50 display-4 mb-2"></i>
+                                <h6>Say hello!</h6>
+                                <p class="small text-secondary">Start this conversation with a warm greeting.</p>
+                            </div>
+                        {{end}}
+                    </div>
+
+                    <!-- Typing Indicator -->
+                    <div id="typingIndicator" class="px-4 py-1 bg-white border-top text-muted small fst-italic" style="display: none; font-size: 0.78rem;">
+                        <i class="bi bi-pencil-fill me-1 text-success"></i><span id="typingUser" class="fw-semibold"></span> is typing...
+                    </div>
+
+                    <!-- Attachment Preview Bar -->
+                    <div id="attachmentPreviewBar" class="px-3 py-2 bg-light border-top d-flex align-items-center gap-2" style="display: none !important;">
+                        <span id="attachmentTypeBadge" class="badge bg-success">File</span>
+                        <span id="attachmentFileName" class="small fw-semibold text-truncate text-dark" style="max-width: 220px;"></span>
+                        <span id="attachmentFileSize" class="text-muted small"></span>
+                        <button type="button" class="btn btn-sm btn-link text-danger p-0 ms-auto text-decoration-none" id="removeAttachmentBtn" title="Remove attachment">
+                            <i class="bi bi-x-circle-fill fs-5"></i>
+                        </button>
+                    </div>
+
+                    <!-- Message Composer or Blocked Alert -->
+                    {{if .IsRecipientBlocked}}
+                        <div class="p-3 bg-white border-top shadow-sm">
+                            <div class="alert alert-warning mb-0 d-flex align-items-center justify-content-between p-3 rounded-3" role="alert">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-slash-circle-fill text-warning fs-4"></i>
+                                    <div>
+                                        <strong class="d-block text-dark">You have blocked this contact.</strong>
+                                        <span class="small text-muted">You cannot send or receive messages until you unblock them.</span>
+                                    </div>
+                                </div>
+                                <form action="/messages/unblock" method="POST" class="d-inline">
+                                    <input type="hidden" name="user_id" value="{{.ActiveRecipient.ID}}">
+                                    <button type="submit" class="btn btn-sm btn-outline-warning rounded-pill px-3 fw-bold">Unblock</button>
+                                </form>
+                            </div>
+                        </div>
+                    {{else if .IsBlockedByRecipient}}
+                        <div class="p-3 bg-white border-top shadow-sm">
+                            <div class="alert alert-secondary mb-0 d-flex align-items-center gap-2 p-3 rounded-3" role="alert">
+                                <i class="bi bi-info-circle-fill text-secondary fs-4"></i>
+                                <div>
+                                    <strong class="d-block text-dark">Direct messaging unavailable.</strong>
+                                    <span class="small text-muted">You cannot send messages to this member.</span>
+                                </div>
+                            </div>
+                        </div>
+                    {{else}}
+                        <!-- Message Composer Form -->
+                        <div class="p-3 bg-white border-top shadow-sm">
+                            <form id="chatMessageForm" action="/messages/send" method="POST" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+                                <input type="hidden" name="conversation_id" id="activeConvID" value="{{.ActiveConversation.ID}}" data-conversation-type="{{.ActiveConversation.Type}}">
+                                <input type="hidden" name="client_message_id" id="clientMsgID" value="">
+                                <input type="file" id="attachmentFileInput" name="attachment" class="d-none" accept="image/*,audio/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.zip">
+
+                                <!-- Attachment Button -->
+                                <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0" id="attachBtn" title="Attach file or image" style="width: 44px; height: 44px;">
+                                    <i class="bi bi-paperclip fs-5 text-secondary"></i>
+                                </button>
+
+                                <!-- Voice Note Button -->
+                                <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0" id="voiceRecordBtn" title="Record voice note" style="width: 44px; height: 44px;">
+                                    <i class="bi bi-mic fs-5 text-secondary" id="voiceMicIcon"></i>
+                                </button>
+
+                                <input type="text" name="body" id="messageInput" class="form-control rounded-pill bg-light border-0 py-2 px-3" placeholder="Type a message or record audio..." autocomplete="off" maxlength="2000">
+
+                                <button type="submit" id="sendBtn" class="btn btn-success rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0" style="width: 44px; height: 44px;">
+                                    <i class="bi bi-send-fill text-white"></i>
+                                </button>
+                            </form>
+                        </div>
+                    {{end}}
+
+                {{else}}
+                    <!-- No Active Conversation Selected -->
+                    <div class="h-100 d-flex flex-column justify-content-center align-items-center text-center p-4">
+                        <div class="rounded-circle bg-white shadow-sm p-4 mb-3 border">
+                            <i class="bi bi-chat-square-dots-fill text-success display-4"></i>
+                        </div>
+                        <h4 class="fw-bold text-dark">Youth Community Chat</h4>
+                        <p class="text-secondary" style="max-width: 400px;">
+                            Select an existing conversation from the left or connect with a fellow youth member to start messaging.
+                        </p>
+                        <button class="btn btn-success rounded-pill px-4 shadow-sm" data-bs-toggle="modal" data-bs-target="#newChatModal">
+                            <i class="bi bi-person-plus-fill me-1"></i> Start New Chat
+                        </button>
+                    </div>
+                {{end}}
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Start New Chat -->
+<div class="modal fade" id="newChatModal" tabindex="-1" aria-labelledby="newChatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="newChatModalLabel">
+                    <i class="bi bi-person-plus-fill me-2"></i> New Conversation
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <input type="text" id="memberSearchInput" class="form-control rounded-pill bg-light mb-3" placeholder="Search members by name...">
+
+                <div class="list-group list-group-flush" id="eligibleMemberList">
+                    {{if .EligibleFriends}}
+                        {{range .EligibleFriends}}
+                        <form action="/messages/start" method="POST" class="mb-1 member-search-item" data-name="{{.FullName}} {{.Username}}">
+                            <input type="hidden" name="user_id" value="{{.ID}}">
+                            <button type="submit" class="list-group-item list-group-item-action border-0 rounded-3 p-2 d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center gap-3">
+                                    {{if .ProfilePhoto}}
+                                        <img src="/uploads/profiles/{{.ProfilePhoto}}" alt="{{.FullName}}" class="rounded-circle object-fit-cover shadow-sm" style="width: 40px; height: 40px;">
+                                    {{else}}
+                                        <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 40px; height: 40px; font-size: 0.95rem;">
+                                            {{.Initials}}
+                                        </div>
+                                    {{end}}
+                                    <div class="text-start">
+                                        <h6 class="mb-0 fw-semibold text-dark">{{.FullName}}</h6>
+                                        <small class="text-muted">@{{.Username}}</small>
+                                    </div>
+                                </div>
+                                <span class="btn btn-sm btn-outline-success rounded-pill px-3">Chat</span>
+                            </button>
+                        </form>
+                        {{end}}
+                    {{else}}
+                        <div class="text-center p-3 text-muted">
+                            <i class="bi bi-people text-secondary fs-2 d-block mb-2"></i>
+                            <p class="mb-0">No eligible members found yet.</p>
+                            <small class="text-secondary">Explore the <a href="/discover" class="text-success text-decoration-none fw-bold">Discover</a> page to find community friends.</small>
+                        </div>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- OFFCANVAS: Conversation Details -->
+{{if .ActiveConversation}}
+<div class="offcanvas offcanvas-end border-0 shadow" tabindex="-1" id="conversationDetailsOffcanvas" aria-labelledby="conversationDetailsOffcanvasLabel">
+    <div class="offcanvas-header bg-success text-white">
+        <h5 class="offcanvas-title fw-bold" id="conversationDetailsOffcanvasLabel">
+            <i class="bi bi-info-circle-fill me-2"></i> Details
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body p-4">
+        {{if eq .ActiveConversation.Type "group"}}
+            <!-- Group Summary Card -->
+            <div class="text-center mb-4">
+                <div class="rounded-circle bg-light border d-flex justify-content-center align-items-center fw-bold shadow-sm mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2.2rem;">
+                    {{if eq .ActiveConversation.Category "bible_study"}}
+                        <i class="bi bi-book-half text-primary"></i>
+                    {{else if eq .ActiveConversation.Category "prayer"}}
+                        <i class="bi bi-heart-pulse-fill text-warning"></i>
+                    {{else if eq .ActiveConversation.Category "evangelism"}}
+                        <i class="bi bi-megaphone-fill text-danger"></i>
+                    {{else}}
+                        <i class="bi bi-people-fill text-success"></i>
+                    {{end}}
+                </div>
+                <h5 class="fw-bold mb-1">{{.ActiveConversation.Title}}</h5>
+                <div class="d-flex justify-content-center gap-1 mb-2">
+                    <span class="badge bg-secondary-subtle text-secondary border text-capitalize">{{.ActiveConversation.Category}}</span>
+                    {{if eq .ActiveConversation.CallPermission "admin_only"}}
+                        <span class="badge bg-warning-subtle text-warning-emphasis border">Admin Calls Only</span>
+                    {{else}}
+                        <span class="badge bg-success-subtle text-success border">Open Group Calls</span>
+                    {{end}}
+                </div>
+                {{if .ActiveConversation.Description}}
+                    <p class="small text-secondary px-2 mt-2 fst-italic">"{{.ActiveConversation.Description}}"</p>
+                {{end}}
+                {{if or (eq .ActiveUserRole "owner") (eq .ActiveUserRole "admin")}}
+                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3 mt-1" data-bs-toggle="modal" data-bs-target="#editGroupSettingsModal">
+                        <i class="bi bi-gear me-1"></i> Edit Group Info
+                    </button>
+                {{end}}
+            </div>
+
+            <!-- Group Members Section -->
+            <div class="mb-4">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h6 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-people-fill me-2 text-success"></i> Group Members ({{len .ActiveGroupMembers}})
+                    </h6>
+                    {{if .CanManageMembers}}
+                        <button class="btn btn-xs btn-outline-success rounded-pill px-2 py-1" style="font-size: 0.75rem;" data-bs-toggle="modal" data-bs-target="#addGroupMembersModal">
+                            <i class="bi bi-person-plus me-1"></i>Add
+                        </button>
+                    {{end}}
+                </div>
+
+                <div class="list-group list-group-flush rounded-3 border" style="max-height: 250px; overflow-y: auto;">
+                    {{range .ActiveGroupMembers}}
+                        <div class="list-group-item p-2 d-flex align-items-center justify-content-between small">
+                            <div class="d-flex align-items-center gap-2 overflow-hidden">
+                                {{if .User.ProfilePhoto}}
+                                    <img src="/uploads/profiles/{{.User.ProfilePhoto}}" alt="{{.User.FullName}}" class="rounded-circle object-fit-cover shadow-sm flex-shrink-0" style="width: 32px; height: 32px;">
+                                {{else}}
+                                    <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm flex-shrink-0" style="width: 32px; height: 32px; font-size: 0.8rem;">
+                                        {{.User.Initials}}
+                                    </div>
+                                {{end}}
+                                <div class="overflow-hidden">
+                                    <div class="fw-semibold text-truncate text-dark">{{.User.FullName}}</div>
+                                    <small class="text-muted text-truncate d-block">@{{.User.Username}}</small>
+                                </div>
+                            </div>
+                            <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                                {{if eq .Role "owner"}}
+                                    <span class="badge bg-warning text-dark border">Owner</span>
+                                {{else if eq .Role "admin"}}
+                                    <span class="badge bg-primary text-white">Admin</span>
+                                {{else if eq .Role "moderator"}}
+                                    <span class="badge bg-info text-dark">Moderator</span>
+                                {{else}}
+                                    <span class="badge bg-light text-secondary border">Member</span>
+                                {{end}}
+
+                                {{if and $.CanManageMembers (ne .UserID $.CurrentUser.ID)}}
+                                    <div class="dropdown">
+                                        <button class="btn btn-xs btn-light rounded-circle p-1" data-bs-toggle="dropdown" aria-expanded="false" style="width: 24px; height: 24px; line-height: 1;">
+                                            <i class="bi bi-three-dots small"></i>
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 small">
+                                            {{if eq $.ActiveUserRole "owner"}}
+                                                {{if ne .Role "admin"}}
+                                                    <li>
+                                                        <form action="/messages/group/members/role" method="POST">
+                                                            <input type="hidden" name="group_id" value="{{$.ActiveConversation.ID}}">
+                                                            <input type="hidden" name="user_id" value="{{.UserID}}">
+                                                            <input type="hidden" name="role" value="admin">
+                                                            <button type="submit" class="dropdown-item py-1">Make Admin</button>
+                                                        </form>
+                                                    </li>
+                                                {{end}}
+                                                {{if ne .Role "moderator"}}
+                                                    <li>
+                                                        <form action="/messages/group/members/role" method="POST">
+                                                            <input type="hidden" name="group_id" value="{{$.ActiveConversation.ID}}">
+                                                            <input type="hidden" name="user_id" value="{{.UserID}}">
+                                                            <input type="hidden" name="role" value="moderator">
+                                                            <button type="submit" class="dropdown-item py-1">Make Moderator</button>
+                                                        </form>
+                                                    </li>
+                                                {{end}}
+                                                {{if ne .Role "member"}}
+                                                    <li>
+                                                        <form action="/messages/group/members/role" method="POST">
+                                                            <input type="hidden" name="group_id" value="{{$.ActiveConversation.ID}}">
+                                                            <input type="hidden" name="user_id" value="{{.UserID}}">
+                                                            <input type="hidden" name="role" value="member">
+                                                            <button type="submit" class="dropdown-item py-1">Set as Member</button>
+                                                        </form>
+                                                    </li>
+                                                {{end}}
+                                                <li><hr class="dropdown-divider"></li>
+                                            {{end}}
+                                            {{if or (eq $.ActiveUserRole "owner") (and (eq $.ActiveUserRole "admin") (ne .Role "owner") (ne .Role "admin"))}}
+                                                <li>
+                                                    <form action="/messages/group/members/remove" method="POST" onsubmit="return confirm('Remove this user from the group?');">
+                                                        <input type="hidden" name="group_id" value="{{$.ActiveConversation.ID}}">
+                                                        <input type="hidden" name="user_id" value="{{.UserID}}">
+                                                        <button type="submit" class="dropdown-item py-1 text-danger">Remove from Group</button>
+                                                    </form>
+                                                </li>
+                                            {{end}}
+                                        </ul>
+                                    </div>
+                                {{end}}
+                            </div>
+                        </div>
+                    {{end}}
+                </div>
+            </div>
+            <hr>
+        {{else if .ActiveRecipient}}
+            <!-- Profile Summary Card -->
+            <div class="text-center mb-4">
+                {{if .ActiveRecipient.ProfilePhoto}}
+                    <img src="/uploads/profiles/{{.ActiveRecipient.ProfilePhoto}}" alt="{{.ActiveRecipient.FullName}}" class="rounded-circle object-fit-cover shadow-sm mb-3" style="width: 80px; height: 80px;">
+                {{else}}
+                    <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm mx-auto mb-3" style="width: 80px; height: 80px; font-size: 2rem;">
+                        {{.ActiveRecipient.Initials}}
+                    </div>
+                {{end}}
+                <h5 class="fw-bold mb-1">{{.ActiveRecipient.FullName}}</h5>
+                <p class="text-muted small mb-2">@{{.ActiveRecipient.Username}}</p>
+                {{if .ActiveRecipient.ChurchName}}
+                    <div class="badge bg-light text-dark border mb-2"><i class="bi bi-geo-alt me-1 text-success"></i>{{.ActiveRecipient.ChurchName}}</div>
+                {{end}}
+                {{if .ActiveRecipient.Bio}}
+                    <p class="small text-secondary px-2 mt-2 fst-italic">"{{.ActiveRecipient.Bio}}"</p>
+                {{end}}
+                <div>
+                    <a href="/user/{{.ActiveRecipient.Username}}" class="btn btn-sm btn-outline-success rounded-pill px-4 mt-2">
+                        <i class="bi bi-person me-1"></i> View Full Profile
+                    </a>
+                </div>
+            </div>
+            <hr>
+        {{end}}
+
+
+        <!-- Shared Media & Attachments -->
+        <div class="mb-4">
+            <h6 class="fw-bold text-dark d-flex align-items-center justify-content-between mb-3">
+                <span><i class="bi bi-images me-2 text-success"></i> Shared Media & Files</span>
+                <span class="badge bg-secondary rounded-pill small">{{len .SharedMedia}}</span>
+            </h6>
+            {{if .SharedMedia}}
+                <div class="row g-2">
+                    {{range .SharedMedia}}
+                        {{if eq .MessageType "image"}}
+                            <div class="col-4">
+                                <a href="{{.AttachmentURL}}" target="_blank">
+                                    <img src="{{.AttachmentURL}}" alt="{{.AttachmentName}}" class="img-fluid rounded-3 object-fit-cover shadow-sm w-100" style="height: 70px;">
+                                </a>
+                            </div>
+                        {{else if eq .MessageType "voice"}}
+                            <div class="col-12 p-2 bg-light rounded-3 border d-flex align-items-center gap-2">
+                                <i class="bi bi-mic-fill text-success fs-5"></i>
+                                <span class="small text-truncate flex-grow-1">{{.AttachmentName}}</span>
+                                <a href="{{.AttachmentURL}}" download class="btn btn-sm btn-light rounded-circle shadow-sm"><i class="bi bi-download"></i></a>
+                            </div>
+                        {{else}}
+                            <div class="col-12 p-2 bg-light rounded-3 border d-flex align-items-center gap-2">
+                                <i class="bi bi-file-earmark-text-fill text-primary fs-5"></i>
+                                <span class="small text-truncate flex-grow-1">{{.AttachmentName}}</span>
+                                <a href="{{.AttachmentURL}}" download class="btn btn-sm btn-light rounded-circle shadow-sm"><i class="bi bi-download"></i></a>
+                            </div>
+                        {{end}}
+                    {{end}}
+                </div>
+            {{else}}
+                <div class="text-center text-muted small py-3">
+                    <i class="bi bi-folder2-open fs-3 d-block mb-1 text-secondary opacity-50"></i>
+                    No shared photos or files yet.
+                </div>
+            {{end}}
+        </div>
+
+        <!-- Recent Call History -->
+        <div class="mb-4">
+            <h6 class="fw-bold text-dark d-flex align-items-center justify-content-between mb-3">
+                <span><i class="bi bi-telephone-inbound me-2 text-success"></i> Call History</span>
+                <span class="badge bg-secondary rounded-pill small">{{len .CallLogs}}</span>
+            </h6>
+            {{if .CallLogs}}
+                <div class="list-group list-group-flush rounded-3 border">
+                    {{range .CallLogs}}
+                        <div class="list-group-item p-2 d-flex align-items-center justify-content-between small">
+                            <div class="d-flex align-items-center gap-2">
+                                {{if eq .CallType "video"}}
+                                    <i class="bi bi-camera-video-fill text-primary"></i>
+                                {{else}}
+                                    <i class="bi bi-telephone-fill text-success"></i>
+                                {{end}}
+                                <div>
+                                    <div class="fw-semibold text-capitalize text-dark">{{.CallType}} Call</div>
+                                    <small class="text-muted">{{.StartedAt.Format "Jan 02, 15:04"}}</small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                {{if eq .Status "completed"}}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">{{if gt .DurationSeconds 0}}{{.DurationSeconds}}s{{else}}Connected{{end}}</span>
+                                {{else if eq .Status "missed"}}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Missed</span>
+                                {{else if eq .Status "declined"}}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">Declined</span>
+                                {{else}}
+                                    <span class="badge bg-secondary-subtle text-secondary">{{.Status}}</span>
+                                {{end}}
+                            </div>
+                        </div>
+                    {{end}}
+                </div>
+            {{else}}
+                <div class="text-center text-muted small py-3">
+                    <i class="bi bi-telephone-x fs-3 d-block mb-1 text-secondary opacity-50"></i>
+                    No call history yet.
+                </div>
+            {{end}}
+        </div>
+
+        <hr>
+
+        <!-- Privacy & Safety Options -->
+        <div>
+            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-shield-lock me-2 text-success"></i> Privacy & Safety</h6>
+            <div class="d-grid gap-2">
+                <form action="/messages/mute" method="POST" class="d-grid">
+                    <input type="hidden" name="conversation_id" value="{{.ActiveConversation.ID}}">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill py-2 text-start px-3">
+                        {{if .IsActiveMuted}}
+                            <i class="bi bi-bell text-success me-2"></i> Unmute Notifications
+                        {{else}}
+                            <i class="bi bi-bell-slash text-warning me-2"></i> Mute Notifications
+                        {{end}}
+                    </button>
+                </form>
+
+                <form action="/messages/archive" method="POST" class="d-grid">
+                    <input type="hidden" name="conversation_id" value="{{.ActiveConversation.ID}}">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary rounded-pill py-2 text-start px-3">
+                        {{if .IsActiveArchived}}
+                            <i class="bi bi-box-arrow-up text-primary me-2"></i> Unarchive Conversation
+                        {{else}}
+                            <i class="bi bi-archive text-secondary me-2"></i> Archive Conversation
+                        {{end}}
+                    </button>
+                </form>
+
+                {{if .ActiveRecipient}}
+                    {{if .IsRecipientBlocked}}
+                        <form action="/messages/unblock" method="POST" class="d-grid">
+                            <input type="hidden" name="user_id" value="{{.ActiveRecipient.ID}}">
+                            <button type="submit" class="btn btn-sm btn-outline-success rounded-pill py-2 text-start px-3">
+                                <i class="bi bi-person-check text-success me-2"></i> Unblock Contact
+                            </button>
+                        </form>
+                    {{else}}
+                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill py-2 text-start px-3" data-bs-toggle="modal" data-bs-target="#blockUserModal">
+                            <i class="bi bi-slash-circle text-danger me-2"></i> Block Contact
+                        </button>
+                    {{end}}
+
+                    <button type="button" class="btn btn-sm btn-outline-warning text-dark rounded-pill py-2 text-start px-3" data-bs-toggle="modal" data-bs-target="#reportAbuseModal">
+                        <i class="bi bi-flag text-warning me-2"></i> Report Abuse
+                    </button>
+                {{end}}
+
+                {{if eq .ActiveConversation.Type "group"}}
+                    <form action="/messages/group/leave" method="POST" class="d-grid" onsubmit="return confirm('Are you sure you want to leave this group?');">
+                        <input type="hidden" name="group_id" value="{{.ActiveConversation.ID}}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill py-2 text-start px-3">
+                            <i class="bi bi-box-arrow-right text-danger me-2"></i> Leave Group
+                        </button>
+                    </form>
+                {{end}}
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- MODAL: Block User Confirmation -->
+{{if .ActiveRecipient}}
+<div class="modal fade" id="blockUserModal" tabindex="-1" aria-labelledby="blockUserModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold" id="blockUserModalLabel">
+                    <i class="bi bi-slash-circle me-2"></i> Block Contact
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/messages/block" method="POST">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="user_id" value="{{.ActiveRecipient.ID}}">
+                    <p class="mb-3">
+                        Are you sure you want to block <strong>{{.ActiveRecipient.FullName}}</strong>?
+                    </p>
+                    <ul class="small text-muted mb-3">
+                        <li>They will not be able to send you messages or view your online status.</li>
+                        <li>They will not be notified that you blocked them.</li>
+                        <li>You can unblock them at any time from conversation settings.</li>
+                    </ul>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Reason for blocking (optional):</label>
+                        <input type="text" name="reason" class="form-control rounded-3" placeholder="e.g. Unwanted messages, spam...">
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">Block Contact</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{{end}}
+
+<!-- MODAL: Report Abuse -->
+{{if .ActiveRecipient}}
+<div class="modal fade" id="reportAbuseModal" tabindex="-1" aria-labelledby="reportAbuseModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title fw-bold" id="reportAbuseModalLabel">
+                    <i class="bi bi-flag-fill me-2"></i> Report Abuse
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/messages/report" method="POST">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="reported_user_id" value="{{.ActiveRecipient.ID}}">
+                    {{if .ActiveConversation}}<input type="hidden" name="conversation_id" value="{{.ActiveConversation.ID}}">{{end}}
+                    
+                    <p class="small text-muted mb-3">
+                        Our moderation team reviews reports to ensure a safe, Christ-centered community.
+                    </p>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Select Reason <span class="text-danger">*</span></label>
+                        <select name="reason" class="form-select rounded-3" required>
+                            <option value="">-- Choose reason --</option>
+                            <option value="Harassment or Bullying">Harassment or Bullying</option>
+                            <option value="Inappropriate Content">Inappropriate Content</option>
+                            <option value="Spam or Unsolicited Promotion">Spam or Unsolicited Promotion</option>
+                            <option value="Impersonation or Fake Account">Impersonation or Fake Account</option>
+                            <option value="Hate Speech or Hostility">Hate Speech or Hostility</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Additional Details (optional)</label>
+                        <textarea name="details" class="form-control rounded-3" rows="3" placeholder="Provide any context that helps us investigate..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning rounded-pill px-4 fw-bold">Submit Report</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{{end}}
+{{end}}
+
+<!-- MODAL: Search Message History -->
+<div class="modal fade" id="searchMessagesModal" tabindex="-1" aria-labelledby="searchMessagesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold" id="searchMessagesModalLabel">
+                    <i class="bi bi-search me-2"></i> Search Messages
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-light border-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="globalMessageSearchInput" class="form-control bg-light border-0" placeholder="Type words or attachment names...">
+                </div>
+
+                <div id="searchResultsStatus" class="text-muted small text-center py-2" style="display: none;"></div>
+
+                <div class="list-group list-group-flush" id="messageSearchResultsList">
+                    <div class="text-center text-muted small py-4">
+                        <i class="bi bi-chat-left-quote fs-3 d-block mb-1 text-secondary opacity-50"></i>
+                        Type to search through your message history.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Create Community Group -->
+<div class="modal fade" id="createGroupModal" tabindex="-1" aria-labelledby="createGroupModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="createGroupModalLabel">
+                    <i class="bi bi-people-fill me-2"></i> Create Community Group
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/messages/group/create" method="POST">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Group Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control rounded-3" placeholder="e.g. Saturday Youth Bible Study" required maxlength="100">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Community Category <span class="text-danger">*</span></label>
+                        <select name="category" class="form-select rounded-3" required>
+                            <option value="general">General Youth Community</option>
+                            <option value="bible_study">Bible Study Fellowship</option>
+                            <option value="prayer">Prayer Group & Intercession</option>
+                            <option value="evangelism">Evangelism & Outreach Team</option>
+                            <option value="other">Other Youth Interest</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Description / Group Purpose</label>
+                        <textarea name="description" class="form-control rounded-3" rows="2" placeholder="Briefly describe the purpose of this group..."></textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Call Permissions</label>
+                        <select name="call_permission" class="form-select rounded-3">
+                            <option value="all">Open Calls (All members can start audio/video calls)</option>
+                            <option value="admin_only">Moderated Calls (Only administrators can start calls)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" name="is_public" id="groupIsPublic" value="1" checked>
+                        <label class="form-check-label small fw-semibold" for="groupIsPublic">Public Group (Discoverable by all community members)</label>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold">Add Initial Members (optional)</label>
+                        <div class="border rounded-3 p-2" style="max-height: 150px; overflow-y: auto;">
+                            {{if .EligibleFriends}}
+                                {{range .EligibleFriends}}
+                                <div class="form-check d-flex align-items-center gap-2 mb-2">
+                                    <input class="form-check-input" type="checkbox" name="member_ids" value="{{.ID}}" id="initMember_{{.ID}}">
+                                    <label class="form-check-label small d-flex align-items-center gap-2 text-dark" for="initMember_{{.ID}}">
+                                        <span class="fw-semibold">{{.FullName}}</span>
+                                        <span class="text-muted">(@{{.Username}})</span>
+                                    </label>
+                                </div>
+                                {{end}}
+                            {{else}}
+                                <span class="text-muted small">No eligible members available to invite yet.</span>
+                            {{end}}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Create Group</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Explore Community Groups -->
+<div class="modal fade" id="exploreGroupsModal" tabindex="-1" aria-labelledby="exploreGroupsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="exploreGroupsModalLabel">
+                    <i class="bi bi-compass-fill me-2"></i> Explore Community Groups
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">
+                    Join faith-filled groups across Bible studies, prayer meetings, evangelism outreach, and youth fellowship.
+                </p>
+
+                <!-- Explore Category Filters -->
+                <div class="d-flex gap-2 overflow-x-auto pb-2 mb-3" id="exploreCategoryTabs">
+                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 active explore-cat-btn" data-cat="all">All Groups</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 explore-cat-btn" data-cat="general">General</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 explore-cat-btn" data-cat="bible_study"><i class="bi bi-book-half me-1"></i>Bible Study</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 explore-cat-btn" data-cat="prayer"><i class="bi bi-heart-pulse me-1"></i>Prayer</button>
+                    <button type="button" class="btn btn-sm btn-outline-success rounded-pill px-3 explore-cat-btn" data-cat="evangelism"><i class="bi bi-megaphone me-1"></i>Evangelism</button>
+                </div>
+
+                <div class="row g-3" id="exploreGroupsList">
+                    {{if .DiscoverableGroups}}
+                        {{range .DiscoverableGroups}}
+                        <div class="col-12 col-md-6 explore-group-card" data-cat="{{.Category}}">
+                            <div class="card h-100 border rounded-4 p-3 shadow-sm">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="rounded-circle bg-light border d-flex justify-content-center align-items-center fw-bold shadow-sm flex-shrink-0" style="width: 46px; height: 46px; font-size: 1.3rem;">
+                                        {{if eq .Category "bible_study"}}
+                                            <i class="bi bi-book-half text-primary"></i>
+                                        {{else if eq .Category "prayer"}}
+                                            <i class="bi bi-heart-pulse-fill text-warning"></i>
+                                        {{else if eq .Category "evangelism"}}
+                                            <i class="bi bi-megaphone-fill text-danger"></i>
+                                        {{else}}
+                                            <i class="bi bi-people-fill text-success"></i>
+                                        {{end}}
+                                    </div>
+                                    <div class="flex-grow-1 overflow-hidden">
+                                        <div class="d-flex align-items-center justify-content-between mb-1">
+                                            <h6 class="fw-bold mb-0 text-dark text-truncate">{{.Title}}</h6>
+                                        </div>
+                                        <div class="d-flex gap-1 mb-2">
+                                            <span class="badge bg-secondary-subtle text-secondary small text-capitalize">{{.Category}}</span>
+                                            <span class="badge bg-light text-secondary border small"><i class="bi bi-people me-1"></i>{{.MemberCount}}</span>
+                                        </div>
+                                        <p class="small text-muted text-truncate mb-3" style="max-height: 40px;">
+                                            {{if .Description}}{{.Description}}{{else}}Fellowship & spiritual growth community.{{end}}
+                                        </p>
+                                        {{if .IsActive}}
+                                            <a href="/messages?c={{.ID}}" class="btn btn-sm btn-light border rounded-pill w-100 fw-semibold text-success">
+                                                <i class="bi bi-check-circle-fill me-1"></i> Joined - Open Chat
+                                            </a>
+                                        {{else}}
+                                            <form action="/messages/group/join" method="POST">
+                                                <input type="hidden" name="group_id" value="{{.ID}}">
+                                                <button type="submit" class="btn btn-sm btn-success rounded-pill w-100 fw-semibold">
+                                                    <i class="bi bi-plus-circle me-1"></i> Join Group
+                                                </button>
+                                            </form>
+                                        {{end}}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {{end}}
+                    {{else}}
+                        <div class="col-12 text-center py-4 text-muted">
+                            <i class="bi bi-people display-4 text-secondary opacity-50 d-block mb-2"></i>
+                            <h6>No community groups available yet.</h6>
+                            <p class="small text-secondary">Be the first to create a youth community group!</p>
+                        </div>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{if and .ActiveConversation (eq .ActiveConversation.Type "group")}}
+<!-- MODAL: Add Group Members -->
+<div class="modal fade" id="addGroupMembersModal" tabindex="-1" aria-labelledby="addGroupMembersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="addGroupMembersModalLabel">
+                    <i class="bi bi-person-plus-fill me-2"></i> Add Members to Group
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/messages/group/members/add" method="POST">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="group_id" value="{{.ActiveConversation.ID}}">
+                    <p class="small text-muted mb-3">
+                        Select eligible members to invite into <strong>{{.ActiveConversation.Title}}</strong>:
+                    </p>
+                    <div class="border rounded-3 p-3" style="max-height: 220px; overflow-y: auto;">
+                        {{if .EligibleFriends}}
+                            {{range .EligibleFriends}}
+                            <div class="form-check d-flex align-items-center gap-2 mb-2">
+                                <input class="form-check-input" type="checkbox" name="user_ids" value="{{.ID}}" id="addMember_{{.ID}}">
+                                <label class="form-check-label small d-flex align-items-center gap-2 text-dark" for="addMember_{{.ID}}">
+                                    <span class="fw-semibold">{{.FullName}}</span>
+                                    <span class="text-muted">(@{{.Username}})</span>
+                                </label>
+                            </div>
+                            {{end}}
+                        {{else}}
+                            <span class="text-muted small">No additional members available to add.</span>
+                        {{end}}
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">Add Selected Members</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Edit Group Settings -->
+<div class="modal fade" id="editGroupSettingsModal" tabindex="-1" aria-labelledby="editGroupSettingsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="editGroupSettingsModalLabel">
+                    <i class="bi bi-gear-fill me-2"></i> Group Settings
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/messages/group/update" method="POST">
+                <div class="modal-body p-4">
+                    <input type="hidden" name="group_id" value="{{.ActiveConversation.ID}}">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Group Title <span class="text-danger">*</span></label>
+                        <input type="text" name="title" class="form-control rounded-3" value="{{.ActiveConversation.Title}}" required maxlength="100">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Community Category</label>
+                        <select name="category" class="form-select rounded-3">
+                            <option value="general" {{if eq .ActiveConversation.Category "general"}}selected{{end}}>General Youth Community</option>
+                            <option value="bible_study" {{if eq .ActiveConversation.Category "bible_study"}}selected{{end}}>Bible Study Fellowship</option>
+                            <option value="prayer" {{if eq .ActiveConversation.Category "prayer"}}selected{{end}}>Prayer Group & Intercession</option>
+                            <option value="evangelism" {{if eq .ActiveConversation.Category "evangelism"}}selected{{end}}>Evangelism & Outreach Team</option>
+                            <option value="other" {{if eq .ActiveConversation.Category "other"}}selected{{end}}>Other Youth Interest</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Description</label>
+                        <textarea name="description" class="form-control rounded-3" rows="3">{{.ActiveConversation.Description}}</textarea>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Call Permissions</label>
+                        <select name="call_permission" class="form-select rounded-3">
+                            <option value="all" {{if eq .ActiveConversation.CallPermission "all"}}selected{{end}}>Open Calls (All members can start calls)</option>
+                            <option value="admin_only" {{if eq .ActiveConversation.CallPermission "admin_only"}}selected{{end}}>Moderated Calls (Only administrators can start calls)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{{end}}
+
+<!-- MODAL: Incoming Call -->
+<div class="modal fade" id="incomingCallModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+        <div class="modal-content border-0 rounded-4 shadow-lg text-center p-4 bg-white">
+            <div class="position-relative mx-auto mb-3" style="width: 80px; height: 80px;">
+                <div id="incomingCallerAvatar" class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow mx-auto" style="width: 80px; height: 80px; font-size: 2rem;">
+                    U
+                </div>
+            </div>
+            <h5 class="fw-bold mb-1 text-dark" id="incomingCallerName">Caller</h5>
+            <p class="text-muted small mb-4" id="incomingCallTypeLabel">Incoming Audio Call...</p>
+            <div class="d-flex justify-content-center gap-4">
+                <button type="button" class="btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow" id="declineCallBtn" style="width: 56px; height: 56px;" title="Decline Call">
+                    <i class="bi bi-telephone-x-fill fs-4 text-white"></i>
+                </button>
+                <button type="button" class="btn btn-success rounded-circle d-flex justify-content-center align-items-center shadow" id="acceptCallBtn" style="width: 56px; height: 56px;" title="Accept Call">
+                    <i class="bi bi-telephone-fill fs-4 text-white"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Active Audio/Video Call -->
+<div class="modal fade" id="activeCallModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 rounded-4 shadow-lg bg-dark text-white overflow-hidden" style="min-height: 480px;">
+            <!-- Call Top Header -->
+            <div class="p-3 d-flex justify-content-between align-items-center border-bottom border-secondary border-opacity-25 bg-black bg-opacity-40">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-danger rounded-pill" id="callLiveBadge">LIVE</span>
+                    <span class="small fw-semibold text-white" id="callPeerName">Peer</span>
+                </div>
+                <div class="fw-bold text-success font-monospace" id="callTimer">00:00</div>
+            </div>
+
+            <!-- Call Media Presentation Area -->
+            <div class="position-relative flex-grow-1 d-flex justify-content-center align-items-center" style="min-height: 380px; background-color: #121519;" id="callMediaStage">
+                <!-- Remote Video -->
+                <video id="remoteVideo" class="w-100 h-100 object-fit-cover rounded-3" autoplay playsinline style="max-height: 460px; display: none;"></video>
+
+                <!-- Audio Presentation (when video track not active) -->
+                <div id="audioCallDisplay" class="text-center p-4">
+                    <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-lg mx-auto mb-3" id="audioCallAvatar" style="width: 96px; height: 96px; font-size: 2.5rem;">
+                        U
+                    </div>
+                    <h5 class="fw-bold text-white mb-1" id="audioCallPeerName">Contact</h5>
+                    <p class="text-secondary small mb-0" id="callStatusText">Calling...</p>
+                </div>
+
+                <!-- Local Video Track PiP -->
+                <div class="position-absolute bottom-0 end-0 m-3 shadow-lg rounded-3 overflow-hidden border border-2 border-secondary bg-black" style="width: 140px; height: 105px; z-index: 10; display: none;" id="localVideoContainer">
+                    <video id="localVideo" class="w-100 h-100 object-fit-cover" autoplay playsinline muted></video>
+                </div>
+            </div>
+
+            <!-- Bottom Media Controls -->
+            <div class="p-3 bg-black bg-opacity-60 d-flex justify-content-center align-items-center gap-3">
+                <button type="button" class="btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow" id="toggleMicBtn" style="width: 48px; height: 48px;" title="Mute Microphone">
+                    <i class="bi bi-mic-fill fs-5" id="micIcon"></i>
+                </button>
+                <button type="button" class="btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow" id="toggleCamBtn" style="width: 48px; height: 48px;" title="Camera">
+                    <i class="bi bi-camera-video-fill fs-5" id="camIcon"></i>
+                </button>
+                <button type="button" class="btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow ms-2" id="hangupCallBtn" style="width: 54px; height: 54px;" title="End Call">
+                    <i class="bi bi-telephone-x-fill fs-4 text-white"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Incoming Group Call Invitation -->
+<div class="modal fade" id="incomingGroupCallModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+        <div class="modal-content border-0 rounded-4 shadow-lg text-center p-4 bg-white">
+            <div class="position-relative mx-auto mb-3" style="width: 80px; height: 80px;">
+                <div id="incomingGroupCallAvatar" class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow mx-auto" style="width: 80px; height: 80px; font-size: 2rem;">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+            </div>
+            <h5 class="fw-bold mb-1 text-dark" id="incomingGroupCallGroupName">Community Group</h5>
+            <p class="text-muted small mb-1" id="incomingGroupCallInitiator">A member started a call</p>
+            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill mx-auto mb-4 px-3 py-2" id="incomingGroupCallTypeBadge">Group Audio Call</span>
+            <div class="d-flex justify-content-center gap-4">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 py-2" id="declineGroupCallBtn" data-bs-dismiss="modal">
+                    Dismiss
+                </button>
+                <button type="button" class="btn btn-success rounded-pill px-4 py-2 fw-bold d-flex align-items-center gap-2 shadow" id="acceptGroupCallBtn">
+                    <i class="bi bi-telephone-fill"></i> Join Call
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Active Group Audio/Video Meeting -->
+<div class="modal fade" id="groupCallModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl modal-fullscreen-md-down">
+        <div class="modal-content border-0 rounded-4 shadow-lg bg-dark text-white overflow-hidden d-flex flex-column" style="min-height: 560px; height: 85vh;">
+            <!-- Top Bar -->
+            <div class="p-3 d-flex justify-content-between align-items-center border-bottom border-secondary border-opacity-25 bg-black bg-opacity-50">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-danger rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1">
+                        <span class="spinner-grow spinner-grow-sm text-white" style="width: 0.4rem; height: 0.4rem;" role="status"></span> LIVE
+                    </span>
+                    <h6 class="mb-0 fw-bold text-white text-truncate" id="groupCallRoomTitle" style="max-width: 250px;">Group Call</h6>
+                    <span class="badge bg-secondary rounded-pill small" id="groupCallRosterCount">1 participant</span>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <div class="fw-bold text-success font-monospace fs-6" id="groupCallTimer">00:00</div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill text-white px-2 py-1" id="groupCallToggleRosterBtn" title="Toggle Participant List">
+                        <i class="bi bi-people-fill me-1"></i> <span class="d-none d-sm-inline">Participants</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Main Stage + Side Panel Container -->
+            <div class="d-flex flex-grow-1 overflow-hidden position-relative">
+                <!-- Video Grid Area -->
+                <div class="flex-grow-1 p-3 d-flex flex-column justify-content-center align-items-center overflow-y-auto" id="groupCallGridContainer" style="background-color: #0f1216;">
+                    <div class="row g-2 w-100 justify-content-center align-items-center h-100" id="groupCallVideoGrid">
+                        <!-- Local Tile -->
+                        <div class="col-6 col-md-4 col-lg-3 group-video-tile" id="groupTile_local" data-user-id="{{.CurrentUser.ID}}">
+                            <div class="position-relative w-100 rounded-3 overflow-hidden bg-black border border-secondary border-opacity-50 shadow-sm d-flex justify-content-center align-items-center" style="height: 190px;">
+                                <video id="groupLocalVideo" class="w-100 h-100 object-fit-cover" autoplay playsinline muted></video>
+                                <div class="group-avatar-fallback text-center" id="groupLocalAvatar" style="display: none;">
+                                    <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow mx-auto mb-1" style="width: 56px; height: 56px; font-size: 1.4rem;">
+                                        {{.CurrentUser.Initials}}
+                                    </div>
+                                    <small class="text-white-50">{{.CurrentUser.FullName}}</small>
+                                </div>
+                                <div class="position-absolute bottom-0 start-0 m-2 px-2 py-1 bg-dark bg-opacity-75 rounded-pill small d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                                    <span class="text-white fw-semibold">You</span>
+                                    <i class="bi bi-mic-fill text-white ms-1" id="groupLocalMicBadge"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- In-Call Participant Roster Side Drawer -->
+                <div id="groupCallRosterDrawer" class="border-start border-secondary border-opacity-25 bg-black bg-opacity-80 p-3 flex-column" style="width: 280px; display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold mb-0 text-white small">In this Call (<span id="rosterDrawerCount">1</span>)</h6>
+                        <button type="button" class="btn btn-xs btn-link text-secondary p-0 text-decoration-none" id="closeRosterDrawerBtn">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                    <div class="flex-grow-1 overflow-y-auto list-group list-group-flush" id="groupCallRosterList">
+                        <!-- Populated dynamically by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Media Controls Bar -->
+            <div class="p-3 bg-black bg-opacity-70 d-flex justify-content-center align-items-center gap-3 border-top border-secondary border-opacity-25">
+                <button type="button" class="btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow" id="groupToggleMicBtn" style="width: 48px; height: 48px;" title="Mute Microphone">
+                    <i class="bi bi-mic-fill fs-5" id="groupMicIcon"></i>
+                </button>
+                <button type="button" class="btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow" id="groupToggleCamBtn" style="width: 48px; height: 48px;" title="Toggle Camera">
+                    <i class="bi bi-camera-video-fill fs-5" id="groupCamIcon"></i>
+                </button>
+                <button type="button" class="btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow ms-2" id="groupLeaveCallBtn" style="width: 52px; height: 52px;" title="Leave Meeting">
+                    <i class="bi bi-telephone-x-fill fs-4 text-white"></i>
+                </button>
+                <div class="dropdown" id="groupHostActionsDropdown" style="display: none;">
+                    <button class="btn btn-dark border border-secondary rounded-circle d-flex justify-content-center align-items-center shadow" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="width: 42px; height: 42px;" title="Host Controls">
+                        <i class="bi bi-shield-shaded text-warning"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 small">
+                        <li>
+                            <button type="button" class="dropdown-item py-2 text-danger" id="endGroupCallForEveryoneBtn">
+                                <i class="bi bi-power me-2"></i> End Call for Everyone
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const container = document.getElementById("messageContainer");
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
+
+    // Sidebar conversation search & category filter pills
+    const searchInput = document.getElementById("chatSearchInput");
+    const filterPills = document.querySelectorAll(".filter-pill");
+    const convItems = document.querySelectorAll(".conversation-item");
+    let currentCategoryFilter = "all";
+
+    function applyConversationFilters() {
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : "";
+        convItems.forEach(item => {
+            const itemType = item.getAttribute("data-type") || "direct";
+            const itemCat = item.getAttribute("data-category") || "";
+            const name = (item.getAttribute("data-name") || "").toLowerCase();
+
+            let matchesCategory = false;
+            if (currentCategoryFilter === "all") {
+                matchesCategory = true;
+            } else if (currentCategoryFilter === "direct") {
+                matchesCategory = (itemType === "direct");
+            } else if (currentCategoryFilter === "group") {
+                matchesCategory = (itemType === "group");
+            } else {
+                matchesCategory = (itemCat === currentCategoryFilter);
+            }
+
+            const matchesSearch = !query || name.includes(query);
+            item.style.display = (matchesCategory && matchesSearch) ? "flex" : "none";
+        });
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener("input", applyConversationFilters);
+    }
+
+    filterPills.forEach(pill => {
+        pill.addEventListener("click", function () {
+            filterPills.forEach(p => {
+                p.classList.remove("active", "btn-dark", "text-white");
+                p.classList.add("btn-outline-secondary");
+            });
+            this.classList.remove("btn-outline-secondary");
+            this.classList.add("active", "btn-dark", "text-white");
+            currentCategoryFilter = this.getAttribute("data-filter") || "all";
+            applyConversationFilters();
+        });
+    });
+
+    // Explore groups modal category tabs
+    const exploreCatBtns = document.querySelectorAll(".explore-cat-btn");
+    const exploreCards = document.querySelectorAll(".explore-group-card");
+
+    exploreCatBtns.forEach(btn => {
+        btn.addEventListener("click", function () {
+            exploreCatBtns.forEach(b => {
+                b.classList.remove("active", "btn-success", "text-white");
+                b.classList.add("btn-outline-success");
+            });
+            this.classList.remove("btn-outline-success");
+            this.classList.add("active", "btn-success", "text-white");
+
+            const selectedCat = this.getAttribute("data-cat") || "all";
+            exploreCards.forEach(card => {
+                const cardCat = card.getAttribute("data-cat") || "";
+                if (selectedCat === "all" || cardCat === selectedCat) {
+                    card.style.display = "block";
+                } else {
+                    card.style.display = "none";
+                }
+            });
+        });
+    });
+
+    // Client-side search in new chat modal
+    const memberSearch = document.getElementById("memberSearchInput");
+    if (memberSearch) {
+        memberSearch.addEventListener("input", function () {
+            const query = this.value.toLowerCase().trim();
+            const items = document.querySelectorAll(".member-search-item");
+            items.forEach(item => {
+                const name = (item.getAttribute("data-name") || "").toLowerCase();
+                if (name.includes(query)) {
+                    item.style.display = "block";
+                } else {
+                    item.style.display = "none";
+                }
+            });
+        });
+    }
+
+    // Global message search modal handler
+    const globalSearchInput = document.getElementById("globalMessageSearchInput");
+    const searchResultsList = document.getElementById("messageSearchResultsList");
+    const searchResultsStatus = document.getElementById("searchResultsStatus");
+    let searchDebounce = null;
+
+    if (globalSearchInput && searchResultsList) {
+        globalSearchInput.addEventListener("input", function () {
+            clearTimeout(searchDebounce);
+            const query = this.value.trim();
+            if (query.length < 2) {
+                searchResultsList.innerHTML = `
+                    <div class="text-center text-muted small py-4">
+                        <i class="bi bi-chat-left-quote fs-3 d-block mb-1 text-secondary opacity-50"></i>
+                        Type at least 2 characters to search messages.
+                    </div>
+                `;
+                if (searchResultsStatus) searchResultsStatus.style.display = "none";
+                return;
+            }
+
+            if (searchResultsStatus) {
+                searchResultsStatus.textContent = "Searching...";
+                searchResultsStatus.style.display = "block";
+            }
+
+            searchDebounce = setTimeout(() => {
+                fetch("/messages/search?q=" + encodeURIComponent(query), {
+                    headers: { "Accept": "application/json" }
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (searchResultsStatus) {
+                        searchResultsStatus.textContent = `Found ${data.count || 0} matching message${data.count === 1 ? '' : 's'}`;
+                    }
+
+                    if (!data.messages || data.messages.length === 0) {
+                        searchResultsList.innerHTML = `
+                            <div class="text-center text-muted small py-4">
+                                <i class="bi bi-search fs-3 d-block mb-1 text-secondary opacity-50"></i>
+                                No messages matching "${query}" found.
+                            </div>
+                        `;
+                        return;
+                    }
+
+                    let html = "";
+                    data.messages.forEach(m => {
+                        const dateStr = new Date(m.CreatedAt).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                        const snippet = m.Body ? m.Body : (m.AttachmentName ? 'Attachment: ' + m.AttachmentName : 'Media');
+                        html += `
+                            <a href="/messages?c=${m.ConversationID}" class="list-group-item list-group-item-action p-3 border-bottom d-flex align-items-start gap-3 text-decoration-none">
+                                <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm flex-shrink-0" style="width: 38px; height: 38px; font-size: 0.9rem;">
+                                    ${m.Sender && m.Sender.Initials ? m.Sender.Initials : 'U'}
+                                </div>
+                                <div class="overflow-hidden flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <h6 class="mb-0 fw-bold text-dark small">${m.Sender ? m.Sender.FullName : 'Member'}</h6>
+                                        <small class="text-muted" style="font-size: 0.72rem;">${dateStr}</small>
+                                    </div>
+                                    <p class="small text-secondary text-truncate mb-0">${snippet}</p>
+                                </div>
+                            </a>
+                        `;
+                    });
+                    searchResultsList.innerHTML = html;
+                })
+                .catch(err => {
+                    if (searchResultsStatus) {
+                        searchResultsStatus.textContent = "Error searching messages";
+                    }
+                });
+            }, 300);
+        });
+    }
+
+    const currentUserId = {{.CurrentUser.ID}};
+    const currentUserName = "{{.CurrentUser.FullName}}";
+    const currentUserInitials = "{{.CurrentUser.Initials}}";
+    const currentUserRole = "{{if .ActiveUserRole}}{{.ActiveUserRole}}{{else}}member{{end}}";
+    const isGroupConversation = {{if .ActiveConversation}}{{if eq .ActiveConversation.Type "group"}}true{{else}}false{{end}}{{else}}false{{end}};
+    const activeConvInput = document.getElementById("activeConvID");
+    const convId = activeConvInput ? parseInt(activeConvInput.value) : 0;
+    const form = document.getElementById("chatMessageForm");
+    const input = document.getElementById("messageInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const typingIndicator = document.getElementById("typingIndicator");
+    const typingUser = document.getElementById("typingUser");
+    const presenceBadge = document.getElementById("userPresenceBadge");
+
+    let socket = null;
+    let socketConnected = false;
+    let isCurrentlyTyping = false;
+    let typingDebounceTimeout = null;
+    let typingHideTimeout = null;
+
+    // Attachment and Voice recording state
+    const attachBtn = document.getElementById("attachBtn");
+    const attachmentFileInput = document.getElementById("attachmentFileInput");
+    const attachmentPreviewBar = document.getElementById("attachmentPreviewBar");
+    const attachmentTypeBadge = document.getElementById("attachmentTypeBadge");
+    const attachmentFileName = document.getElementById("attachmentFileName");
+    const attachmentFileSize = document.getElementById("attachmentFileSize");
+    const removeAttachmentBtn = document.getElementById("removeAttachmentBtn");
+    const voiceRecordBtn = document.getElementById("voiceRecordBtn");
+    const voiceMicIcon = document.getElementById("voiceMicIcon");
+
+    let pendingAttachmentFile = null;
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecordingVoice = false;
+
+    // Helper: Create message DOM element safely with rich media support
+    function createMessageElement(m) {
+        const timeStr = m.CreatedAt ? new Date(m.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const safeBody = document.createElement("div");
+        safeBody.textContent = m.Body || "";
+
+        const msgDiv = document.createElement("div");
+        if (m.ID) msgDiv.setAttribute("data-message-id", m.ID);
+        if (m.ClientMessageID) msgDiv.setAttribute("data-client-id", m.ClientMessageID);
+
+        // System message rendering (e.g. joined group, left group, created group)
+        if (m.MessageType === "system") {
+            const sysDiv = document.createElement("div");
+            sysDiv.className = "text-center my-2";
+            if (m.ID) sysDiv.setAttribute("data-message-id", m.ID);
+            sysDiv.innerHTML = `
+                <span class="badge bg-light text-secondary border rounded-pill px-3 py-1 small fw-normal">
+                    <i class="bi bi-info-circle me-1"></i> ${safeBody.innerHTML}
+                </span>
+            `;
+            return sysDiv;
+        }
+
+        const isMe = m.SenderID === currentUserId;
+
+        // Render Media if present
+        let mediaHtml = "";
+        if (m.MessageType === "image" && m.AttachmentURL) {
+            mediaHtml = `
+                <div class="mb-2">
+                    <a href="${m.AttachmentURL}" target="_blank">
+                        <img src="${m.AttachmentURL}" alt="${m.AttachmentName || 'Image'}" class="rounded-3 img-fluid shadow-sm" style="max-height: 250px; object-fit: cover;">
+                    </a>
+                </div>
+            `;
+        } else if (m.MessageType === "voice" && m.AttachmentURL) {
+            mediaHtml = `
+                <div class="mb-2">
+                    <audio controls class="w-100 rounded-pill" style="min-width: 220px; max-width: 280px; height: 36px;">
+                        <source src="${m.AttachmentURL}" type="${m.AttachmentType || 'audio/webm'}">
+                        Audio not supported.
+                    </audio>
+                </div>
+            `;
+        } else if (m.MessageType === "file" && m.AttachmentURL) {
+            mediaHtml = `
+                <div class="p-2 ${isMe ? 'bg-white bg-opacity-25' : 'bg-light'} rounded-3 border d-flex align-items-center gap-2 mb-2" style="max-width: 260px;">
+                    <i class="bi bi-file-earmark-arrow-down-fill fs-3 ${isMe ? 'text-white' : 'text-primary'}"></i>
+                    <div class="overflow-hidden text-start flex-grow-1">
+                        <div class="small fw-bold text-truncate ${isMe ? 'text-white' : 'text-dark'}">${m.AttachmentName || 'Document'}</div>
+                        <small class="${isMe ? 'text-white opacity-75' : 'text-muted'}" style="font-size: 0.7rem;">${m.AttachmentSize || 0} bytes</small>
+                    </div>
+                    <a href="${m.AttachmentURL}" download="${m.AttachmentName || 'file'}" class="btn btn-sm btn-light rounded-circle shadow-sm"><i class="bi bi-download"></i></a>
+                </div>
+            `;
+        }
+
+        const bodyHtml = m.Body ? `<div class="message-content">${safeBody.innerHTML}</div>` : "";
+
+        if (isMe) {
+            msgDiv.className = "d-flex justify-content-end mb-3 message-bubble";
+            const checkIcon = m.IsReadByRecipient 
+                ? '<i class="bi bi-check2-all text-primary msg-check" title="Read"></i>' 
+                : '<i class="bi bi-check2 text-muted msg-check" title="Delivered"></i>';
+
+            msgDiv.innerHTML = `
+                <div class="text-end" style="max-width: 75%;">
+                    <div class="bg-success text-white p-3 rounded-4 shadow-sm text-start" style="border-bottom-right-radius: 4px !important; word-wrap: break-word;">
+                        ${mediaHtml}
+                        ${bodyHtml}
+                    </div>
+                    <small class="text-muted me-1 mt-1 d-inline-block" style="font-size: 0.72rem;">
+                        ${timeStr} ${checkIcon}
+                    </small>
+                </div>
+            `;
+        } else {
+            msgDiv.className = "d-flex justify-content-start mb-3 gap-2 message-bubble";
+            const avatarHtml = m.Sender && m.Sender.ProfilePhoto 
+                ? `<img src="/uploads/profiles/${m.Sender.ProfilePhoto}" class="rounded-circle object-fit-cover shadow-sm align-self-end mb-3" style="width: 32px; height: 32px;">`
+                : `<div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm align-self-end mb-3" style="width: 32px; height: 32px; font-size: 0.8rem;">${m.Sender && m.Sender.Initials ? m.Sender.Initials : 'U'}</div>`;
+
+            const chatMainArea = document.getElementById("chatMainArea");
+            const activeConvType = chatMainArea ? (chatMainArea.getAttribute("data-conv-type") || "") : "";
+            let senderHeaderHtml = "";
+            if (activeConvType === "group" && m.Sender) {
+                const senderName = m.Sender.FullName || m.Sender.Username || "Member";
+                const username = m.Sender.Username ? `@${m.Sender.Username}` : "";
+                senderHeaderHtml = `
+                    <div class="d-flex align-items-center gap-1 mb-1">
+                        <span class="fw-bold small text-dark" style="font-size: 0.78rem;">${senderName}</span>
+                        <small class="text-muted" style="font-size: 0.68rem;">${username}</small>
+                    </div>
+                `;
+            }
+
+            msgDiv.innerHTML = `
+                ${avatarHtml}
+                <div style="max-width: 75%;">
+                    ${senderHeaderHtml}
+                    <div class="bg-white text-dark p-3 rounded-4 shadow-sm border" style="border-bottom-left-radius: 4px !important; word-wrap: break-word;">
+                        ${mediaHtml}
+                        ${bodyHtml}
+                    </div>
+                    <small class="text-muted ms-1 mt-1 d-inline-block" style="font-size: 0.72rem;">
+                        ${timeStr}
+                    </small>
+                </div>
+            `;
+        }
+        return msgDiv;
+    }
+
+    // Attachment file selection handler
+    function handleFileSelected(file) {
+        if (!file) return;
+        if (file.size > 10 * 1024 * 1024) {
+            alert("Attachment size must not exceed 10 MB.");
+            if (attachmentFileInput) attachmentFileInput.value = "";
+            return;
+        }
+
+        pendingAttachmentFile = file;
+        if (attachmentFileName) attachmentFileName.textContent = file.name;
+        if (attachmentFileSize) attachmentFileSize.textContent = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+
+        if (attachmentTypeBadge) {
+            if (file.type.startsWith("image/")) {
+                attachmentTypeBadge.className = "badge bg-info text-dark";
+                attachmentTypeBadge.textContent = "Image";
+            } else if (file.type.startsWith("audio/")) {
+                attachmentTypeBadge.className = "badge bg-warning text-dark";
+                attachmentTypeBadge.textContent = "Voice Note";
+            } else {
+                attachmentTypeBadge.className = "badge bg-primary";
+                attachmentTypeBadge.textContent = "Document";
+            }
+        }
+
+        if (attachmentPreviewBar) {
+            attachmentPreviewBar.style.setProperty("display", "flex", "important");
+        }
+    }
+
+    if (attachBtn && attachmentFileInput) {
+        attachBtn.addEventListener("click", () => attachmentFileInput.click());
+        attachmentFileInput.addEventListener("change", function () {
+            if (this.files && this.files[0]) {
+                handleFileSelected(this.files[0]);
+            }
+        });
+    }
+
+    if (removeAttachmentBtn) {
+        removeAttachmentBtn.addEventListener("click", function () {
+            pendingAttachmentFile = null;
+            if (attachmentFileInput) attachmentFileInput.value = "";
+            if (attachmentPreviewBar) attachmentPreviewBar.style.setProperty("display", "none", "important");
+        });
+    }
+
+    // Voice note recording logic
+    if (voiceRecordBtn && voiceMicIcon) {
+        voiceRecordBtn.addEventListener("click", async function () {
+            if (!isRecordingVoice) {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    alert("Voice recording is not supported in this browser.");
+                    return;
+                }
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.ondataavailable = e => {
+                        if (e.data.size > 0) audioChunks.push(e.data);
+                    };
+
+                    mediaRecorder.onstop = () => {
+                        stream.getTracks().forEach(track => track.stop());
+                        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+                        const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: "audio/webm" });
+                        handleFileSelected(audioFile);
+                    };
+
+                    mediaRecorder.start();
+                    isRecordingVoice = true;
+                    voiceMicIcon.className = "bi bi-stop-circle-fill fs-5 text-danger";
+                    voiceRecordBtn.title = "Stop recording voice note";
+                } catch (err) {
+                    console.error("Microphone access error:", err);
+                    alert("Could not access microphone: " + err.message);
+                }
+            } else {
+                if (mediaRecorder && mediaRecorder.state !== "inactive") {
+                    mediaRecorder.stop();
+                }
+                isRecordingVoice = false;
+                voiceMicIcon.className = "bi bi-mic fs-5 text-secondary";
+                voiceRecordBtn.title = "Record voice note";
+            }
+        });
+    }
+
+    // Connect WebSocket
+    function connectWebSocket() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
+
+        socket = new WebSocket(wsUrl);
+
+        socket.onopen = function () {
+            socketConnected = true;
+            if (convId > 0) {
+                socket.send(JSON.stringify({
+                    type: "subscribe",
+                    conversation_id: convId
+                }));
+            }
+        };
+
+        socket.onmessage = function (event) {
+            try {
+                const data = JSON.parse(event.data);
+
+                switch (data.type) {
+                case "new_message":
+                    if (data.message && data.conversation_id === convId && container) {
+                        const existing = (data.message.ID && container.querySelector(`[data-message-id="${data.message.ID}"]`)) ||
+                                         (data.message.ClientMessageID && container.querySelector(`[data-client-id="${data.message.ClientMessageID}"]`));
+
+                        if (!existing) {
+                            const elem = createMessageElement(data.message);
+                            container.appendChild(elem);
+                            container.scrollTop = container.scrollHeight;
+
+                            if (data.message.SenderID !== currentUserId) {
+                                socket.send(JSON.stringify({
+                                    type: "read",
+                                    conversation_id: convId
+                                }));
+                            }
+                        } else if (data.message.ID) {
+                            existing.setAttribute("data-message-id", data.message.ID);
+                        }
+                    }
+
+                    // Update left panel conversation item preview
+                    const convLink = document.querySelector(`.conversation-item[href="/messages?c=${data.conversation_id}"]`);
+                    if (convLink && data.message) {
+                        const preview = convLink.querySelector("p");
+                        if (preview) {
+                            if (data.message.MessageType === "image") preview.textContent = "📷 Photo";
+                            else if (data.message.MessageType === "voice") preview.textContent = "🎤 Voice note";
+                            else if (data.message.MessageType === "file") preview.textContent = "📎 Attachment";
+                            else preview.textContent = data.message.Body;
+                        }
+                        const timeSmall = convLink.querySelector("small");
+                        if (timeSmall) {
+                            timeSmall.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        }
+                    }
+                    break;
+
+                case "typing":
+                    if (data.conversation_id === convId && data.user_id !== currentUserId && typingIndicator && typingUser) {
+                        if (data.is_typing) {
+                            typingUser.textContent = data.username || "Someone";
+                            typingIndicator.style.display = "block";
+                            clearTimeout(typingHideTimeout);
+                            typingHideTimeout = setTimeout(() => {
+                                typingIndicator.style.display = "none";
+                            }, 3500);
+                        } else {
+                            typingIndicator.style.display = "none";
+                        }
+                    }
+                    break;
+
+                case "read_receipt":
+                    if (data.conversation_id === convId && data.user_id !== currentUserId && container) {
+                        const checkmarks = container.querySelectorAll(".msg-check");
+                        checkmarks.forEach(icon => {
+                            icon.className = "bi bi-check2-all text-primary msg-check";
+                            icon.setAttribute("title", "Read");
+                        });
+                    }
+                    break;
+
+                case "presence":
+                    if (presenceBadge && data.user_id == presenceBadge.getAttribute("data-user-id")) {
+                        if (data.is_online) {
+                            presenceBadge.className = "badge bg-success rounded-pill ms-2 small d-inline-flex align-items-center gap-1";
+                            presenceBadge.innerHTML = '<span class="spinner-grow spinner-grow-sm" style="width: 0.4rem; height: 0.4rem;" role="status"></span> Online';
+                        } else {
+                            presenceBadge.className = "badge bg-secondary rounded-pill ms-2 small";
+                            presenceBadge.textContent = "Offline";
+                        }
+                    }
+                    break;
+
+                case "call_offer":
+                    pendingOfferData = data;
+                    activeCallId = data.call_id;
+                    if (incomingCallerName) incomingCallerName.textContent = data.caller_name || "Member";
+                    if (incomingCallTypeLabel) incomingCallTypeLabel.textContent = `Incoming ${data.call_type === "video" ? "Video" : "Audio"} Call...`;
+                    if (incomingCallerAvatar) {
+                        if (data.caller_avatar) {
+                            incomingCallerAvatar.innerHTML = `<img src="/uploads/profiles/${data.caller_avatar}" class="rounded-circle object-fit-cover shadow w-100 h-100">`;
+                        } else {
+                            incomingCallerAvatar.textContent = (data.caller_name || "U").substring(0, 2).toUpperCase();
+                        }
+                    }
+                    if (incomingCallModal) incomingCallModal.show();
+                    break;
+
+                case "call_answer":
+                    activeCallId = data.call_id;
+                    if (peerConnection && data.sdp) {
+                        peerConnection.setRemoteDescription(new RTCSessionDescription({
+                            type: "answer",
+                            sdp: data.sdp
+                        })).then(() => {
+                            if (callStatusText) callStatusText.textContent = "Connected";
+                            startTimer();
+                        }).catch(console.error);
+                    }
+                    break;
+
+                case "ice_candidate":
+                    if (peerConnection && data.candidate) {
+                        peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(console.error);
+                    }
+                    break;
+
+                case "call_decline":
+                    alert("Call was declined.");
+                    handleCallEnded();
+                    break;
+
+                case "call_end":
+                    alert(`Call ended. Duration: ${data.duration || 0}s`);
+                    handleCallEnded(data.duration);
+                    break;
+
+                case "call_busy":
+                    alert("Contact is currently busy on another call.");
+                    handleCallEnded();
+                    break;
+
+                case "call_unavailable":
+                    alert(data.error || "Contact is currently offline / unavailable.");
+                    handleCallEnded();
+                    break;
+
+                case "group_call_started":
+                    if (data.conversation_id === convId) {
+                        if (activeGroupCallBanner) {
+                            activeGroupCallBanner.style.setProperty("display", "flex", "important");
+                            if (activeGroupCallBannerText) {
+                                activeGroupCallBannerText.textContent = `Live Group ${data.call_type === "video" ? "Video" : "Audio"} Call in progress (1 participant)`;
+                            }
+                        }
+                        if (data.user_id !== currentUserId && !isUserInGroupCall) {
+                            pendingIncomingGroupCall = data;
+                            const gTitle = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Community Group";
+                            if (incomingGroupCallGroupName) incomingGroupCallGroupName.textContent = gTitle;
+                            if (incomingGroupCallInitiator) incomingGroupCallInitiator.textContent = `${data.caller_name || "A member"} started a call`;
+                            if (incomingGroupCallTypeBadge) {
+                                incomingGroupCallTypeBadge.textContent = `Group ${data.call_type === "video" ? "Video" : "Audio"} Call`;
+                                incomingGroupCallTypeBadge.className = data.call_type === "video" ?
+                                    "badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill mx-auto mb-4 px-3 py-2" :
+                                    "badge bg-success-subtle text-success border border-success-subtle rounded-pill mx-auto mb-4 px-3 py-2";
+                            }
+                            if (incomingGroupCallModal) incomingGroupCallModal.show();
+                        }
+                    }
+                    break;
+
+                case "group_call_participant_joined":
+                    if (data.conversation_id === convId) {
+                        const pCount = (data.participants && data.participants.length) || 1;
+                        if (activeGroupCallBanner) {
+                            activeGroupCallBanner.style.setProperty("display", "flex", "important");
+                            if (activeGroupCallBannerText) {
+                                activeGroupCallBannerText.textContent = `Live Group Call in progress (${pCount} participant${pCount > 1 ? 's' : ''})`;
+                            }
+                        }
+                        if (isUserInGroupCall) {
+                            updateGroupRoster(data.participants || []);
+                            if (data.user_id !== currentUserId && data.participant) {
+                                renderRemoteParticipantTile(data.participant);
+                                initiatePeerConnectionToNewcomer(data.user_id);
+                            }
+                        }
+                    }
+                    break;
+
+                case "group_call_participant_left":
+                    if (data.conversation_id === convId) {
+                        const remainingCount = (data.participants && data.participants.length) || 0;
+                        if (remainingCount > 0) {
+                            if (activeGroupCallBannerText) {
+                                activeGroupCallBannerText.textContent = `Live Group Call in progress (${remainingCount} participant${remainingCount > 1 ? 's' : ''})`;
+                            }
+                        } else if (activeGroupCallBanner) {
+                            activeGroupCallBanner.style.setProperty("display", "none", "important");
+                        }
+                        if (isUserInGroupCall) {
+                            updateGroupRoster(data.participants || []);
+                            removeRemoteParticipantTile(data.user_id);
+                            if (groupPeerConnections[data.user_id]) {
+                                try { groupPeerConnections[data.user_id].close(); } catch(e) {}
+                                delete groupPeerConnections[data.user_id];
+                            }
+                        }
+                    }
+                    break;
+
+                case "group_call_signal":
+                    if (data.conversation_id === convId && isUserInGroupCall) {
+                        handleGroupCallSignal(data);
+                    }
+                    break;
+
+                case "group_call_state_updated":
+                    if (data.conversation_id === convId && isUserInGroupCall) {
+                        updateRemoteParticipantState(data.user_id, data.is_muted, data.is_cam_off, data.is_speaking);
+                    }
+                    break;
+
+                case "group_call_kicked":
+                    if (data.conversation_id === convId && isUserInGroupCall) {
+                        alert(data.error || "You were removed from the call by an administrator.");
+                        leaveGroupMeeting(false);
+                    }
+                    break;
+
+                case "group_call_ended":
+                    if (data.conversation_id === convId) {
+                        if (activeGroupCallBanner) {
+                            activeGroupCallBanner.style.setProperty("display", "none", "important");
+                        }
+                        if (incomingGroupCallModal) {
+                            incomingGroupCallModal.hide();
+                        }
+                        if (isUserInGroupCall) {
+                            alert(`Group call has ended. Duration: ${formatTime(data.duration || 0)}`);
+                            leaveGroupMeeting(false);
+                        }
+                    }
+                    break;
+                }
+            } catch (err) {
+                console.error("WS error parsing message:", err);
+            }
+        };
+
+        socket.onclose = function () {
+            socketConnected = false;
+            setTimeout(connectWebSocket, 3000);
+        };
+
+        socket.onerror = function () {
+            socketConnected = false;
+        };
+    }
+
+    if (currentUserId > 0) {
+        connectWebSocket();
+    }
+
+    // ==========================================
+    // WebRTC 1-to-1 Audio & Video Calling Engine
+    // ==========================================
+    let peerConnection = null;
+    let localStream = null;
+    let iceServersConfig = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
+    let activeCallId = 0;
+    let activeCallPeerId = 0;
+    let activeCallType = "audio";
+    let activeCallConvId = 0;
+    let callTimerInterval = null;
+    let callDurationSeconds = 0;
+    let pendingOfferData = null;
+    let isMicMuted = false;
+    let isCamOff = false;
+
+    // Fetch STUN server configuration
+    fetch("/messages/call/ice-servers")
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.iceServers) iceServersConfig = data.iceServers;
+        })
+        .catch(() => {});
+
+    const startAudioCallBtn = document.getElementById("startAudioCallBtn");
+    const startVideoCallBtn = document.getElementById("startVideoCallBtn");
+    const incomingCallModalEl = document.getElementById("incomingCallModal");
+    const activeCallModalEl = document.getElementById("activeCallModal");
+    const incomingCallModal = incomingCallModalEl ? new bootstrap.Modal(incomingCallModalEl) : null;
+    const activeCallModal = activeCallModalEl ? new bootstrap.Modal(activeCallModalEl) : null;
+
+    const acceptCallBtn = document.getElementById("acceptCallBtn");
+    const declineCallBtn = document.getElementById("declineCallBtn");
+    const hangupCallBtn = document.getElementById("hangupCallBtn");
+    const toggleMicBtn = document.getElementById("toggleMicBtn");
+    const toggleCamBtn = document.getElementById("toggleCamBtn");
+    const micIcon = document.getElementById("micIcon");
+    const camIcon = document.getElementById("camIcon");
+
+    const remoteVideo = document.getElementById("remoteVideo");
+    const localVideo = document.getElementById("localVideo");
+    const localVideoContainer = document.getElementById("localVideoContainer");
+    const audioCallDisplay = document.getElementById("audioCallDisplay");
+    const callStatusText = document.getElementById("callStatusText");
+    const callTimer = document.getElementById("callTimer");
+    const callPeerName = document.getElementById("callPeerName");
+    const audioCallPeerName = document.getElementById("audioCallPeerName");
+    const audioCallAvatar = document.getElementById("audioCallAvatar");
+    const incomingCallerName = document.getElementById("incomingCallerName");
+    const incomingCallTypeLabel = document.getElementById("incomingCallTypeLabel");
+    const incomingCallerAvatar = document.getElementById("incomingCallerAvatar");
+
+    function formatTime(totalSeconds) {
+        const m = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+        const s = (totalSeconds % 60).toString().padStart(2, "0");
+        return `${m}:${s}`;
+    }
+
+    function startTimer() {
+        clearInterval(callTimerInterval);
+        callDurationSeconds = 0;
+        if (callTimer) callTimer.textContent = "00:00";
+        callTimerInterval = setInterval(() => {
+            callDurationSeconds++;
+            if (callTimer) callTimer.textContent = formatTime(callDurationSeconds);
+        }, 1000);
+    }
+
+    function stopTimer() {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+    }
+
+    function cleanupCallMedia() {
+        stopTimer();
+        if (localStream) {
+            localStream.getTracks().forEach(t => t.stop());
+            localStream = null;
+        }
+        if (peerConnection) {
+            peerConnection.close();
+            peerConnection = null;
+        }
+        if (remoteVideo) {
+            remoteVideo.srcObject = null;
+            remoteVideo.style.display = "none";
+        }
+        if (localVideo) {
+            localVideo.srcObject = null;
+        }
+        if (localVideoContainer) {
+            localVideoContainer.style.display = "none";
+        }
+        if (audioCallDisplay) {
+            audioCallDisplay.style.display = "block";
+        }
+        if (activeCallModal) {
+            activeCallModal.hide();
+        }
+        if (incomingCallModal) {
+            incomingCallModal.hide();
+        }
+        isMicMuted = false;
+        isCamOff = false;
+        if (micIcon) micIcon.className = "bi bi-mic-fill fs-5";
+        if (camIcon) camIcon.className = "bi bi-camera-video-fill fs-5";
+    }
+
+    function setupPeerConnection(peerId, conversationId, callId) {
+        peerConnection = new RTCPeerConnection({ iceServers: iceServersConfig });
+
+        peerConnection.onicecandidate = function (event) {
+            if (event.candidate && socket && socketConnected) {
+                socket.send(JSON.stringify({
+                    type: "ice_candidate",
+                    conversation_id: conversationId,
+                    target_user_id: peerId,
+                    call_id: callId,
+                    candidate: event.candidate
+                }));
+            }
+        };
+
+        peerConnection.ontrack = function (event) {
+            if (event.streams && event.streams[0]) {
+                if (remoteVideo) {
+                    remoteVideo.srcObject = event.streams[0];
+                    if (activeCallType === "video") {
+                        remoteVideo.style.display = "block";
+                        if (audioCallDisplay) audioCallDisplay.style.display = "none";
+                    }
+                }
+            }
+        };
+
+        peerConnection.onconnectionstatechange = function () {
+            if (peerConnection.connectionState === "connected") {
+                if (callStatusText) callStatusText.textContent = "Connected";
+                startTimer();
+            } else if (peerConnection.connectionState === "disconnected" || peerConnection.connectionState === "failed" || peerConnection.connectionState === "closed") {
+                handleCallEnded();
+            }
+        };
+    }
+
+    async function initiateCall(type) {
+        if (!socket || !socketConnected) {
+            alert("Chat connection not active. Please refresh.");
+            return;
+        }
+        const activeRecipientInput = {{if .ActiveRecipient}}{{.ActiveRecipient.ID}}{{else}}0{{end}};
+        if (!activeRecipientInput || !convId) {
+            alert("No active contact selected.");
+            return;
+        }
+
+        activeCallType = type;
+        activeCallPeerId = activeRecipientInput;
+        activeCallConvId = convId;
+
+        // UI setup
+        const peerName = "{{if .ActiveRecipient}}{{.ActiveRecipient.FullName}}{{end}}";
+        if (callPeerName) callPeerName.textContent = peerName;
+        if (audioCallPeerName) audioCallPeerName.textContent = peerName;
+        if (callStatusText) callStatusText.textContent = "Calling...";
+        if (activeCallModal) activeCallModal.show();
+
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: type === "video"
+            });
+
+            if (localVideo && type === "video") {
+                localVideo.srcObject = localStream;
+                if (localVideoContainer) localVideoContainer.style.display = "block";
+            }
+
+            setupPeerConnection(activeCallPeerId, activeCallConvId, 0);
+
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+
+            socket.send(JSON.stringify({
+                type: "call_offer",
+                conversation_id: activeCallConvId,
+                target_user_id: activeCallPeerId,
+                call_type: activeCallType,
+                sdp: offer.sdp
+            }));
+        } catch (err) {
+            console.error("Camera/Mic error:", err);
+            cleanupCallMedia();
+            alert("Could not access media devices: " + (err.message || err.name));
+        }
+    }
+
+    function handleCallEnded(duration) {
+        cleanupCallMedia();
+        if (activeCallId > 0) {
+            fetch("/messages/call/log", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    call_id: activeCallId,
+                    status: (duration || callDurationSeconds) > 0 ? "completed" : "missed",
+                    duration_seconds: duration || callDurationSeconds
+                })
+            }).catch(() => {});
+            activeCallId = 0;
+        }
+    }
+
+    // Call button listeners
+    if (startAudioCallBtn) startAudioCallBtn.addEventListener("click", () => initiateCall("audio"));
+    if (startVideoCallBtn) startVideoCallBtn.addEventListener("click", () => initiateCall("video"));
+
+    // Media controls
+    if (toggleMicBtn) {
+        toggleMicBtn.addEventListener("click", function () {
+            if (localStream) {
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    isMicMuted = !audioTrack.enabled;
+                    micIcon.className = isMicMuted ? "bi bi-mic-mute-fill fs-5 text-danger" : "bi bi-mic-fill fs-5";
+                    toggleMicBtn.className = isMicMuted ? "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow" : "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
+                }
+            }
+        });
+    }
+
+    if (toggleCamBtn) {
+        toggleCamBtn.addEventListener("click", function () {
+            if (localStream) {
+                const videoTrack = localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.enabled = !videoTrack.enabled;
+                    isCamOff = !videoTrack.enabled;
+                    camIcon.className = isCamOff ? "bi bi-camera-video-off-fill fs-5 text-danger" : "bi bi-camera-video-fill fs-5";
+                    toggleCamBtn.className = isCamOff ? "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow" : "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
+                }
+            }
+        });
+    }
+
+    if (hangupCallBtn) {
+        hangupCallBtn.addEventListener("click", function () {
+            if (socket && socketConnected && activeCallPeerId) {
+                socket.send(JSON.stringify({
+                    type: "call_end",
+                    conversation_id: activeCallConvId,
+                    target_user_id: activeCallPeerId,
+                    call_id: activeCallId,
+                    duration: callDurationSeconds
+                }));
+            }
+            handleCallEnded(callDurationSeconds);
+        });
+    }
+
+    if (acceptCallBtn) {
+        acceptCallBtn.addEventListener("click", async function () {
+            if (!pendingOfferData) return;
+            const offer = pendingOfferData;
+            pendingOfferData = null;
+            if (incomingCallModal) incomingCallModal.hide();
+
+            activeCallId = offer.call_id;
+            activeCallPeerId = offer.user_id;
+            activeCallConvId = offer.conversation_id;
+            activeCallType = offer.call_type || "audio";
+
+            if (callPeerName) callPeerName.textContent = offer.caller_name || "Contact";
+            if (audioCallPeerName) audioCallPeerName.textContent = offer.caller_name || "Contact";
+            if (callStatusText) callStatusText.textContent = "Connecting...";
+            if (activeCallModal) activeCallModal.show();
+
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: activeCallType === "video"
+                });
+
+                if (localVideo && activeCallType === "video") {
+                    localVideo.srcObject = localStream;
+                    if (localVideoContainer) localVideoContainer.style.display = "block";
+                }
+
+                setupPeerConnection(activeCallPeerId, activeCallConvId, activeCallId);
+
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                await peerConnection.setRemoteDescription(new RTCSessionDescription({
+                    type: "offer",
+                    sdp: offer.sdp
+                }));
+
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+
+                socket.send(JSON.stringify({
+                    type: "call_answer",
+                    conversation_id: activeCallConvId,
+                    target_user_id: activeCallPeerId,
+                    call_id: activeCallId,
+                    sdp: answer.sdp
+                }));
+            } catch (err) {
+                console.error("Error accepting call:", err);
+                cleanupCallMedia();
+                alert("Could not access camera/microphone to accept call.");
+            }
+        });
+    }
+
+    if (declineCallBtn) {
+        declineCallBtn.addEventListener("click", function () {
+            if (!pendingOfferData) return;
+            const offer = pendingOfferData;
+            pendingOfferData = null;
+            if (incomingCallModal) incomingCallModal.hide();
+
+            if (socket && socketConnected) {
+                socket.send(JSON.stringify({
+                    type: "call_decline",
+                    conversation_id: offer.conversation_id,
+                    target_user_id: offer.user_id,
+                    call_id: offer.call_id
+                }));
+            }
+        });
+    }
+
+    // ==========================================
+    // WebRTC Multi-Party Group Audio & Video Engine
+    // ==========================================
+    let isUserInGroupCall = false;
+    let currentGroupCallType = "audio";
+    let groupPeerConnections = {}; // peerUserId -> RTCPeerConnection
+    let groupLocalStream = null;
+    let groupCallTimerInterval = null;
+    let groupCallDurationSeconds = 0;
+    let groupIsMicMuted = false;
+    let groupIsCamOff = false;
+    let pendingIncomingGroupCall = null;
+
+    // Web Audio Speaking Detector
+    let groupAudioContext = null;
+    let groupAudioAnalyser = null;
+    let groupAudioSource = null;
+    let groupSpeechCheckInterval = null;
+    let isCurrentlySpeaking = false;
+
+    const groupCallModalEl = document.getElementById("groupCallModal");
+    const incomingGroupCallModalEl = document.getElementById("incomingGroupCallModal");
+    const groupCallModal = groupCallModalEl ? new bootstrap.Modal(groupCallModalEl) : null;
+    const incomingGroupCallModal = incomingGroupCallModalEl ? new bootstrap.Modal(incomingGroupCallModalEl) : null;
+
+    const startGroupAudioCallBtn = document.getElementById("startGroupAudioCallBtn");
+    const startGroupVideoCallBtn = document.getElementById("startGroupVideoCallBtn");
+    const joinActiveGroupCallBtn = document.getElementById("joinActiveGroupCallBtn");
+    const bannerJoinGroupCallBtn = document.getElementById("bannerJoinGroupCallBtn");
+    const acceptGroupCallBtn = document.getElementById("acceptGroupCallBtn");
+    const declineGroupCallBtn = document.getElementById("declineGroupCallBtn");
+
+    const groupToggleMicBtn = document.getElementById("groupToggleMicBtn");
+    const groupToggleCamBtn = document.getElementById("groupToggleCamBtn");
+    const groupLeaveCallBtn = document.getElementById("groupLeaveCallBtn");
+    const groupMicIcon = document.getElementById("groupMicIcon");
+    const groupCamIcon = document.getElementById("groupCamIcon");
+
+    const groupCallRoomTitle = document.getElementById("groupCallRoomTitle");
+    const groupCallRosterCount = document.getElementById("groupCallRosterCount");
+    const groupCallTimer = document.getElementById("groupCallTimer");
+    const groupCallVideoGrid = document.getElementById("groupCallVideoGrid");
+    const groupLocalVideo = document.getElementById("groupLocalVideo");
+    const groupLocalAvatar = document.getElementById("groupLocalAvatar");
+    const groupLocalMicBadge = document.getElementById("groupLocalMicBadge");
+
+    const groupCallToggleRosterBtn = document.getElementById("groupCallToggleRosterBtn");
+    const groupCallRosterDrawer = document.getElementById("groupCallRosterDrawer");
+    const groupCallRosterList = document.getElementById("groupCallRosterList");
+    const rosterDrawerCount = document.getElementById("rosterDrawerCount");
+    const closeRosterDrawerBtn = document.getElementById("closeRosterDrawerBtn");
+    const groupHostActionsDropdown = document.getElementById("groupHostActionsDropdown");
+    const endGroupCallForEveryoneBtn = document.getElementById("endGroupCallForEveryoneBtn");
+
+    const activeGroupCallBanner = document.getElementById("activeGroupCallBanner");
+    const activeGroupCallBannerText = document.getElementById("activeGroupCallBannerText");
+    const incomingGroupCallGroupName = document.getElementById("incomingGroupCallGroupName");
+    const incomingGroupCallInitiator = document.getElementById("incomingGroupCallInitiator");
+    const incomingGroupCallTypeBadge = document.getElementById("incomingGroupCallTypeBadge");
+
+    function startGroupTimer() {
+        clearInterval(groupCallTimerInterval);
+        groupCallDurationSeconds = 0;
+        if (groupCallTimer) groupCallTimer.textContent = "00:00";
+        groupCallTimerInterval = setInterval(() => {
+            groupCallDurationSeconds++;
+            if (groupCallTimer) groupCallTimer.textContent = formatTime(groupCallDurationSeconds);
+        }, 1000);
+    }
+
+    function stopGroupTimer() {
+        clearInterval(groupCallTimerInterval);
+        groupCallTimerInterval = null;
+    }
+
+    function sendGroupStateUpdate() {
+        if (socket && socketConnected) {
+            socket.send(JSON.stringify({
+                type: "group_call_state_update",
+                conversation_id: convId,
+                is_muted: groupIsMicMuted,
+                is_cam_off: groupIsCamOff,
+                is_speaking: isCurrentlySpeaking
+            }));
+        }
+    }
+
+    function highlightTileSpeaking(userId, isSpeaking) {
+        const tileId = userId === "local" ? "groupTile_local" : `groupTile_${userId}`;
+        const tile = document.getElementById(tileId);
+        if (tile) {
+            const innerCard = tile.querySelector("div");
+            if (innerCard) {
+                if (isSpeaking) {
+                    innerCard.classList.add("border-success", "border-3");
+                    innerCard.style.boxShadow = "0 0 16px rgba(40, 167, 69, 0.75)";
+                } else {
+                    innerCard.classList.remove("border-success", "border-3");
+                    innerCard.style.boxShadow = "";
+                }
+            }
+        }
+    }
+
+    function setupGroupSpeakingDetector(stream) {
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            groupAudioContext = new AudioCtx();
+            groupAudioSource = groupAudioContext.createMediaStreamSource(stream);
+            groupAudioAnalyser = groupAudioContext.createAnalyser();
+            groupAudioAnalyser.fftSize = 256;
+            groupAudioSource.connect(groupAudioAnalyser);
+
+            const bufferLength = groupAudioAnalyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            let cooldown = 0;
+
+            groupSpeechCheckInterval = setInterval(() => {
+                if (groupIsMicMuted || !isUserInGroupCall) {
+                    if (isCurrentlySpeaking) {
+                        isCurrentlySpeaking = false;
+                        highlightTileSpeaking("local", false);
+                        sendGroupStateUpdate();
+                    }
+                    return;
+                }
+
+                groupAudioAnalyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < bufferLength; i++) {
+                    sum += dataArray[i];
+                }
+                const average = sum / bufferLength;
+
+                if (average > 18) {
+                    cooldown = 4;
+                    if (!isCurrentlySpeaking) {
+                        isCurrentlySpeaking = true;
+                        highlightTileSpeaking("local", true);
+                        sendGroupStateUpdate();
+                    }
+                } else if (cooldown > 0) {
+                    cooldown--;
+                } else if (isCurrentlySpeaking) {
+                    isCurrentlySpeaking = false;
+                    highlightTileSpeaking("local", false);
+                    sendGroupStateUpdate();
+                }
+            }, 100);
+        } catch (err) {
+            console.warn("AudioContext setup error:", err);
+        }
+    }
+
+    function setupGroupPeerConnection(peerId) {
+        if (groupPeerConnections[peerId]) {
+            try { groupPeerConnections[peerId].close(); } catch (e) {}
+        }
+
+        const pc = new RTCPeerConnection({ iceServers: iceServersConfig });
+        groupPeerConnections[peerId] = pc;
+
+        pc.onicecandidate = function (event) {
+            if (event.candidate && socket && socketConnected) {
+                socket.send(JSON.stringify({
+                    type: "group_call_signal",
+                    conversation_id: convId,
+                    target_user_id: peerId,
+                    signal_type: "ice_candidate",
+                    candidate: event.candidate
+                }));
+            }
+        };
+
+        pc.ontrack = function (event) {
+            if (event.streams && event.streams[0]) {
+                const peerVideo = document.getElementById(`groupVideo_${peerId}`);
+                if (peerVideo) {
+                    peerVideo.srcObject = event.streams[0];
+                }
+            }
+        };
+
+        if (groupLocalStream) {
+            groupLocalStream.getTracks().forEach(track => {
+                pc.addTrack(track, groupLocalStream);
+            });
+        }
+
+        return pc;
+    }
+
+    async function initiatePeerConnectionToNewcomer(newcomerUserId) {
+        const pc = setupGroupPeerConnection(newcomerUserId);
+        try {
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            if (socket && socketConnected) {
+                socket.send(JSON.stringify({
+                    type: "group_call_signal",
+                    conversation_id: convId,
+                    target_user_id: newcomerUserId,
+                    signal_type: "offer",
+                    sdp: offer.sdp
+                }));
+            }
+        } catch (err) {
+            console.error("Error creating offer for peer:", newcomerUserId, err);
+        }
+    }
+
+    async function handleGroupCallSignal(data) {
+        const peerId = data.user_id;
+        if (!peerId || peerId === currentUserId) return;
+
+        if (data.signal_type === "offer") {
+            const pc = setupGroupPeerConnection(peerId);
+            try {
+                await pc.setRemoteDescription(new RTCSessionDescription({
+                    type: "offer",
+                    sdp: data.sdp
+                }));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                if (socket && socketConnected) {
+                    socket.send(JSON.stringify({
+                        type: "group_call_signal",
+                        conversation_id: convId,
+                        target_user_id: peerId,
+                        signal_type: "answer",
+                        sdp: answer.sdp
+                    }));
+                }
+            } catch (err) {
+                console.error("Error responding to group call offer:", err);
+            }
+        } else if (data.signal_type === "answer") {
+            const pc = groupPeerConnections[peerId];
+            if (pc) {
+                try {
+                    await pc.setRemoteDescription(new RTCSessionDescription({
+                        type: "answer",
+                        sdp: data.sdp
+                    }));
+                } catch (err) {
+                    console.error("Error setting remote description for answer:", err);
+                }
+            }
+        } else if (data.signal_type === "ice_candidate") {
+            const pc = groupPeerConnections[peerId];
+            if (pc && data.candidate) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                } catch (err) {
+                    console.error("Error adding ice candidate:", err);
+                }
+            }
+        }
+    }
+
+    function renderRemoteParticipantTile(p) {
+        if (!groupCallVideoGrid || !p || p.user_id === currentUserId) return;
+
+        let tile = document.getElementById(`groupTile_${p.user_id}`);
+        if (!tile) {
+            tile = document.createElement("div");
+            tile.className = "col-6 col-md-4 col-lg-3 group-video-tile";
+            tile.id = `groupTile_${p.user_id}`;
+            tile.setAttribute("data-user-id", p.user_id);
+
+            const initials = (p.full_name || p.username || "U").substring(0, 2).toUpperCase();
+            const photoHtml = p.profile_photo ?
+                `<img src="/uploads/profiles/${p.profile_photo}" class="rounded-circle object-fit-cover shadow mx-auto mb-1" style="width: 56px; height: 56px;">` :
+                `<div class="rounded-circle bg-primary text-white d-flex justify-content-center align-items-center fw-bold shadow mx-auto mb-1" style="width: 56px; height: 56px; font-size: 1.4rem;">${initials}</div>`;
+
+            tile.innerHTML = `
+                <div class="position-relative w-100 rounded-3 overflow-hidden bg-black border border-secondary border-opacity-50 shadow-sm d-flex justify-content-center align-items-center" style="height: 190px;">
+                    <video id="groupVideo_${p.user_id}" class="w-100 h-100 object-fit-cover" autoplay playsinline style="${p.is_cam_off ? 'display: none;' : 'display: block;'}"></video>
+                    <div class="group-avatar-fallback text-center" id="groupAvatar_${p.user_id}" style="${p.is_cam_off ? 'display: block;' : 'display: none;'}">
+                        ${photoHtml}
+                        <small class="text-white-50 d-block text-truncate px-2" style="max-width: 130px;">${p.full_name || p.username}</small>
+                    </div>
+                    <div class="position-absolute bottom-0 start-0 m-2 px-2 py-1 bg-dark bg-opacity-75 rounded-pill small d-flex align-items-center gap-1" style="font-size: 0.72rem;">
+                        <span class="text-white fw-semibold text-truncate" style="max-width: 80px;">${p.full_name || p.username}</span>
+                        <i class="bi ${p.is_muted ? 'bi-mic-mute-fill text-danger' : 'bi-mic-fill text-white'} ms-1" id="groupMic_${p.user_id}"></i>
+                    </div>
+                </div>
+            `;
+            groupCallVideoGrid.appendChild(tile);
+        } else {
+            updateRemoteParticipantState(p.user_id, p.is_muted, p.is_cam_off, p.is_speaking);
+        }
+    }
+
+    function updateRemoteParticipantState(userId, isMuted, isCamOff, isSpeaking) {
+        if (userId === currentUserId) return;
+        const micIcon = document.getElementById(`groupMic_${userId}`);
+        if (micIcon) {
+            micIcon.className = `bi ${isMuted ? 'bi-mic-mute-fill text-danger' : 'bi-mic-fill text-white'} ms-1`;
+        }
+
+        const videoEl = document.getElementById(`groupVideo_${userId}`);
+        const avatarEl = document.getElementById(`groupAvatar_${userId}`);
+        if (videoEl && avatarEl) {
+            if (isCamOff) {
+                videoEl.style.display = "none";
+                avatarEl.style.display = "block";
+            } else {
+                videoEl.style.display = "block";
+                avatarEl.style.display = "none";
+            }
+        }
+
+        highlightTileSpeaking(userId, isSpeaking);
+
+        const rosterMic = document.getElementById(`rosterMic_${userId}`);
+        if (rosterMic) {
+            rosterMic.className = `bi ${isMuted ? 'bi-mic-mute-fill text-danger' : 'bi-mic-fill text-success'}`;
+        }
+    }
+
+    function removeRemoteParticipantTile(userId) {
+        const tile = document.getElementById(`groupTile_${userId}`);
+        if (tile) tile.remove();
+    }
+
+    function updateGroupRoster(participants) {
+        if (!participants) return;
+        const count = participants.length;
+        if (groupCallRosterCount) groupCallRosterCount.textContent = `${count} participant${count !== 1 ? 's' : ''}`;
+        if (rosterDrawerCount) rosterDrawerCount.textContent = count;
+
+        if (!groupCallRosterList) return;
+        let html = "";
+        const isCurrentUserAdminOrOwner = (currentUserRole === "owner" || currentUserRole === "admin" || currentUserRole === "moderator");
+
+        participants.forEach(p => {
+            const isSelf = p.user_id === currentUserId;
+            const initials = (p.full_name || p.username || "U").substring(0, 2).toUpperCase();
+            const roleBadge = p.role && p.role !== "member" ?
+                `<span class="badge bg-secondary-subtle text-light border border-secondary small ms-1" style="font-size: 0.65rem;">${p.role}</span>` : "";
+
+            let kickBtn = "";
+            if (isCurrentUserAdminOrOwner && !isSelf && p.role !== "owner" && !(currentUserRole === "admin" && p.role === "admin")) {
+                kickBtn = `
+                    <button type="button" class="btn btn-xs btn-outline-danger py-0 px-1 roster-kick-btn" data-user-id="${p.user_id}" title="Remove from call">
+                        <i class="bi bi-person-x"></i>
+                    </button>
+                `;
+            }
+
+            html += `
+                <div class="list-group-item bg-transparent text-white border-secondary border-opacity-25 px-0 py-2 d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2 overflow-hidden">
+                        <div class="rounded-circle bg-secondary text-white d-flex justify-content-center align-items-center fw-bold small flex-shrink-0" style="width: 32px; height: 32px;">
+                            ${initials}
+                        </div>
+                        <div class="overflow-hidden">
+                            <div class="fw-semibold small text-truncate" style="max-width: 140px;">
+                                ${p.full_name || p.username} ${isSelf ? '<span class="text-white-50">(You)</span>' : ''}
+                            </div>
+                            <div>${roleBadge}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi ${p.is_muted ? 'bi-mic-mute-fill text-danger' : 'bi-mic-fill text-success'}" id="rosterMic_${p.user_id}"></i>
+                        ${kickBtn}
+                    </div>
+                </div>
+            `;
+        });
+
+        groupCallRosterList.innerHTML = html;
+
+        groupCallRosterList.querySelectorAll(".roster-kick-btn").forEach(btn => {
+            btn.addEventListener("click", function () {
+                const targetUid = parseInt(this.getAttribute("data-user-id"));
+                if (targetUid && confirm("Are you sure you want to remove this participant from the call?")) {
+                    if (socket && socketConnected) {
+                        socket.send(JSON.stringify({
+                            type: "group_call_kick",
+                            conversation_id: convId,
+                            target_user_id: targetUid
+                        }));
+                    } else {
+                        fetch("/messages/call/group/kick", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ conversation_id: convId, user_id: targetUid })
+                        }).catch(console.error);
+                    }
+                }
+            });
+        });
+    }
+
+    async function initiateGroupCall(callType) {
+        if (!convId || !isGroupConversation) return;
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: callType === "video"
+            });
+            groupLocalStream = stream;
+
+            isUserInGroupCall = true;
+            currentGroupCallType = callType;
+            groupIsMicMuted = false;
+            groupIsCamOff = (callType === "audio");
+
+            if (groupCallRoomTitle) {
+                groupCallRoomTitle.textContent = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Group Call";
+            }
+            if (groupLocalVideo) {
+                if (callType === "video") {
+                    groupLocalVideo.srcObject = groupLocalStream;
+                    groupLocalVideo.style.display = "block";
+                    if (groupLocalAvatar) groupLocalAvatar.style.display = "none";
+                } else {
+                    groupLocalVideo.style.display = "none";
+                    if (groupLocalAvatar) groupLocalAvatar.style.display = "block";
+                }
+            }
+
+            const isHost = (currentUserRole === "owner" || currentUserRole === "admin");
+            if (groupHostActionsDropdown) {
+                groupHostActionsDropdown.style.display = isHost ? "block" : "none";
+            }
+
+            if (groupCallModal) groupCallModal.show();
+            startGroupTimer();
+            setupGroupSpeakingDetector(groupLocalStream);
+
+            if (socket && socketConnected) {
+                socket.send(JSON.stringify({
+                    type: "group_call_start",
+                    conversation_id: convId,
+                    call_type: callType
+                }));
+            } else {
+                const resp = await fetch("/messages/call/group/start", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ conversation_id: convId, call_type: callType })
+                });
+                const resData = await resp.json();
+                if (!resData.success) {
+                    alert(resData.error || "Failed to start group call");
+                    leaveGroupMeeting(false);
+                }
+            }
+        } catch (err) {
+            console.error("Camera/Mic error starting group call:", err);
+            alert("Could not access media devices: " + (err.message || err.name));
+            leaveGroupMeeting(false);
+        }
+    }
+
+    async function joinGroupCall() {
+        if (!convId || !isGroupConversation) return;
+        if (incomingGroupCallModal) incomingGroupCallModal.hide();
+
+        try {
+            const activeRes = await fetch(`/messages/call/group/active?conversation_id=${convId}`);
+            const activeData = await activeRes.json();
+            const callType = (activeData.active && activeData.room && activeData.room.call_type === "video") ? "video" : "audio";
+
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: callType === "video"
+            });
+            groupLocalStream = stream;
+
+            isUserInGroupCall = true;
+            currentGroupCallType = callType;
+            groupIsMicMuted = false;
+            groupIsCamOff = (callType === "audio");
+
+            if (groupCallRoomTitle) {
+                groupCallRoomTitle.textContent = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Group Call";
+            }
+            if (groupLocalVideo) {
+                if (callType === "video") {
+                    groupLocalVideo.srcObject = groupLocalStream;
+                    groupLocalVideo.style.display = "block";
+                    if (groupLocalAvatar) groupLocalAvatar.style.display = "none";
+                } else {
+                    groupLocalVideo.style.display = "none";
+                    if (groupLocalAvatar) groupLocalAvatar.style.display = "block";
+                }
+            }
+
+            const isHost = (currentUserRole === "owner" || currentUserRole === "admin");
+            if (groupHostActionsDropdown) {
+                groupHostActionsDropdown.style.display = isHost ? "block" : "none";
+            }
+
+            if (groupCallModal) groupCallModal.show();
+            startGroupTimer();
+            setupGroupSpeakingDetector(groupLocalStream);
+
+            if (activeData.active && activeData.room && activeData.room.participants) {
+                const roster = [];
+                for (const uid in activeData.room.participants) {
+                    const p = activeData.room.participants[uid];
+                    roster.push(p);
+                    if (p.user_id !== currentUserId) {
+                        renderRemoteParticipantTile(p);
+                    }
+                }
+                updateGroupRoster(roster);
+            }
+
+            if (socket && socketConnected) {
+                socket.send(JSON.stringify({
+                    type: "group_call_join",
+                    conversation_id: convId
+                }));
+            } else {
+                await fetch("/messages/call/group/join", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ conversation_id: convId })
+                });
+            }
+        } catch (err) {
+            console.error("Camera/Mic error joining group call:", err);
+            alert("Could not access media devices: " + (err.message || err.name));
+            leaveGroupMeeting(false);
+        }
+    }
+
+    function leaveGroupMeeting(notifyServer = true) {
+        if (!isUserInGroupCall) return;
+        isUserInGroupCall = false;
+
+        stopGroupTimer();
+
+        if (groupSpeechCheckInterval) {
+            clearInterval(groupSpeechCheckInterval);
+            groupSpeechCheckInterval = null;
+        }
+        if (groupAudioContext) {
+            try { groupAudioContext.close(); } catch(e) {}
+            groupAudioContext = null;
+            groupAudioAnalyser = null;
+            groupAudioSource = null;
+        }
+
+        if (notifyServer && socket && socketConnected) {
+            socket.send(JSON.stringify({
+                type: "group_call_leave",
+                conversation_id: convId
+            }));
+        } else if (notifyServer) {
+            fetch("/messages/call/group/leave", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ conversation_id: convId })
+            }).catch(console.error);
+        }
+
+        if (groupLocalStream) {
+            groupLocalStream.getTracks().forEach(t => t.stop());
+            groupLocalStream = null;
+        }
+
+        for (const pid in groupPeerConnections) {
+            try {
+                groupPeerConnections[pid].close();
+            } catch (e) {}
+        }
+        groupPeerConnections = {};
+
+        if (groupCallVideoGrid) {
+            const remoteTiles = groupCallVideoGrid.querySelectorAll(".group-video-tile:not(#groupTile_local)");
+            remoteTiles.forEach(t => t.remove());
+        }
+
+        if (groupLocalVideo) groupLocalVideo.srcObject = null;
+        if (groupCallModal) groupCallModal.hide();
+
+        groupIsMicMuted = false;
+        groupIsCamOff = false;
+        if (groupMicIcon) groupMicIcon.className = "bi bi-mic-fill fs-5";
+        if (groupCamIcon) groupCamIcon.className = "bi bi-camera-video-fill fs-5";
+        if (groupToggleMicBtn) groupToggleMicBtn.className = "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
+        if (groupToggleCamBtn) groupToggleCamBtn.className = "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
+    }
+
+    if (groupToggleMicBtn) {
+        groupToggleMicBtn.addEventListener("click", function () {
+            if (groupLocalStream) {
+                const track = groupLocalStream.getAudioTracks()[0];
+                if (track) {
+                    track.enabled = !track.enabled;
+                    groupIsMicMuted = !track.enabled;
+                    groupMicIcon.className = groupIsMicMuted ? "bi bi-mic-mute-fill fs-5 text-danger" : "bi bi-mic-fill fs-5";
+                    groupToggleMicBtn.className = groupIsMicMuted ? "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow" : "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
+                    if (groupLocalMicBadge) {
+                        groupLocalMicBadge.className = groupIsMicMuted ? "bi bi-mic-mute-fill text-danger ms-1" : "bi bi-mic-fill text-white ms-1";
+                    }
+                    sendGroupStateUpdate();
+                }
+            }
+        });
+    }
+
+    if (groupToggleCamBtn) {
+        groupToggleCamBtn.addEventListener("click", function () {
+            if (groupLocalStream) {
+                const track = groupLocalStream.getVideoTracks()[0];
+                if (track) {
+                    track.enabled = !track.enabled;
+                    groupIsCamOff = !track.enabled;
+                    groupCamIcon.className = groupIsCamOff ? "bi bi-camera-video-off-fill fs-5 text-danger" : "bi bi-camera-video-fill fs-5";
+                    groupToggleCamBtn.className = groupIsCamOff ? "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow" : "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
+                    if (groupLocalVideo && groupLocalAvatar) {
+                        if (groupIsCamOff) {
+                            groupLocalVideo.style.display = "none";
+                            groupLocalAvatar.style.display = "block";
+                        } else {
+                            groupLocalVideo.style.display = "block";
+                            groupLocalAvatar.style.display = "none";
+                        }
+                    }
+                    sendGroupStateUpdate();
+                }
+            }
+        });
+    }
+
+    if (startGroupAudioCallBtn) startGroupAudioCallBtn.addEventListener("click", () => initiateGroupCall("audio"));
+    if (startGroupVideoCallBtn) startGroupVideoCallBtn.addEventListener("click", () => initiateGroupCall("video"));
+    if (joinActiveGroupCallBtn) joinActiveGroupCallBtn.addEventListener("click", joinGroupCall);
+    if (bannerJoinGroupCallBtn) bannerJoinGroupCallBtn.addEventListener("click", joinGroupCall);
+    if (acceptGroupCallBtn) acceptGroupCallBtn.addEventListener("click", joinGroupCall);
+    if (declineGroupCallBtn) declineGroupCallBtn.addEventListener("click", () => {
+        if (incomingGroupCallModal) incomingGroupCallModal.hide();
+    });
+    if (groupLeaveCallBtn) groupLeaveCallBtn.addEventListener("click", () => leaveGroupMeeting(true));
+    if (endGroupCallForEveryoneBtn) {
+        endGroupCallForEveryoneBtn.addEventListener("click", function () {
+            if (confirm("Are you sure you want to end this call for everyone?")) {
+                if (socket && socketConnected) {
+                    socket.send(JSON.stringify({
+                        type: "group_call_end",
+                        conversation_id: convId
+                    }));
+                } else {
+                    fetch("/messages/call/group/end", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ conversation_id: convId })
+                    }).catch(console.error);
+                }
+                leaveGroupMeeting(false);
+            }
+        });
+    }
+    if (groupCallToggleRosterBtn && groupCallRosterDrawer) {
+        groupCallToggleRosterBtn.addEventListener("click", function () {
+            const isHidden = groupCallRosterDrawer.style.display === "none";
+            groupCallRosterDrawer.style.display = isHidden ? "flex" : "none";
+        });
+    }
+    if (closeRosterDrawerBtn && groupCallRosterDrawer) {
+        closeRosterDrawerBtn.addEventListener("click", function () {
+            groupCallRosterDrawer.style.display = "none";
+        });
+    }
+
+    // Typing listener on composer input
+    if (input && convId > 0) {
+        input.addEventListener("input", function () {
+            if (socketConnected && socket && socket.readyState === WebSocket.OPEN) {
+                if (!isCurrentlyTyping) {
+                    isCurrentlyTyping = true;
+                    socket.send(JSON.stringify({
+                        type: "typing",
+                        conversation_id: convId,
+                        is_typing: true
+                    }));
+                }
+
+                clearTimeout(typingDebounceTimeout);
+                typingDebounceTimeout = setTimeout(function () {
+                    isCurrentlyTyping = false;
+                    if (socketConnected && socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(JSON.stringify({
+                            type: "typing",
+                            conversation_id: convId,
+                            is_typing: false
+                        }));
+                    }
+                }, 2500);
+            }
+        });
+    }
+
+    // Message sending handler
+    if (form && input && activeConvInput) {
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+            const body = input.value.trim();
+            if (!body && !pendingAttachmentFile) return;
+
+            const clientMsgId = "msg-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
+            input.value = "";
+
+            // Stop typing status immediately
+            isCurrentlyTyping = false;
+            clearTimeout(typingDebounceTimeout);
+
+            // Handle Attachment Upload if file selected
+            if (pendingAttachmentFile) {
+                sendBtn.disabled = true;
+                const formData = new FormData();
+                formData.append("conversation_id", convId);
+                formData.append("client_message_id", clientMsgId);
+                formData.append("body", body);
+                formData.append("attachment", pendingAttachmentFile);
+
+                fetch("/messages/upload", {
+                    method: "POST",
+                    headers: { "Accept": "application/json" },
+                    body: formData
+                })
+                .then(r => r.json())
+                .then(data => {
+                    sendBtn.disabled = false;
+                    pendingAttachmentFile = null;
+                    if (attachmentFileInput) attachmentFileInput.value = "";
+                    if (attachmentPreviewBar) attachmentPreviewBar.style.setProperty("display", "none", "important");
+
+                    if (container && data.message) {
+                        const elem = createMessageElement(data.message);
+                        container.appendChild(elem);
+                        container.scrollTop = container.scrollHeight;
+                    }
+                })
+                .catch(err => {
+                    console.error("Upload error:", err);
+                    sendBtn.disabled = false;
+                    alert("Failed to upload attachment. Please try again.");
+                });
+                return;
+            }
+
+            // Standard Text Message Send
+            if (socketConnected && socket && socket.readyState === WebSocket.OPEN) {
+                const optimisticMsg = {
+                    SenderID: currentUserId,
+                    MessageType: "text",
+                    Body: body,
+                    ClientMessageID: clientMsgId,
+                    CreatedAt: new Date().toISOString(),
+                    IsReadByRecipient: false
+                };
+                if (container) {
+                    const elem = createMessageElement(optimisticMsg);
+                    container.appendChild(elem);
+                    container.scrollTop = container.scrollHeight;
+                }
+
+                socket.send(JSON.stringify({
+                    type: "send_message",
+                    conversation_id: convId,
+                    body: body,
+                    client_message_id: clientMsgId
+                }));
+                socket.send(JSON.stringify({
+                    type: "typing",
+                    conversation_id: convId,
+                    is_typing: false
+                }));
+            } else {
+                // HTTP Fetch fallback
+                sendBtn.disabled = true;
+                fetch("/messages/send", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        conversation_id: convId,
+                        body: body,
+                        client_message_id: clientMsgId
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    sendBtn.disabled = false;
+                    if (container && data.message) {
+                        const elem = createMessageElement(data.message);
+                        container.appendChild(elem);
+                        container.scrollTop = container.scrollHeight;
+                    }
+                })
+                .catch(() => {
+                    sendBtn.disabled = false;
+                    form.submit();
+                });
+            }
+        });
+    }
+
+    // Load older messages (pagination)
+    const loadOlderBtn = document.getElementById("loadOlderBtn");
+    if (loadOlderBtn && activeConvInput && container) {
+        loadOlderBtn.addEventListener("click", function() {
+            const offset = parseInt(this.getAttribute("data-offset") || "0");
+            loadOlderBtn.disabled = true;
+            loadOlderBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status"></span> Loading...`;
+
+            fetch(`/messages/history?conversation_id=${convId}&limit=50&offset=${offset}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.messages && data.messages.length > 0) {
+                        const prevScrollHeight = container.scrollHeight;
+                        const frag = document.createDocumentFragment();
+
+                        data.messages.forEach(m => {
+                            const elem = createMessageElement(m);
+                            frag.appendChild(elem);
+                        });
+
+                        const loadOlderContainer = document.getElementById("loadOlderContainer");
+                        if (loadOlderContainer && loadOlderContainer.nextSibling) {
+                            container.insertBefore(frag, loadOlderContainer.nextSibling);
+                        } else {
+                            container.insertBefore(frag, container.firstChild);
+                        }
+
+                        // Maintain viewport position
+                        container.scrollTop = container.scrollHeight - prevScrollHeight;
+
+                        const newOffset = offset + data.messages.length;
+                        loadOlderBtn.setAttribute("data-offset", newOffset);
+
+                        if (!data.has_older) {
+                            loadOlderBtn.parentElement.style.display = "none";
+                        } else {
+                            loadOlderBtn.disabled = false;
+                            loadOlderBtn.innerHTML = `<i class="bi bi-clock-history me-1"></i> Load Older Messages`;
+                        }
+                    } else {
+                        loadOlderBtn.parentElement.style.display = "none";
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    loadOlderBtn.disabled = false;
+                    loadOlderBtn.innerHTML = `<i class="bi bi-clock-history me-1"></i> Load Older Messages`;
+                });
+        });
+    }
+
+    // Graceful fallback HTTP polling (active only if WebSocket is disconnected)
+    if (convId > 0 && container) {
+        setInterval(function () {
+            if (socketConnected) return; // Do not poll when WebSocket is actively connected
+
+            fetch(`/messages/history?conversation_id=${convId}&limit=50`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.success && data.messages) {
+                    const currentCount = container.querySelectorAll(".message-bubble").length;
+                    if (data.messages.length > currentCount) {
+                        let html = "";
+                        data.messages.forEach(m => {
+                            const elem = createMessageElement(m);
+                            html += elem.outerHTML;
+                        });
+                        container.innerHTML = html;
+                        container.scrollTop = container.scrollHeight;
+                    }
+                }
+            })
+            .catch(() => {});
+        }, 5000);
+    }
+});
+</script>
+
+{{template "footer" .}}
+
