@@ -16,7 +16,7 @@ func CreateNotification(notification models.Notification) error {
 		type,
 		message
 	)
-	VALUES (?, ?, ?, ?, ?, ?)
+	VALUES ($1, $2, $3, $4, $5, $6)
 	`
 	println("================================")
 	println("Creating notification")
@@ -52,8 +52,8 @@ func CountUnreadNotifications(userID int) (int, error) {
 	query := `
 	SELECT COUNT(*)
 	FROM notifications
-	WHERE receiver_id = ?
-	AND is_read = 0
+	WHERE receiver_id = $1
+	AND is_read = FALSE
 	`
 
 	var count int
@@ -82,11 +82,11 @@ func GetNotificationsByUser(userID int) ([]models.Notification, error) {
 		u.id,
 		u.full_name,
 		u.username,
-		u.profile_photo
+		COALESCE(u.profile_photo, '')
 	FROM notifications n
 	LEFT JOIN users u
 	ON n.sender_id = u.id
-	WHERE n.receiver_id = ?
+	WHERE n.receiver_id = $1
 	ORDER BY n.created_at DESC
 	`
 

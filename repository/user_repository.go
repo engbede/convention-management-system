@@ -91,20 +91,20 @@ INSERT INTO users (
 	updated_at
 )
 VALUES (
-	?, ?, ?, ?,
-	?, ?,
-	?, ?, ?, ?,
-	?, ?, ?, ?,
-	?, ?,
-	?, ?, ?, ?, ?,
-	?, ?, ?, ?, ?,
-	?, ?, ?, ?,
-	?, ?, ?,
-	?, ?, ?,
-	?, ?,
-	?, ?,
-	?, ?,
-	?, ?
+	$1, $2, $3, $4,
+	$5, $6,
+	$7, $8, $9, $10,
+	$11, $12, $13, $14,
+	$15, $16,
+	$17, $18, $19, $20, $21,
+	$22, $23, $24, $25, $26,
+	$27, $28, $29, $30,
+	$31, $32, $33,
+	$34, $35, $36,
+	$37, $38,
+	$39, $40,
+	$41, $42,
+	$43, $44
 )
 `
 
@@ -172,8 +172,10 @@ VALUES (
 		return err
 	}
 
-	if id, err := res.LastInsertId(); err == nil {
+	if id, err := res.LastInsertId(); err == nil && id > 0 {
 		user.ID = int(id)
+	} else {
+		_ = database.DB.QueryRow("SELECT id FROM users WHERE username = $1", user.Username).Scan(&user.ID)
 	}
 
 	return nil
@@ -211,7 +213,7 @@ func GetUserByUsername(username string) (*models.User, error) {
 		created_at,
 		updated_at
 	FROM users
-	WHERE username = ?
+	WHERE username = $1
 	`
 
 	var user models.User
@@ -319,7 +321,7 @@ func GetUserByID(id int) (models.User, error) {
 		created_at,
 		updated_at
 	FROM users
-	WHERE id = ?
+	WHERE id = $1
 	`
 
 	var user models.User
@@ -423,7 +425,7 @@ func GetUserByEmail(email string) (*models.User, error) {
 		created_at,
 		updated_at
 	FROM users
-	WHERE LOWER(email) = LOWER(?)
+	WHERE LOWER(email) = LOWER($1)
 	LIMIT 1
 	`
 

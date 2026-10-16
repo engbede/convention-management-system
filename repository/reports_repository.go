@@ -43,11 +43,11 @@ func GetReportStats() (ReportStats, error) {
 	err = database.DB.QueryRow(`
 		SELECT COUNT(*)
 		FROM registrations
-		WHERE checked_in = 1
+		WHERE checked_in = TRUE
 	`).Scan(&stats.CheckedIn)
 
 	if err != nil {
-		stats.CheckedIn = 0
+		return stats, err
 	}
 
 	return stats, nil

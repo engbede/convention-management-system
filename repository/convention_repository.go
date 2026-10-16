@@ -171,7 +171,7 @@ func ActivateConvention(id int) error {
 	// deactivate every convention
 	_, err = tx.Exec(`
 		UPDATE conventions
-		SET active = 0
+		SET active = FALSE
 	`)
 	if err != nil {
 		tx.Rollback()

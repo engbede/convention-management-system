@@ -141,7 +141,7 @@ func CreateProgramme(p *models.Programme) (int, error) {
 	id, err := result.LastInsertId()
 	if err != nil || id == 0 {
 		var lastID int
-		err = database.DB.QueryRow("SELECT id FROM programmes WHERE organizer_id = ? ORDER BY id DESC LIMIT 1", p.OrganizerID).Scan(&lastID)
+		err = database.DB.QueryRow(fmt.Sprintf("SELECT id FROM programmes WHERE organizer_id = %s ORDER BY id DESC LIMIT 1", helpers.Placeholder(1)), p.OrganizerID).Scan(&lastID)
 		if err != nil {
 			return 0, err
 		}
@@ -593,7 +593,7 @@ func GetProgrammeChatMessages(programmeID int, sinceID int, includeHidden bool) 
 	}
 
 	if !includeHidden {
-		whereParts = append(whereParts, "pcm.is_hidden = 0")
+		whereParts = append(whereParts, "pcm.is_hidden = FALSE")
 	}
 
 	query := fmt.Sprintf(`
@@ -755,7 +755,7 @@ func GetProgrammePrayerRequests(programmeID int, viewerUserID int, canViewAllPri
 			       u.id, u.full_name, u.username, u.profile_photo
 			FROM programme_prayer_requests pr
 			JOIN users u ON pr.user_id = u.id
-			WHERE pr.programme_id = %s AND (pr.is_private = 0 OR pr.user_id = %s)
+			WHERE pr.programme_id = %s AND (pr.is_private = FALSE OR pr.user_id = %s)
 			ORDER BY pr.created_at DESC
 		`, helpers.Placeholder(1), helpers.Placeholder(2))
 		args = []any{programmeID, viewerUserID}

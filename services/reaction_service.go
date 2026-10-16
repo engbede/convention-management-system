@@ -62,13 +62,13 @@ func ReactToPost(
 
 // PostReactionStats models the response data for post reaction actions and popups.
 type PostReactionStats struct {
-	PostID            int                        `json:"post_id"`
-	UserReaction      string                     `json:"user_reaction"`
-	UserReactionEmoji string                     `json:"user_reaction_emoji"`
-	UserReactionLabel string                     `json:"user_reaction_label"`
-	TotalReactions    int                        `json:"total_reactions"`
-	ReactionCounts    map[string]int             `json:"reaction_counts"`
-	TopReactions      []models.ReactionCountItem `json:"top_reactions"`
+	PostID            int                         `json:"post_id"`
+	UserReaction      string                      `json:"user_reaction"`
+	UserReactionEmoji string                      `json:"user_reaction_emoji"`
+	UserReactionLabel string                      `json:"user_reaction_label"`
+	TotalReactions    int                         `json:"total_reactions"`
+	ReactionCounts    map[string]int              `json:"reaction_counts"`
+	TopReactions      []models.ReactionCountItem  `json:"top_reactions"`
 	ReactedUsers      []models.ReactionUserDetail `json:"reacted_users,omitempty"`
 }
 

@@ -13,9 +13,9 @@ func AreFriends(user1ID, user2ID int) (bool, error) {
 	SELECT COUNT(*)
 	FROM friends
 	WHERE
-		(user1_id = ? AND user2_id = ?)
+		(user1_id = $1 AND user2_id = $2)
 		OR
-		(user1_id = ? AND user2_id = ?)
+		(user1_id = $3 AND user2_id = $4)
 	`
 
 	var count int
@@ -42,9 +42,9 @@ func HasPendingRequest(senderID, receiverID int) (bool, error) {
 	SELECT COUNT(*)
 	FROM friend_requests
 	WHERE
-		sender_id = ?
+		sender_id = $1
 	AND
-		receiver_id = ?
+		receiver_id = $2
 	AND
 		status = 'pending'
 	`
@@ -86,15 +86,15 @@ func GetFriends(userID int) ([]models.Friend, error) {
 	INNER JOIN users u
 	ON u.id =
 		CASE
-			WHEN f.user1_id = ?
+			WHEN f.user1_id = $1
 			THEN f.user2_id
 			ELSE f.user1_id
 		END
 
 	WHERE
-		f.user1_id = ?
+		f.user1_id = $2
 	OR
-		f.user2_id = ?
+		f.user2_id = $3
 
 	ORDER BY u.full_name ASC
 	`
@@ -154,9 +154,9 @@ func RemoveFriend(user1ID, user2ID int) error {
 	query := `
 	DELETE FROM friends
 	WHERE
-		(user1_id = ? AND user2_id = ?)
+		(user1_id = $1 AND user2_id = $2)
 	OR
-		(user1_id = ? AND user2_id = ?)
+		(user1_id = $3 AND user2_id = $4)
 	`
 
 	_, err := database.DB.Exec(
@@ -177,9 +177,9 @@ func GetFriendCount(userID int) (int, error) {
 	SELECT COUNT(*)
 	FROM friends
 	WHERE
-		user1_id = ?
+		user1_id = $1
 	OR
-		user2_id = ?
+		user2_id = $2
 	`
 
 	var count int
@@ -213,13 +213,13 @@ func GetMutualFriends(user1ID, user2ID int) ([]models.User, error) {
 
 		SELECT
 			CASE
-				WHEN user1_id = ?
+				WHEN user1_id = $1
 				THEN user2_id
 				ELSE user1_id
 			END
 		FROM friends
-		WHERE user1_id = ?
-		   OR user2_id = ?
+		WHERE user1_id = $2
+		   OR user2_id = $3
 
 	)
 
@@ -227,13 +227,13 @@ func GetMutualFriends(user1ID, user2ID int) ([]models.User, error) {
 
 		SELECT
 			CASE
-				WHEN user1_id = ?
+				WHEN user1_id = $4
 				THEN user2_id
 				ELSE user1_id
 			END
 		FROM friends
-		WHERE user1_id = ?
-		   OR user2_id = ?
+		WHERE user1_id = $5
+		   OR user2_id = $6
 
 	)
 
@@ -306,7 +306,7 @@ func GetPendingFriendRequests(userID int) ([]models.FriendRequest, error) {
 		ON fr.sender_id = u.id
 
 	WHERE
-		fr.receiver_id = ?
+		fr.receiver_id = $1
 	AND
 		fr.status = 'pending'
 

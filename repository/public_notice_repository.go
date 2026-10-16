@@ -19,7 +19,7 @@ func GetPublicNotices() ([]models.Notice, error) {
 		end_date
 	FROM notices
 	WHERE
-		date('now') BETWEEN start_date AND end_date
+		CURRENT_DATE BETWEEN start_date AND end_date
 	ORDER BY
 		pinned DESC,
 		priority DESC,

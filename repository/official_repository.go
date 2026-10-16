@@ -50,13 +50,13 @@ func GetAllOfficials() ([]models.Official, error) {
 			full_name,
 			gender,
 			phone,
-			email,
+			COALESCE(email, ''),
 			circuit,
 			local_church,
 			position,
 			department,
 			status,
-			photo,
+			COALESCE(photo, ''),
 			created_at
 		FROM officials
 		ORDER BY full_name ASC
@@ -111,13 +111,13 @@ func GetOfficialByID(id int) (models.Official, error) {
 			full_name,
 			gender,
 			phone,
-			email,
+			COALESCE(email, ''),
 			circuit,
 			local_church,
 			position,
 			department,
 			status,
-			photo,
+			COALESCE(photo, ''),
 			created_at
 		FROM officials
 		WHERE id=$1

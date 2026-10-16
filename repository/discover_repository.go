@@ -13,11 +13,11 @@ func GetDiscoverUsers(currentUserID int) ([]models.User, error) {
 		id,
 		full_name,
 		username,
-		bio,
-		location,
-		profile_photo
+		COALESCE(bio, ''),
+		COALESCE(location, ''),
+		COALESCE(profile_photo, '')
 	FROM users
-	WHERE id != ?
+	WHERE id != $1
 	ORDER BY full_name
 	`
 

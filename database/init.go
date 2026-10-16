@@ -2,6 +2,8 @@ package database
 
 import "os"
 
+// Init initializes the database connection pool without executing migrations.
+// Callers (such as main) explicitly invoke database.Migrate().
 func Init() error {
 
 	if os.Getenv("DATABASE_URL") != "" {
@@ -18,5 +20,5 @@ func Init() error {
 
 	}
 
-	return Migrate()
+	return nil
 }

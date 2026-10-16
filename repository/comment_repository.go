@@ -17,7 +17,7 @@ func CreateComment(
 		parent_id,
 		content
 	)
-	VALUES (?, ?, ?, ?)
+	VALUES ($1, $2, $3, $4)
 	`
 
 	_, err := database.DB.Exec(
@@ -52,7 +52,7 @@ func GetCommentsByPost(
 	FROM comments c
 	INNER JOIN users u
 		ON c.user_id = u.id
-	WHERE c.post_id = ?
+	WHERE c.post_id = $1
 	AND c.parent_id IS NULL
 	ORDER BY c.created_at ASC
 	`
@@ -111,7 +111,7 @@ func CountComments(
 	query := `
 	SELECT COUNT(*)
 	FROM comments
-	WHERE post_id = ?
+	WHERE post_id = $1
 	`
 
 	err := database.DB.QueryRow(

@@ -92,7 +92,7 @@ func SeedConvention() error {
 			'2026-08-15',
 			'2026-08-21',
 			2026,
-			1
+			TRUE
 		)
 	`)
 

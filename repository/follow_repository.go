@@ -5,11 +5,12 @@ import "convention-management-system/database"
 func FollowUser(followerID, followingID int) error {
 
 	query := `
-	INSERT OR IGNORE INTO follows (
+	INSERT INTO follows (
 		follower_id,
 		following_id
 	)
-	VALUES (?, ?)
+	VALUES ($1, $2)
+	ON CONFLICT DO NOTHING
 	`
 
 	_, err := database.DB.Exec(
@@ -25,8 +26,8 @@ func UnfollowUser(followerID, followingID int) error {
 
 	query := `
 	DELETE FROM follows
-	WHERE follower_id = ?
-	  AND following_id = ?
+	WHERE follower_id = $1
+	  AND following_id = $2
 	`
 
 	_, err := database.DB.Exec(
@@ -43,8 +44,8 @@ func IsFollowing(followerID, followingID int) (bool, error) {
 	query := `
 	SELECT COUNT(*)
 	FROM follows
-	WHERE follower_id = ?
-	  AND following_id = ?
+	WHERE follower_id = $1
+	  AND following_id = $2
 	`
 
 	var count int
@@ -67,7 +68,7 @@ func GetFollowersCount(userID int) (int, error) {
 	query := `
 	SELECT COUNT(*)
 	FROM follows
-	WHERE following_id = ?
+	WHERE following_id = $1
 	`
 
 	var count int
@@ -85,7 +86,7 @@ func GetFollowingCount(userID int) (int, error) {
 	query := `
 	SELECT COUNT(*)
 	FROM follows
-	WHERE follower_id = ?
+	WHERE follower_id = $1
 	`
 
 	var count int

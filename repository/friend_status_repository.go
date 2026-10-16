@@ -32,8 +32,8 @@ func GetFriendStatus(viewerID, profileUserID int) (string, error) {
 	err = database.DB.QueryRow(`
 		SELECT COUNT(*)
 		FROM friend_requests
-		WHERE sender_id = ?
-		  AND receiver_id = ?
+		WHERE sender_id = $1
+		  AND receiver_id = $2
 		  AND status='pending'
 	`, viewerID, profileUserID).Scan(&count)
 
@@ -49,8 +49,8 @@ func GetFriendStatus(viewerID, profileUserID int) (string, error) {
 	err = database.DB.QueryRow(`
 		SELECT COUNT(*)
 		FROM friend_requests
-		WHERE sender_id = ?
-		  AND receiver_id = ?
+		WHERE sender_id = $1
+		  AND receiver_id = $2
 		  AND status='pending'
 	`, profileUserID, viewerID).Scan(&count)
 

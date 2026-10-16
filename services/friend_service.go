@@ -40,7 +40,7 @@ func GetPendingFriendRequests(userID int) ([]models.FriendRequest, error) {
 	ON fr.sender_id = u.id
 
 	WHERE
-		fr.receiver_id = ?
+		fr.receiver_id = $1
 	AND
 		fr.status = 'pending'
 
@@ -118,7 +118,7 @@ func GetSentFriendRequests(userID int) ([]models.FriendRequest, error) {
 	ON fr.receiver_id = u.id
 
 	WHERE
-		fr.sender_id = ?
+		fr.sender_id = $1
 	AND
 		fr.status = 'pending'
 

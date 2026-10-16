@@ -103,7 +103,7 @@ func CreateOrGetDirectConversation(user1ID, user2ID int) (*models.Conversation, 
 	convID, err = result.LastInsertId()
 	if err != nil || convID == 0 {
 		// Fallback for drivers that don't support LastInsertId
-		err = tx.QueryRow("SELECT id FROM conversations WHERE created_by = ? ORDER BY id DESC LIMIT 1", user1ID).Scan(&convID)
+		err = tx.QueryRow(fmt.Sprintf("SELECT id FROM conversations WHERE created_by = %s ORDER BY id DESC LIMIT 1", helpers.Placeholder(1)), user1ID).Scan(&convID)
 		if err != nil {
 			return nil, err
 		}
@@ -300,7 +300,7 @@ func SaveMessage(msg *models.Message) error {
 
 	msgID, err := result.LastInsertId()
 	if err != nil || msgID == 0 {
-		database.DB.QueryRow("SELECT id FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT 1", msg.ConversationID).Scan(&msgID)
+		database.DB.QueryRow(fmt.Sprintf("SELECT id FROM messages WHERE conversation_id = %s ORDER BY id DESC LIMIT 1", helpers.Placeholder(1)), msg.ConversationID).Scan(&msgID)
 	}
 	msg.ID = int(msgID)
 	msg.CreatedAt = time.Now()
@@ -915,7 +915,7 @@ func CreateCallLog(call *models.CallLog) error {
 	if id, err := res.LastInsertId(); err == nil && id > 0 {
 		call.ID = int(id)
 	} else {
-		_ = database.DB.QueryRow("SELECT id FROM call_logs WHERE conversation_id = ? ORDER BY id DESC LIMIT 1", call.ConversationID).Scan(&call.ID)
+		_ = database.DB.QueryRow(fmt.Sprintf("SELECT id FROM call_logs WHERE conversation_id = %s ORDER BY id DESC LIMIT 1", helpers.Placeholder(1)), call.ConversationID).Scan(&call.ID)
 	}
 	return nil
 }
@@ -1095,7 +1095,7 @@ func CreateGroupConversation(title, category, description, avatarURL, callPermis
 
 	convID, err := res.LastInsertId()
 	if err != nil || convID == 0 {
-		err = tx.QueryRow("SELECT id FROM conversations WHERE created_by = ? ORDER BY id DESC LIMIT 1", creatorID).Scan(&convID)
+		err = tx.QueryRow(fmt.Sprintf("SELECT id FROM conversations WHERE created_by = %s ORDER BY id DESC LIMIT 1", helpers.Placeholder(1)), creatorID).Scan(&convID)
 		if err != nil {
 			return nil, err
 		}
@@ -1281,7 +1281,7 @@ func GetDiscoverableGroups(userID int, category string) ([]models.ConversationIt
 	var args []any
 	args = append(args, userID, userID, userID)
 
-	whereClause := "WHERE c.type = 'group' AND c.is_public = 1"
+	whereClause := "WHERE c.type = 'group' AND c.is_public = TRUE"
 	if category != "" && category != "all" {
 		whereClause += fmt.Sprintf(" AND c.category = %s", helpers.Placeholder(len(args)+1))
 		args = append(args, category)
@@ -1468,7 +1468,7 @@ func CreateGroupMembershipRequest(convID, userID int, message string) (*models.G
 
 	id, err := res.LastInsertId()
 	if err != nil || id == 0 {
-		err = database.DB.QueryRow("SELECT id FROM group_membership_requests WHERE conversation_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1", convID, userID).Scan(&id)
+		err = database.DB.QueryRow(fmt.Sprintf("SELECT id FROM group_membership_requests WHERE conversation_id = %s AND user_id = %s ORDER BY id DESC LIMIT 1", helpers.Placeholder(1), helpers.Placeholder(2)), convID, userID).Scan(&id)
 		if err != nil {
 			return nil, err
 		}

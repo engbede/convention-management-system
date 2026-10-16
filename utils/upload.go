@@ -184,4 +184,3 @@ func SaveChatAttachment(
 
 	return filename, msgType, detectedType, nil
 }
-

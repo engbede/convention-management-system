@@ -1,12 +1,21 @@
 package database
 
 import (
+	"database/sql"
+	"fmt"
 	"strings"
 )
 
 func execMigration(query string) error {
 	_, err := DB.Exec(query)
-	return err
+	if err != nil {
+		preview := strings.TrimSpace(query)
+		if len(preview) > 100 {
+			preview = preview[:100] + "..."
+		}
+		return fmt.Errorf("sqlite migration failed executing [%s]: %w", preview, err)
+	}
+	return nil
 }
 
 func MigrateSQLite() error {
@@ -63,6 +72,20 @@ CREATE TABLE IF NOT EXISTS registrations (
 );
 `); err != nil {
 		return err
+	}
+
+	for _, colQ := range []string{
+		`ALTER TABLE registrations ADD COLUMN registration_number TEXT`,
+		`ALTER TABLE registrations ADD COLUMN email TEXT`,
+		`ALTER TABLE registrations ADD COLUMN relationship TEXT`,
+		`ALTER TABLE registrations ADD COLUMN address TEXT`,
+		`ALTER TABLE registrations ADD COLUMN qr_code TEXT`,
+		`ALTER TABLE registrations ADD COLUMN checked_in INTEGER DEFAULT 0`,
+		`ALTER TABLE registrations ADD COLUMN bible_study_group INTEGER DEFAULT 0`,
+	} {
+		if err := addColumn(colQ); err != nil {
+			return err
+		}
 	}
 
 	if err := execMigration(`
@@ -592,48 +615,6 @@ CREATE TABLE IF NOT EXISTS notifications (
 	}
 
 	if err := execMigration(`
-CREATE TABLE IF NOT EXISTS notifications (
-
-    id SERIAL PRIMARY KEY,
-
-    sender_id INTEGER NOT NULL,
-
-    receiver_id INTEGER NOT NULL,
-
-    post_id INTEGER,
-
-    comment_id INTEGER,
-
-    type TEXT NOT NULL,
-
-    message TEXT,
-
-    is_read BOOLEAN DEFAULT FALSE,
-
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    FOREIGN KEY(sender_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-
-    FOREIGN KEY(receiver_id)
-        REFERENCES users(id)
-        ON DELETE CASCADE,
-
-    FOREIGN KEY(post_id)
-        REFERENCES posts(id)
-        ON DELETE CASCADE,
-
-    FOREIGN KEY(comment_id)
-        REFERENCES comments(id)
-        ON DELETE CASCADE
-
-);
-`); err != nil {
-		return err
-	}
-
-	if err := execMigration(`
 	CREATE TABLE IF NOT EXISTS friend_requests (
 
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -736,6 +717,21 @@ CREATE TABLE IF NOT EXISTS conversations (
 		return err
 	}
 
+	for _, colQ := range []string{
+		`ALTER TABLE conversations ADD COLUMN category TEXT DEFAULT 'general'`,
+		`ALTER TABLE conversations ADD COLUMN description TEXT DEFAULT ''`,
+		`ALTER TABLE conversations ADD COLUMN avatar_url TEXT DEFAULT ''`,
+		`ALTER TABLE conversations ADD COLUMN call_permission TEXT DEFAULT 'all'`,
+		`ALTER TABLE conversations ADD COLUMN is_public INTEGER DEFAULT 1`,
+		`ALTER TABLE conversations ADD COLUMN join_policy TEXT DEFAULT 'approval'`,
+		`ALTER TABLE conversations ADD COLUMN last_message_at DATETIME`,
+		`ALTER TABLE conversations ADD COLUMN updated_at DATETIME`,
+	} {
+		if err := addColumn(colQ); err != nil {
+			return err
+		}
+	}
+
 	if err := execMigration(`
 CREATE TABLE IF NOT EXISTS conversation_members (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -795,6 +791,23 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 `); err != nil {
 		return err
+	}
+
+	for _, colQ := range []string{
+		`ALTER TABLE messages ADD COLUMN client_message_id TEXT`,
+		`ALTER TABLE messages ADD COLUMN reply_to_message_id INTEGER`,
+		`ALTER TABLE messages ADD COLUMN is_edited BOOLEAN DEFAULT 0`,
+		`ALTER TABLE messages ADD COLUMN is_deleted BOOLEAN DEFAULT 0`,
+		`ALTER TABLE messages ADD COLUMN deleted_by INTEGER`,
+		`ALTER TABLE messages ADD COLUMN deleted_at DATETIME`,
+		`ALTER TABLE messages ADD COLUMN attachment_url TEXT`,
+		`ALTER TABLE messages ADD COLUMN attachment_name TEXT`,
+		`ALTER TABLE messages ADD COLUMN attachment_size INTEGER DEFAULT 0`,
+		`ALTER TABLE messages ADD COLUMN attachment_type TEXT`,
+	} {
+		if err := addColumn(colQ); err != nil {
+			return err
+		}
 	}
 
 	if err := execMigration(`
@@ -986,9 +999,12 @@ func seedDefaultCommunityGroups() error {
 
 	var firstUserID int
 	err := DB.QueryRow("SELECT id FROM users ORDER BY id ASC LIMIT 1").Scan(&firstUserID)
-	if err != nil {
-		// No users yet, skip seeding for now
+	if err == sql.ErrNoRows {
+		// No users yet, skip seeding until initial user signs up
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("failed querying initial user for default groups: %w", err)
 	}
 
 	type defaultGroup struct {
@@ -1022,18 +1038,27 @@ func seedDefaultCommunityGroups() error {
 
 	for _, g := range groups {
 		var exists int
-		_ = DB.QueryRow("SELECT COUNT(*) FROM conversations WHERE type = 'group' AND title = ?", g.title).Scan(&exists)
+		if err := DB.QueryRow("SELECT COUNT(*) FROM conversations WHERE type = 'group' AND title = ?", g.title).Scan(&exists); err != nil {
+			return fmt.Errorf("failed checking group existence for %q: %w", g.title, err)
+		}
 		if exists == 0 {
 			res, err := DB.Exec(`
 				INSERT INTO conversations (type, title, category, description, call_permission, is_public, created_by, created_at, updated_at)
 				VALUES ('group', ?, ?, ?, 'all', 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 			`, g.title, g.category, g.description, firstUserID)
-			if err == nil {
-				if convID, err := res.LastInsertId(); err == nil && convID > 0 {
-					_, _ = DB.Exec(`
-						INSERT INTO conversation_members (conversation_id, user_id, role, joined_at)
-						VALUES (?, ?, 'owner', CURRENT_TIMESTAMP)
-					`, convID, firstUserID)
+			if err != nil {
+				return fmt.Errorf("failed inserting community group %q: %w", g.title, err)
+			}
+			convID, err := res.LastInsertId()
+			if err != nil {
+				return fmt.Errorf("failed getting last insert id for group %q: %w", g.title, err)
+			}
+			if convID > 0 {
+				if _, err := DB.Exec(`
+					INSERT INTO conversation_members (conversation_id, user_id, role, joined_at)
+					VALUES (?, ?, 'owner', CURRENT_TIMESTAMP)
+				`, convID, firstUserID); err != nil {
+					return fmt.Errorf("failed inserting owner member for group %q: %w", g.title, err)
 				}
 			}
 		}
@@ -1108,6 +1133,7 @@ func migrateUserProfileColumns() error {
 		`ALTER TABLE users ADD COLUMN mission TEXT`,
 		`ALTER TABLE users ADD COLUMN vision TEXT`,
 		`ALTER TABLE users ADD COLUMN favorite_quote TEXT`,
+		`ALTER TABLE users ADD COLUMN updated_at DATETIME`,
 	}
 
 	for _, query := range queries {
@@ -1208,16 +1234,24 @@ func migrateLiveProgrammesTables() error {
 
 func migrateGroupGovernanceAndModeration() error {
 	// 1. Add join_policy to conversations
-	_ = addColumn(`ALTER TABLE conversations ADD COLUMN join_policy TEXT DEFAULT 'approval'`)
+	if err := addColumn(`ALTER TABLE conversations ADD COLUMN join_policy TEXT DEFAULT 'approval'`); err != nil {
+		return fmt.Errorf("failed adding join_policy column: %w", err)
+	}
 
 	// 2. Ensure existing group 2 ("Youth General Community") has open join policy, preserving other groups
 	if DB != nil {
-		_, _ = DB.Exec(`UPDATE conversations SET join_policy = 'open' WHERE id = 2 AND (join_policy IS NULL OR join_policy = '' OR join_policy = 'approval')`)
+		if _, err := DB.Exec(`UPDATE conversations SET join_policy = 'open' WHERE id = 2 AND (join_policy IS NULL OR join_policy = '' OR join_policy = 'approval')`); err != nil {
+			return fmt.Errorf("failed setting group 2 join policy: %w", err)
+		}
 	}
 
 	// 3. Add moderation columns to messages
-	_ = addColumn(`ALTER TABLE messages ADD COLUMN deleted_by INTEGER`)
-	_ = addColumn(`ALTER TABLE messages ADD COLUMN deleted_at DATETIME`)
+	if err := addColumn(`ALTER TABLE messages ADD COLUMN deleted_by INTEGER`); err != nil {
+		return fmt.Errorf("failed adding deleted_by column: %w", err)
+	}
+	if err := addColumn(`ALTER TABLE messages ADD COLUMN deleted_at DATETIME`); err != nil {
+		return fmt.Errorf("failed adding deleted_at column: %w", err)
+	}
 
 	// 4. Create group_membership_requests table and indexes
 	queries := []string{
@@ -1247,7 +1281,7 @@ func migrateGroupGovernanceAndModeration() error {
 
 	// 5. Reconcile group administrators: ensure every group has at least one administrator (owner or admin)
 	if DB != nil {
-		_, _ = DB.Exec(`
+		if _, err := DB.Exec(`
 			INSERT INTO conversation_members (conversation_id, user_id, role, joined_at)
 			SELECT c.id, c.created_by, 'owner', CURRENT_TIMESTAMP
 			FROM conversations c
@@ -1257,7 +1291,9 @@ func migrateGroupGovernanceAndModeration() error {
 				  WHERE cm.conversation_id = c.id AND cm.role IN ('owner', 'admin')
 			  )
 			  AND EXISTS (SELECT 1 FROM users u WHERE u.id = c.created_by)
-		`)
+		`); err != nil {
+			return fmt.Errorf("failed reconciling group administrators: %w", err)
+		}
 	}
 
 	return nil

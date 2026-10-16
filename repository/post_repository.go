@@ -16,7 +16,7 @@ func CreatePost(post *models.Post) error {
 		video,
 		visibility
 	)
-	VALUES(?,?,?,?,?)
+	VALUES($1, $2, $3, $4, $5)
 	`
 
 	_, err := database.DB.Exec(
@@ -143,7 +143,7 @@ func GetPostsByUser(userID int) ([]models.Post, error) {
 	FROM posts p
 	INNER JOIN users u
 		ON p.user_id = u.id
-	WHERE p.user_id = ?
+	WHERE p.user_id = $1
 	ORDER BY p.created_at DESC
 	`
 

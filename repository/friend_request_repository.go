@@ -44,7 +44,7 @@ func SendFriendRequest(senderID, receiverID int) error {
 		receiver_id,
 		status
 	)
-	VALUES(?,?,?)
+	VALUES($1,$2,$3)
 	`
 
 	_, err = database.DB.Exec(
@@ -74,7 +74,7 @@ func AcceptFriendRequest(requestID int) error {
 		sender_id,
 		receiver_id
 	FROM friend_requests
-	WHERE id = ?
+	WHERE id = $1
 	AND status = 'pending'
 	`,
 		requestID,
@@ -96,7 +96,7 @@ func AcceptFriendRequest(requestID int) error {
 		user1_id,
 		user2_id
 	)
-	VALUES(?,?)
+	VALUES($1,$2)
 	`,
 		senderID,
 		receiverID,
@@ -111,7 +111,7 @@ func AcceptFriendRequest(requestID int) error {
 	SET
 		status='accepted',
 		updated_at=CURRENT_TIMESTAMP
-	WHERE id=?
+	WHERE id=$1
 	`,
 		requestID,
 	)
@@ -130,7 +130,7 @@ func DeclineFriendRequest(requestID int) error {
 	SET
 		status='declined',
 		updated_at=CURRENT_TIMESTAMP
-	WHERE id=?
+	WHERE id=$1
 	AND status='pending'
 	`,
 		requestID,
@@ -157,9 +157,9 @@ func CancelFriendRequest(senderID, receiverID int) error {
 		status='cancelled',
 		updated_at=CURRENT_TIMESTAMP
 	WHERE
-		sender_id=?
+		sender_id=$1
 	AND
-		receiver_id=?
+		receiver_id=$2
 	AND
 		status='pending'
 	`,
@@ -202,7 +202,7 @@ func GetIncomingRequests(userID int) ([]models.FriendRequest, error) {
 		ON fr.sender_id=u.id
 
 	WHERE
-		fr.receiver_id=?
+		fr.receiver_id=$1
 	AND
 		fr.status='pending'
 
@@ -272,7 +272,7 @@ func GetOutgoingRequests(userID int) ([]models.FriendRequest, error) {
 		ON fr.receiver_id=u.id
 
 	WHERE
-		fr.sender_id=?
+		fr.sender_id=$1
 	AND
 		fr.status='pending'
 

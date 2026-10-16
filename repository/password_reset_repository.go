@@ -11,7 +11,7 @@ import (
 func CreatePasswordReset(reset *models.PasswordReset) error {
 	query := `
 	INSERT INTO password_resets (user_id, email, token_hash, expires_at, used, created_at)
-	VALUES (?, ?, ?, ?, ?, ?)
+	VALUES ($1, $2, $3, $4, $5, $6)
 	`
 	if reset.CreatedAt.IsZero() {
 		reset.CreatedAt = time.Now()
@@ -28,8 +28,10 @@ func CreatePasswordReset(reset *models.PasswordReset) error {
 	if err != nil {
 		return err
 	}
-	if id, err := res.LastInsertId(); err == nil {
+	if id, err := res.LastInsertId(); err == nil && id > 0 {
 		reset.ID = int(id)
+	} else {
+		_ = database.DB.QueryRow("SELECT id FROM password_resets WHERE token_hash = $1", reset.TokenHash).Scan(&reset.ID)
 	}
 	return nil
 }
@@ -38,7 +40,7 @@ func GetValidPasswordResetByTokenHash(tokenHash string) (*models.PasswordReset, 
 	query := `
 	SELECT id, user_id, email, token_hash, expires_at, used, created_at
 	FROM password_resets
-	WHERE token_hash = ? AND used = 0 AND expires_at > ?
+	WHERE token_hash = $1 AND used = 0 AND expires_at > $2
 	ORDER BY id DESC
 	LIMIT 1
 	`
@@ -72,7 +74,7 @@ func UpdateUserPasswordAndInvalidateReset(userID int, newPasswordHash string, to
 	err = tx.QueryRow(`
 		SELECT id, used, expires_at 
 		FROM password_resets 
-		WHERE token_hash = ?
+		WHERE token_hash = $1
 	`, tokenHash).Scan(&resetID, &used, &expiresAt)
 	if err != nil {
 		return err
@@ -88,7 +90,7 @@ func UpdateUserPasswordAndInvalidateReset(userID int, newPasswordHash string, to
 	_, err = tx.Exec(`
 		UPDATE password_resets 
 		SET used = 1 
-		WHERE id = ?
+		WHERE id = $1
 	`, resetID)
 	if err != nil {
 		return err
@@ -96,9 +98,9 @@ func UpdateUserPasswordAndInvalidateReset(userID int, newPasswordHash string, to
 
 	// 3. Update user password
 	_, err = tx.Exec(`
-		UPDATE users 
-		SET password_hash = ?, updated_at = ? 
-		WHERE id = ?
+		UPDATE users
+		SET password_hash = $1, updated_at = $2
+		WHERE id = $3
 	`, newPasswordHash, time.Now(), userID)
 	if err != nil {
 		return err
@@ -110,9 +112,9 @@ func UpdateUserPasswordAndInvalidateReset(userID int, newPasswordHash string, to
 func CountRecentResetsByEmail(email string, window time.Duration) (int, error) {
 	since := time.Now().Add(-window)
 	query := `
-	SELECT COUNT(*) 
-	FROM password_resets 
-	WHERE LOWER(email) = LOWER(?) AND created_at >= ?
+	SELECT COUNT(*)
+	FROM password_resets
+	WHERE LOWER(email) = LOWER($1) AND created_at >= $2
 	`
 	var count int
 	err := database.DB.QueryRow(query, email, since).Scan(&count)

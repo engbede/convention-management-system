@@ -18,7 +18,7 @@ func AddReaction(
 		user_id,
 		reaction
 	)
-	VALUES (?, ?, ?)
+	VALUES ($1, $2, $3)
 	`
 
 	_, err := database.DB.Exec(
@@ -40,9 +40,9 @@ func UpdateReaction(
 
 	query := `
 	UPDATE reactions
-	SET reaction = ?
-	WHERE post_id = ?
-	AND user_id = ?
+	SET reaction = $1
+	WHERE post_id = $2
+	AND user_id = $3
 	`
 
 	_, err := database.DB.Exec(
@@ -63,8 +63,8 @@ func RemoveReaction(
 
 	query := `
 	DELETE FROM reactions
-	WHERE post_id = ?
-	AND user_id = ?
+	WHERE post_id = $1
+	AND user_id = $2
 	`
 
 	_, err := database.DB.Exec(
@@ -87,8 +87,8 @@ func GetReaction(
 	query := `
 	SELECT reaction
 	FROM reactions
-	WHERE post_id = ?
-	AND user_id = ?
+	WHERE post_id = $1
+	AND user_id = $2
 	`
 
 	err := database.DB.QueryRow(
@@ -111,8 +111,8 @@ func CountReactionType(
 	query := `
 	SELECT COUNT(*)
 	FROM reactions
-	WHERE post_id = ?
-	AND reaction = ?
+	WHERE post_id = $1
+	AND reaction = $2
 	`
 
 	err := database.DB.QueryRow(
@@ -152,7 +152,7 @@ func GetPostReactionCounts(postID int) (map[string]int, int, error) {
 	query := `
 		SELECT reaction, COUNT(*)
 		FROM reactions
-		WHERE post_id = ?
+		WHERE post_id = $1
 		GROUP BY reaction
 	`
 	rows, err := database.DB.Query(query, postID)
@@ -182,10 +182,10 @@ func GetTopReactionCounts(postID int, limit int) ([]models.ReactionCountItem, er
 	query := `
 		SELECT reaction, COUNT(*) as c
 		FROM reactions
-		WHERE post_id = ?
+		WHERE post_id = $1
 		GROUP BY reaction
 		ORDER BY c DESC, reaction ASC
-		LIMIT ?
+		LIMIT $2
 	`
 	rows, err := database.DB.Query(query, postID, limit)
 	if err != nil {
@@ -218,9 +218,9 @@ func GetReactionUsersForPost(postID int, limit int) ([]models.ReactionUserDetail
 		SELECT u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''), r.reaction
 		FROM reactions r
 		JOIN users u ON r.user_id = u.id
-		WHERE r.post_id = ?
+		WHERE r.post_id = $1
 		ORDER BY r.created_at DESC
-		LIMIT ?
+		LIMIT $2
 	`
 	rows, err := database.DB.Query(query, postID, limit)
 	if err != nil {
@@ -252,7 +252,7 @@ func CountReactions(
 	query := `
 	SELECT COUNT(*)
 	FROM reactions
-	WHERE post_id = ?
+	WHERE post_id = $1
 	`
 
 	err := database.DB.QueryRow(
@@ -277,7 +277,7 @@ func GetPostReactions(
 		reaction,
 		created_at
 	FROM reactions
-	WHERE post_id = ?
+	WHERE post_id = $1
 	ORDER BY created_at ASC
 	`
 

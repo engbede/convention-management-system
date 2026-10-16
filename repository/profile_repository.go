@@ -69,7 +69,7 @@ func GetUserProfile(userID int) (*models.User, error) {
 
 	FROM users
 
-	WHERE id = ?
+	WHERE id = $1
 	`
 
 	var user models.User
@@ -172,47 +172,47 @@ func UpdateUserProfile(user *models.User) error {
 	UPDATE users
 	SET
 
-	bio=?,
-	gender=?,
-	birth_date=?,
-	occupation=?,
+	bio=$1,
+	gender=$2,
+	birth_date=$3,
+	occupation=$4,
 
-	location=?,
-	state=?,
-	country=?,
-	website=?,
+	location=$5,
+	state=$6,
+	country=$7,
+	website=$8,
 
-	church_name=?,
-	circuit=?,
-	local_church=?,
-	department=?,
-	position=?,
+	church_name=$9,
+	circuit=$10,
+	local_church=$11,
+	department=$12,
+	position=$13,
 
-	favorite_bible_verse=?,
-	life_verse=?,
-	salvation_testimony=?,
-	calling=?,
-	spiritual_gifts=?,
+	favorite_bible_verse=$14,
+	life_verse=$15,
+	salvation_testimony=$16,
+	calling=$17,
+	spiritual_gifts=$18,
 
-	water_baptized=?,
-	holy_spirit_baptized=?,
+	water_baptized=$19,
+	holy_spirit_baptized=$20,
 
-	favorite_preacher=?,
-	favorite_christian_book=?,
-	favorite_worship_song=?,
-	favorite_gospel_artist=?,
+	favorite_preacher=$21,
+	favorite_christian_book=$22,
+	favorite_worship_song=$23,
+	favorite_gospel_artist=$24,
 
-	hobbies=?,
-	skills=?,
-	languages=?,
+	hobbies=$25,
+	skills=$26,
+	languages=$27,
 
-	mission=?,
-	vision=?,
-	favorite_quote=?,
+	mission=$28,
+	vision=$29,
+	favorite_quote=$30,
 
 	updated_at=CURRENT_TIMESTAMP
 
-	WHERE id=?
+	WHERE id=$31
 	`
 
 	_, err := database.DB.Exec(
@@ -271,9 +271,9 @@ func UpdateProfilePhoto(
 	query := `
 	UPDATE users
 	SET
-		profile_photo = ?,
+		profile_photo = $1,
 		updated_at = CURRENT_TIMESTAMP
-	WHERE id = ?
+	WHERE id = $2
 	`
 
 	_, err := database.DB.Exec(
@@ -293,9 +293,9 @@ func UpdateCoverPhoto(
 	query := `
 	UPDATE users
 	SET
-		cover_photo = ?,
+		cover_photo = $1,
 		updated_at = CURRENT_TIMESTAMP
-	WHERE id = ?
+	WHERE id = $2
 	`
 
 	_, err := database.DB.Exec(
@@ -314,10 +314,10 @@ func GetProfilePhotos(userID int) (string, string, error) {
 
 	query := `
 	SELECT
-		profile_photo,
-		cover_photo
+		COALESCE(profile_photo, ''),
+		COALESCE(cover_photo, '')
 	FROM users
-	WHERE id = ?
+	WHERE id = $1
 	`
 
 	err := database.DB.QueryRow(query, userID).Scan(

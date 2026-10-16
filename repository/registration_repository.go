@@ -383,21 +383,21 @@ func GetDashboardStats() (models.DashboardStats, error) {
 		SELECT
 			COUNT(*),
 
-			COALESCE(SUM(CASE WHEN gender = 'Male' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(TRIM(gender)) = 'male' THEN 1 ELSE 0 END), 0),
 
-			COALESCE(SUM(CASE WHEN gender = 'Female' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(TRIM(gender)) = 'female' THEN 1 ELSE 0 END), 0),
 
-			COALESCE(SUM(CASE WHEN membership = 'Member' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(TRIM(membership)) = 'member' THEN 1 ELSE 0 END), 0),
 
-			COALESCE(SUM(CASE WHEN membership = 'Non-Member' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(TRIM(membership)) IN ('non member', 'non-member') THEN 1 ELSE 0 END), 0),
 
 			COALESCE(SUM(CASE WHEN first_time_attendee = TRUE THEN 1 ELSE 0 END), 0),
 
-			COALESCE(SUM(CASE WHEN marital_status = 'Married' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(TRIM(marital_status)) = 'married' THEN 1 ELSE 0 END), 0),
 
-			COALESCE(SUM(CASE WHEN marital_status = 'Single' THEN 1 ELSE 0 END), 0),
+			COALESCE(SUM(CASE WHEN LOWER(TRIM(marital_status)) = 'single' THEN 1 ELSE 0 END), 0),
 
-			COALESCE(SUM(CASE WHEN marital_status = 'Divorce' THEN 1 ELSE 0 END), 0)
+			COALESCE(SUM(CASE WHEN LOWER(TRIM(marital_status)) IN ('divorced', 'divorce') THEN 1 ELSE 0 END), 0)
 
 		FROM registrations
 		WHERE convention_id = $1
