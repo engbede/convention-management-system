@@ -461,3 +461,29 @@ func GetRegistrationsByCircuit() ([]models.CircuitStat, error) {
 
 	return circuits, nil
 }
+
+// AssignNextBibleStudyGroup deterministically and concurrency-safely assigns a new registrant
+// to the least-populated Bible study group (1 through 15) for the active convention.
+func AssignNextBibleStudyGroup(conventionID int) (int, error) {
+	query := `
+	SELECT g.grp
+	FROM (
+		SELECT 1 AS grp UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4 UNION ALL SELECT 5
+		UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9 UNION ALL SELECT 10
+		UNION ALL SELECT 11 UNION ALL SELECT 12 UNION ALL SELECT 13 UNION ALL SELECT 14 UNION ALL SELECT 15
+	) g
+	LEFT JOIN registrations r ON r.bible_study_group = g.grp AND r.convention_id = $1
+	GROUP BY g.grp
+	ORDER BY COUNT(r.id) ASC, g.grp ASC
+	LIMIT 1
+	`
+	var group int
+	err := database.DB.QueryRow(query, conventionID).Scan(&group)
+	if err != nil {
+		return 1, err
+	}
+	if group < 1 || group > 15 {
+		return 1, nil
+	}
+	return group, nil
+}

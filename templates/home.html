@@ -3,40 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{if .Convention}}{{.Convention.Name}} | {{end}}Apa Diocesan Youth Fellowship</title>
+    <title>{{if .Convention}}{{.Convention.Name}} | {{end}}Apa Diocesan Youth Fellowship &bull; Methodist Church Nigeria</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="/static/style.css">
     <style>
-        .home-hero {
-            background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 50%, #0a58ca 100%);
-            color: #ffffff;
-            border-bottom: 4px solid #198754;
+        :root {
+            --church-dark-green: #1b382b;
+            --church-charcoal: #1a2b22;
+            --church-gold: #c59b27;
+            --church-warm-ivory: #fbfaf7;
+            --church-card-bg: #ffffff;
+            --church-border: #e8e4dc;
+            --church-muted: #5e6d63;
         }
-        .feature-card {
+        body {
+            background-color: var(--church-warm-ivory);
+            color: var(--church-charcoal);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .church-nav {
+            background: linear-gradient(135deg, #1b382b 0%, #12241c 100%);
+            border-bottom: 3px solid var(--church-gold);
+        }
+        .home-hero {
+            background: linear-gradient(135deg, #1b382b 0%, #162d22 60%, #0f1d16 100%);
+            color: #ffffff;
+            border-bottom: 3px solid var(--church-gold);
+        }
+        .hero-title {
+            color: #ffffff;
+            letter-spacing: -0.02em;
+        }
+        .gold-accent {
+            color: var(--church-gold);
+        }
+        .gold-pill {
+            background-color: #fdf6e2;
+            color: #8c6b12;
+            border: 1px solid #eed690;
+            font-weight: 600;
+        }
+        .church-card {
+            background: var(--church-card-bg);
+            border: 1px solid var(--church-border);
+            border-radius: 1rem;
+            box-shadow: 0 6px 20px rgba(27, 56, 43, 0.05);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
-        .feature-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.12) !important;
+        .church-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 28px rgba(27, 56, 43, 0.1);
+        }
+        .btn-gold {
+            background-color: var(--church-gold);
+            color: #1a2b22;
+            border: 1px solid var(--church-gold);
+            font-weight: 700;
+        }
+        .btn-gold:hover {
+            background-color: #b0891f;
+            color: #ffffff;
+        }
+        .btn-church-dark {
+            background-color: var(--church-dark-green);
+            color: #ffffff;
+            border: 1px solid var(--church-dark-green);
+            font-weight: 600;
+        }
+        .btn-church-dark:hover {
+            background-color: #12241c;
+            color: #ffffff;
+        }
+        .btn-live-pulse {
+            background-color: #c59b27;
+            color: #1a2b22;
+            font-weight: 700;
+            border: 1px solid #c59b27;
+            box-shadow: 0 4px 15px rgba(197, 155, 39, 0.35);
+        }
+        .btn-live-pulse:hover {
+            background-color: #b0891f;
+            color: #ffffff;
         }
         .nav-avatar-pill {
             width: 32px;
             height: 32px;
             font-size: 0.85rem;
         }
+        .stat-icon-box {
+            width: 52px;
+            height: 52px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background-color: #f4fbf7;
+            color: var(--church-dark-green);
+            font-size: 1.4rem;
+        }
     </style>
 </head>
-<body class="bg-light d-flex flex-column min-vh-100">
+<body>
 
 <!-- STATE-AWARE RESPONSIVE NAVBAR -->
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm sticky-top" role="navigation" aria-label="Main Navigation">
+<nav class="church-nav navbar navbar-expand-lg navbar-dark shadow-sm sticky-top" role="navigation" aria-label="Main Navigation">
     <div class="container">
         <!-- Brand -->
         <a class="navbar-brand fw-bold d-flex align-items-center gap-2" href="/">
-            <i class="bi bi-shield-check fs-4 text-warning"></i>
-            <span class="d-none d-sm-inline">Methodist Church Nigeria</span>
-            <span class="d-inline d-sm-none">MCN Youth</span>
+            <i class="bi bi-shield-check fs-4 gold-accent"></i>
+            <div>
+                <span class="d-none d-sm-inline">Methodist Church Nigeria</span>
+                <span class="d-inline d-sm-none">MCN Youth</span>
+                <div class="small text-white-50 fw-normal" style="font-size: 0.75rem;">Apa Diocesan Youth Fellowship</div>
+            </div>
         </a>
 
         <!-- Mobile Toggler -->
@@ -47,20 +130,20 @@
         <!-- Navbar Content -->
         <div class="collapse navbar-collapse" id="mainNavbar">
             <!-- Left / Center Links -->
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center ms-lg-3">
                 <li class="nav-item">
-                    <a class="nav-link active" href="/" aria-current="page">
+                    <a class="nav-link active fw-semibold" href="/" aria-current="page">
                         <i class="bi bi-house-door me-1"></i> Home
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link fw-semibold" href="/live">
+                        <i class="bi bi-broadcast gold-accent me-1"></i> Live Programme
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="#conventions">
                         <i class="bi bi-calendar-event me-1"></i> Conventions
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="/programmes">
-                        <i class="bi bi-broadcast me-1 text-warning"></i> Live & Programmes
                     </a>
                 </li>
                 <li class="nav-item">
@@ -75,7 +158,7 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="/contact">
-                        <i class="bi bi-envelope me-1"></i> Contact Us
+                        <i class="bi bi-envelope me-1"></i> Contact
                     </a>
                 </li>
             </ul>
@@ -85,23 +168,18 @@
                 {{if .IsAdmin}}
                     <!-- SIGNED IN ADMINISTRATOR -->
                     <li class="nav-item">
-                        <span class="badge bg-warning text-dark px-2 py-1 rounded-pill small">
+                        <span class="badge gold-pill px-2 py-1 rounded-pill small">
                             <i class="bi bi-shield-lock-fill me-1"></i> Admin Session
                         </span>
                     </li>
                     <li class="nav-item">
-                        <a class="btn btn-light btn-sm rounded-pill px-3 fw-semibold text-primary" href="/dashboard">
+                        <a class="btn btn-light btn-sm rounded-pill px-3 fw-semibold text-dark" href="/dashboard">
                             <i class="bi bi-speedometer2 me-1"></i> Admin Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="btn btn-outline-light btn-sm rounded-pill px-3" href="/registrations">
-                            <i class="bi bi-people me-1"></i> Registrations
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="btn btn-outline-warning btn-sm rounded-pill px-3 text-white" href="/logout" title="Sign out of Administrator Session">
-                            <i class="bi bi-box-arrow-right me-1"></i> Admin Logout
+                        <a class="btn btn-outline-light btn-sm rounded-pill px-3 text-white" href="/logout" title="Sign out of Administrator Session">
+                            <i class="bi bi-box-arrow-right me-1"></i> Logout
                         </a>
                     </li>
                 {{else if .IsLoggedIn}}
@@ -146,7 +224,6 @@
                             <li><a class="dropdown-item py-2" href="/profile"><i class="bi bi-person me-2 text-primary"></i> My Profile</a></li>
                             <li><a class="dropdown-item py-2" href="/community"><i class="bi bi-people me-2 text-success"></i> Community Feed</a></li>
                             <li><a class="dropdown-item py-2" href="/messages"><i class="bi bi-chat-text me-2 text-info"></i> Messages & Calling</a></li>
-                            <li><a class="dropdown-item py-2" href="/notifications"><i class="bi bi-bell me-2 text-warning"></i> Notifications</a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item py-2 text-danger" href="/community/logout"><i class="bi bi-box-arrow-right me-2"></i> Log Out</a></li>
                         </ul>
@@ -159,18 +236,14 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="btn btn-warning btn-sm rounded-pill px-3 fw-bold shadow-sm text-dark" href="/signup">
+                        <a class="btn btn-gold btn-sm rounded-pill px-3 shadow-sm" href="/signup">
                             <i class="bi bi-person-plus me-1"></i> Create Account
                         </a>
                     </li>
-                    <li class="nav-item dropdown ms-lg-1">
-                        <a class="btn btn-outline-light btn-sm rounded-pill px-3 dropdown-toggle" href="#" id="adminPortalDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-shield-lock me-1"></i> Admin
+                    <li class="nav-item ms-lg-1">
+                        <a class="btn btn-outline-light btn-sm rounded-pill px-3" href="/login">
+                            <i class="bi bi-shield-lock me-1"></i> Admin Portal
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 mt-2" aria-labelledby="adminPortalDropdown">
-                            <li><a class="dropdown-item py-2" href="/login"><i class="bi bi-key me-2 text-primary"></i> Administrator Login</a></li>
-                            <li><a class="dropdown-item py-2" href="/dashboard"><i class="bi bi-speedometer2 me-2 text-secondary"></i> Admin Dashboard</a></li>
-                        </ul>
                     </li>
                 {{end}}
             </ul>
@@ -178,55 +251,45 @@
     </div>
 </nav>
 
-<!-- HERO SECTION WITH ACTIONABLE CTAS -->
+<!-- HERO SECTION -->
 <header class="home-hero py-5 text-center position-relative">
     <div class="container py-4">
         <div class="row justify-content-center">
             <div class="col-lg-9">
-                <div class="mb-4">
-                    <img src="/static/images/youth_logo.png" class="home-logo shadow-sm rounded-circle p-1 bg-white" alt="Methodist Youth Fellowship Logo" style="width: 100px; height: 100px; object-fit: contain;" onerror="this.style.display='none'">
+                <div class="mb-3">
+                    <span class="badge gold-pill px-3 py-1 rounded-pill small fw-bold text-uppercase">
+                        Official Diocesan Youth Platform
+                    </span>
                 </div>
-                <h1 class="display-5 fw-bold mb-3 tracking-tight">
+                <h1 class="display-5 fw-bold mb-3 hero-title">
                     APA DIOCESAN YOUTH FELLOWSHIP
                 </h1>
-                <p class="lead mb-4 text-white text-opacity-90 mx-auto" style="max-width: 680px;">
-                    Welcome to the official digital hub for Methodist Church Nigeria youth. Register for annual conventions, fellowship with brothers and sisters, and stay updated with diocesan notices.
+                <p class="lead mb-4 text-white text-opacity-90 mx-auto" style="max-width: 700px; font-weight: 300;">
+                    Methodist Church Nigeria &bull; Diocese of Apa. Uniting Christian youth across all circuits through faith, annual conventions, spiritual fellowship, and digital community.
                 </p>
 
-                <!-- CONTEXT-SENSITIVE CALLS TO ACTION -->
+                <!-- CALLS TO ACTION -->
                 <div class="d-flex flex-wrap justify-content-center gap-3 pt-2">
+                    <!-- Prominent Public Live Viewing CTA -->
+                    <a href="/live" class="btn btn-live-pulse btn-lg rounded-pill px-4 shadow">
+                        <i class="bi bi-broadcast me-2"></i> View Live Programme
+                    </a>
+
+                    <a href="/register" class="btn btn-light btn-lg rounded-pill px-4 shadow text-dark fw-bold">
+                        <i class="bi bi-pencil-square me-2 text-success"></i> Register for Convention
+                    </a>
+
                     {{if .IsAdmin}}
-                        <a href="/dashboard" class="btn btn-light btn-lg rounded-pill px-4 shadow text-primary fw-bold">
-                            <i class="bi bi-speedometer2 me-2"></i> Go to Admin Dashboard
-                        </a>
-                        <a href="/registrations" class="btn btn-outline-light btn-lg rounded-pill px-4 shadow-sm">
-                            <i class="bi bi-people me-2"></i> View Registrations
-                        </a>
-                        <a href="/conventions" class="btn btn-outline-light btn-lg rounded-pill px-4 shadow-sm">
-                            <i class="bi bi-calendar-event me-2"></i> Manage Conventions
+                        <a href="/dashboard" class="btn btn-outline-light btn-lg rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-speedometer2 me-2 gold-accent"></i> Go to Admin Dashboard
                         </a>
                     {{else if .IsLoggedIn}}
-                        <a href="/community" class="btn btn-success btn-lg rounded-pill px-4 shadow fw-bold">
-                            <i class="bi bi-people-fill me-2"></i> Open Community Feed
-                        </a>
-                        <a href="/messages" class="btn btn-light btn-lg rounded-pill px-4 shadow text-primary fw-bold">
-                            <i class="bi bi-chat-dots-fill me-2"></i> Youth Chat & Calling
-                        </a>
-                        <a href="/register" class="btn btn-outline-light btn-lg rounded-pill px-4 shadow-sm">
-                            <i class="bi bi-pencil-square me-2"></i> Convention Registration
+                        <a href="/community" class="btn btn-outline-light btn-lg rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-people-fill me-2 gold-accent"></i> Open Community
                         </a>
                     {{else}}
-                        <a href="/register" class="btn btn-success btn-lg rounded-pill px-4 shadow fw-bold">
-                            <i class="bi bi-pencil-square me-2"></i> Register for Convention
-                        </a>
-                        <a href="/signup" class="btn btn-warning btn-lg rounded-pill px-4 shadow text-dark fw-bold">
-                            <i class="bi bi-person-plus-fill me-2"></i> Join Youth Community
-                        </a>
-                        <a href="#conventions" class="btn btn-outline-light btn-lg rounded-pill px-4 shadow-sm">
-                            <i class="bi bi-calendar-event me-2"></i> View Conventions
-                        </a>
-                        <a href="/community/login" class="btn btn-outline-light btn-lg rounded-pill px-4 shadow-sm">
-                            <i class="bi bi-box-arrow-in-right me-2"></i> Member Login
+                        <a href="/signup" class="btn btn-outline-light btn-lg rounded-pill px-4 shadow-sm">
+                            <i class="bi bi-person-plus-fill me-2 gold-accent"></i> Join Youth Fellowship
                         </a>
                     {{end}}
                 </div>
@@ -237,12 +300,12 @@
 
 <!-- NOTICE BOARD (PINNED & ACTIVE ANNOUNCEMENTS) -->
 {{if .Notices}}
-<section class="container mt-n4 position-relative" style="margin-top: -1.5rem;" id="notices" aria-label="Notice Board">
-    <div class="alert alert-warning shadow-lg border-0 rounded-4 p-4">
+<section class="container mt-n4 position-relative" style="margin-top: -1.75rem;" id="notices" aria-label="Notice Board">
+    <div class="card border-0 rounded-4 p-4 shadow-sm" style="background-color: #fdfaf2; border: 1.5px solid #ecd8a5 !important;">
         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 border-bottom pb-2 border-warning border-opacity-50">
-            <h4 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2">
+            <h5 class="mb-0 fw-bold d-flex align-items-center gap-2" style="color: var(--church-dark-green);">
                 <i class="bi bi-megaphone-fill text-danger"></i> Official Diocesan Notice Board
-            </h4>
+            </h5>
             <a href="/announcements" class="btn btn-sm btn-outline-dark rounded-pill px-3">
                 View All Notices <i class="bi bi-arrow-right ms-1"></i>
             </a>
@@ -250,9 +313,9 @@
         <div class="row g-3">
             {{range .Notices}}
                 <div class="col-12 col-md-6">
-                    <div class="bg-white bg-opacity-75 p-3 rounded-3 border border-warning border-opacity-25 h-100">
+                    <div class="bg-white p-3 rounded-3 border border-warning border-opacity-25 h-100">
                         <div class="d-flex align-items-center justify-content-between mb-1">
-                            <strong class="text-dark">{{.Title}}</strong>
+                            <strong style="color: var(--church-dark-green);">{{.Title}}</strong>
                             {{if .Pinned}}
                                 <span class="badge bg-danger rounded-pill small">
                                     <i class="bi bi-pin-angle-fill me-1"></i> Pinned
@@ -273,104 +336,107 @@
     <div class="row justify-content-center">
         <div class="col-lg-10">
             {{if .Convention}}
-                <div class="card shadow-lg border-primary border-2 rounded-4 overflow-hidden">
-                    <div class="card-header bg-primary text-white py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="church-card overflow-hidden">
+                    <div class="py-3 px-4 d-flex justify-content-between align-items-center flex-wrap gap-2" style="background: linear-gradient(135deg, #1b382b 0%, #162d22 100%); color: #ffffff;">
                         <div class="d-flex align-items-center gap-2">
                             <span class="badge bg-success rounded-pill px-3 py-1">
                                 <span class="spinner-grow spinner-grow-sm text-white me-1" style="width: 0.45rem; height: 0.45rem;" role="status"></span> ACTIVE CONVENTION
                             </span>
                             <span class="fw-semibold">Edition {{.Convention.Year}}</span>
                         </div>
-                        <a href="/register" class="btn btn-sm btn-light rounded-pill px-3 fw-bold text-primary">
+                        <a href="/register" class="btn btn-sm btn-gold rounded-pill px-3">
                             <i class="bi bi-pencil-square me-1"></i> Register Online
                         </a>
                     </div>
-                    <div class="card-body p-4 p-md-5">
+                    <div class="p-4 p-md-5">
                         <div class="text-center mb-4">
-                            <h2 class="display-6 fw-bold text-primary mb-2">
+                            <h2 class="display-6 fw-bold mb-2" style="color: var(--church-dark-green);">
                                 {{.Convention.Name}}
                             </h2>
                             <p class="fs-5 text-muted fst-italic mb-0">
                                 &ldquo;{{.Convention.Theme}}&rdquo;
                             </p>
                         </div>
-                        <hr class="my-4">
+                        <hr class="my-4" style="border-color: var(--church-border);">
                         <div class="row g-4 text-center">
                             <div class="col-6 col-md-3">
                                 <div class="p-3 bg-light rounded-3 h-100">
-                                    <div class="text-primary mb-1"><i class="bi bi-geo-alt fs-3"></i></div>
-                                    <small class="text-muted text-uppercase fw-bold">Venue</small>
-                                    <div class="fw-semibold text-dark mt-1">{{.Convention.Venue}}</div>
+                                    <div class="stat-icon-box mb-2"><i class="bi bi-geo-alt"></i></div>
+                                    <div class="small text-muted text-uppercase fw-bold">Venue</div>
+                                    <div class="fw-semibold mt-1" style="color: var(--church-dark-green);">{{.Convention.Venue}}</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
                                 <div class="p-3 bg-light rounded-3 h-100">
-                                    <div class="text-primary mb-1"><i class="bi bi-calendar-check fs-3"></i></div>
-                                    <small class="text-muted text-uppercase fw-bold">Convention Dates</small>
-                                    <div class="fw-semibold text-dark mt-1">{{.Convention.StartDate}} &ndash; {{.Convention.EndDate}}</div>
+                                    <div class="stat-icon-box mb-2"><i class="bi bi-calendar-check"></i></div>
+                                    <div class="small text-muted text-uppercase fw-bold">Dates</div>
+                                    <div class="fw-semibold mt-1" style="color: var(--church-dark-green);">{{.Convention.StartDate}} &ndash; {{.Convention.EndDate}}</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
                                 <div class="p-3 bg-light rounded-3 h-100">
-                                    <div class="text-primary mb-1"><i class="bi bi-clock-history fs-3"></i></div>
-                                    <small class="text-muted text-uppercase fw-bold">Year</small>
-                                    <div class="fw-semibold text-dark mt-1">{{.Convention.Year}}</div>
+                                    <div class="stat-icon-box mb-2"><i class="bi bi-clock-history"></i></div>
+                                    <div class="small text-muted text-uppercase fw-bold">Year</div>
+                                    <div class="fw-semibold mt-1" style="color: var(--church-dark-green);">{{.Convention.Year}}</div>
                                 </div>
                             </div>
                             <div class="col-6 col-md-3">
                                 <div class="p-3 bg-light rounded-3 h-100">
-                                    <div class="text-primary mb-1"><i class="bi bi-shield-check fs-3"></i></div>
-                                    <small class="text-muted text-uppercase fw-bold">Organizer</small>
-                                    <div class="fw-semibold text-dark mt-1">Apa Diocese Youth</div>
+                                    <div class="stat-icon-box mb-2"><i class="bi bi-shield-check"></i></div>
+                                    <div class="small text-muted text-uppercase fw-bold">Host</div>
+                                    <div class="fw-semibold mt-1" style="color: var(--church-dark-green);">Apa Diocese Youth</div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="text-center mt-5 d-flex flex-wrap justify-content-center gap-3">
-                            <a href="/register" class="btn btn-success btn-lg rounded-pill px-5 shadow fw-bold">
+                            <a href="/register" class="btn btn-church-dark btn-lg rounded-pill px-5 shadow">
                                 <i class="bi bi-person-check-fill me-2"></i> Register for This Convention
                             </a>
+                            <a href="/live" class="btn btn-gold btn-lg rounded-pill px-4 shadow">
+                                <i class="bi bi-broadcast me-2"></i> View Live Programme
+                            </a>
                             <a href="/contact" class="btn btn-outline-secondary btn-lg rounded-pill px-4">
-                                <i class="bi bi-question-circle me-1"></i> Have Questions? Contact Us
+                                <i class="bi bi-question-circle me-1"></i> Contact Committee
                             </a>
                         </div>
                     </div>
                 </div>
             {{else}}
-                <div class="card shadow-sm border-0 rounded-4 text-center p-5 bg-white">
+                <div class="church-card text-center p-5">
                     <div class="text-muted mb-3" style="font-size: 3rem;">
                         <i class="bi bi-calendar2-x"></i>
                     </div>
-                    <h3 class="fw-bold text-dark">No Active Convention Currently Running</h3>
+                    <h3 class="fw-bold" style="color: var(--church-dark-green);">No Active Convention Currently Running</h3>
                     <p class="text-muted mx-auto mb-4" style="max-width: 500px;">
-                        The diocesan administration has not activated a convention session at this moment. You can still register an account, join community fellowship, or read announcements.
+                        The diocesan administration has not activated a convention session at this moment. You can still watch live broadcasts, participate in youth community, or read bulletins.
                     </p>
                     <div class="d-flex justify-content-center gap-3 flex-wrap">
-                        <a href="/announcements" class="btn btn-primary rounded-pill px-4">
-                            <i class="bi bi-megaphone me-1"></i> Read Announcements
+                        <a href="/live" class="btn btn-gold rounded-pill px-4">
+                            <i class="bi bi-broadcast me-1"></i> View Live Stream
                         </a>
-                        <a href="/community" class="btn btn-success rounded-pill px-4">
-                            <i class="bi bi-people me-1"></i> Youth Community
+                        <a href="/announcements" class="btn btn-church-dark rounded-pill px-4">
+                            <i class="bi bi-megaphone me-1"></i> Read Announcements
                         </a>
                     </div>
                 </div>
             {{end}}
 
-            <!-- ALL CONVENTIONS LISTING (IF MULTIPLE EXIST) -->
+            <!-- ALL CONVENTIONS ARCHIVE -->
             {{if .AllConventions}}
                 <div class="mt-5">
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h4 class="fw-bold text-dark mb-0">
-                            <i class="bi bi-journal-bookmark me-2 text-primary"></i>Conventions Archive & Schedule
-                        </h4>
+                        <h5 class="fw-bold mb-0" style="color: var(--church-dark-green);">
+                            <i class="bi bi-journal-bookmark me-2 gold-accent"></i>Conventions Archive & Schedule
+                        </h5>
                         <span class="badge bg-secondary rounded-pill">{{len .AllConventions}} Edition{{if ne (len .AllConventions) 1}}s{{end}}</span>
                     </div>
                     <div class="row g-3">
                         {{range .AllConventions}}
                             <div class="col-md-6 col-lg-4">
-                                <div class="card h-100 shadow-sm border-0 rounded-3 p-3 {{if .Active}}border-start border-4 border-primary{{end}}">
+                                <div class="card h-100 shadow-sm border-0 rounded-3 p-3 bg-white {{if .Active}}border-start border-4 border-success{{end}}">
                                     <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <span class="fw-bold text-primary">{{.Year}}</span>
+                                        <span class="fw-bold" style="color: var(--church-dark-green);">{{.Year}}</span>
                                         {{if .Active}}
                                             <span class="badge bg-success rounded-pill small">Active</span>
                                         {{else}}
@@ -398,83 +464,83 @@
     </div>
 </section>
 
-<!-- APPLICATION FEATURE DIRECTORY -->
-<section class="py-5 bg-white border-top border-bottom" aria-label="Application Features">
+<!-- EXPLORE PLATFORM MODULES -->
+<section class="py-5 bg-white border-top border-bottom" aria-label="Platform Features">
     <div class="container">
         <div class="text-center mb-5">
-            <h3 class="fw-bold text-dark mb-2">
-                Explore the Convention & Community Platform
+            <h3 class="fw-bold mb-2" style="color: var(--church-dark-green);">
+                Explore the Youth Fellowship Platform
             </h3>
-            <p class="text-muted mx-auto" style="max-width: 600px;">
-                Everything you need to participate in diocesan programs, connect with Christian youth, and access official fellowship services.
+            <p class="text-muted mx-auto" style="max-width: 620px;">
+                Comprehensive digital resources for diocesan conventions, online services, and youth fellowship.
             </p>
         </div>
 
         <div class="row g-4">
-            <!-- 1. Convention Registration -->
+            <!-- 1. Live Streaming -->
             <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm border-0 rounded-4 p-4 feature-card">
+                <div class="church-card h-100 p-4">
                     <div class="d-flex align-items-center gap-3 mb-3">
-                        <div class="rounded-circle bg-primary bg-opacity-10 text-primary d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; font-size: 1.4rem;">
-                            <i class="bi bi-pencil-square"></i>
+                        <div class="stat-icon-box">
+                            <i class="bi bi-broadcast text-danger"></i>
                         </div>
                         <div>
-                            <h5 class="fw-bold text-dark mb-0">Convention Portal</h5>
-                            <small class="text-muted">Attendee Registration</small>
+                            <h5 class="fw-bold mb-0" style="color: var(--church-dark-green);">Live Programmes</h5>
+                            <small class="text-muted">Broadcast & Worship</small>
                         </div>
                     </div>
                     <p class="text-secondary small mb-4">
-                        Register online for diocesan conventions, receive instant digital registration credentials, and enjoy fast check-in at the venue.
+                        Watch live services, convention revivals, and Bible studies directly online with our responsive YouTube Live player.
                     </p>
                     <div class="mt-auto">
-                        <a href="/register" class="btn btn-outline-primary btn-sm rounded-pill px-3 w-100 fw-semibold">
+                        <a href="/live" class="btn btn-gold btn-sm rounded-pill px-3 w-100">
+                            Watch Live <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. Convention Portal -->
+            <div class="col-md-6 col-lg-4">
+                <div class="church-card h-100 p-4">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="stat-icon-box">
+                            <i class="bi bi-pencil-square" style="color: var(--church-dark-green);"></i>
+                        </div>
+                        <div>
+                            <h5 class="fw-bold mb-0" style="color: var(--church-dark-green);">Convention Portal</h5>
+                            <small class="text-muted">Public Registration</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-4">
+                        Register online for diocesan conventions, select your approved circuit, receive your Bible Study Group, and get digital credentials.
+                    </p>
+                    <div class="mt-auto">
+                        <a href="/register" class="btn btn-outline-success btn-sm rounded-pill px-3 w-100 fw-semibold">
                             Register Now <i class="bi bi-arrow-right ms-1"></i>
                         </a>
                     </div>
                 </div>
             </div>
 
-            <!-- 2. Youth Community Feed -->
+            <!-- 3. Youth Community Feed -->
             <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm border-0 rounded-4 p-4 feature-card">
+                <div class="church-card h-100 p-4">
                     <div class="d-flex align-items-center gap-3 mb-3">
-                        <div class="rounded-circle bg-success bg-opacity-10 text-success d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; font-size: 1.4rem;">
-                            <i class="bi bi-people-fill"></i>
+                        <div class="stat-icon-box">
+                            <i class="bi bi-people-fill text-success"></i>
                         </div>
                         <div>
-                            <h5 class="fw-bold text-dark mb-0">Youth Community</h5>
-                            <small class="text-muted">Social Fellowship Feed</small>
+                            <h5 class="fw-bold mb-0" style="color: var(--church-dark-green);">Youth Community</h5>
+                            <small class="text-muted">Fellowship & Posts</small>
                         </div>
                     </div>
                     <p class="text-secondary small mb-4">
-                        Connect with Christian youth across circuits and dioceses. Share testimonies, prayer requests, photos, and spiritual encouragement.
+                        Connect with Christian youth across circuits. Share testimonies, prayer requests, photos, and spiritual encouragement.
                     </p>
                     <div class="mt-auto">
-                        <a href="/community" class="btn btn-outline-success btn-sm rounded-pill px-3 w-100 fw-semibold">
+                        <a href="/community" class="btn btn-outline-dark btn-sm rounded-pill px-3 w-100 fw-semibold">
                             Enter Community <i class="bi bi-arrow-right ms-1"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. Messaging & Group Calling -->
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm border-0 rounded-4 p-4 feature-card">
-                    <div class="d-flex align-items-center gap-3 mb-3">
-                        <div class="rounded-circle bg-info bg-opacity-10 text-info d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; font-size: 1.4rem;">
-                            <i class="bi bi-camera-video-fill"></i>
-                        </div>
-                        <div>
-                            <h5 class="fw-bold text-dark mb-0">Youth Chat & Calling</h5>
-                            <small class="text-muted">Live Audio & Video Meetings</small>
-                        </div>
-                    </div>
-                    <p class="text-secondary small mb-4">
-                        Participate in Bible study meetings, prayer rooms, and 1-to-1 direct audio and video calls directly from your browser.
-                    </p>
-                    <div class="mt-auto">
-                        <a href="/messages" class="btn btn-outline-info btn-sm rounded-pill px-3 w-100 fw-semibold text-dark">
-                            Open Chat & Calls <i class="bi bi-arrow-right ms-1"></i>
                         </a>
                     </div>
                 </div>
@@ -482,41 +548,64 @@
 
             <!-- 4. Notice Board & Announcements -->
             <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm border-0 rounded-4 p-4 feature-card">
+                <div class="church-card h-100 p-4">
                     <div class="d-flex align-items-center gap-3 mb-3">
-                        <div class="rounded-circle bg-warning bg-opacity-10 text-warning d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; font-size: 1.4rem;">
-                            <i class="bi bi-megaphone-fill"></i>
+                        <div class="stat-icon-box">
+                            <i class="bi bi-megaphone-fill text-warning"></i>
                         </div>
                         <div>
-                            <h5 class="fw-bold text-dark mb-0">Notice Board</h5>
-                            <small class="text-muted">Official Announcements</small>
+                            <h5 class="fw-bold mb-0" style="color: var(--church-dark-green);">Notice Board</h5>
+                            <small class="text-muted">Official Bulletins</small>
                         </div>
                     </div>
                     <p class="text-secondary small mb-4">
-                        Read circulars, schedules, convention guidelines, and important bulletins released by executive officers and clergy.
+                        Read circulars, schedules, convention guidelines, and important bulletins released by executive officers and diocesan leaders.
                     </p>
                     <div class="mt-auto">
                         <a href="/announcements" class="btn btn-outline-warning btn-sm rounded-pill px-3 w-100 fw-semibold text-dark">
-                            View Announcements <i class="bi bi-arrow-right ms-1"></i>
+                            View Notices <i class="bi bi-arrow-right ms-1"></i>
                         </a>
                     </div>
                 </div>
             </div>
 
-            <!-- 5. Contact & Inquiries -->
+            <!-- 5. Documentation & Minutes -->
             <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm border-0 rounded-4 p-4 feature-card">
+                <div class="church-card h-100 p-4">
                     <div class="d-flex align-items-center gap-3 mb-3">
-                        <div class="rounded-circle bg-secondary bg-opacity-10 text-secondary d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; font-size: 1.4rem;">
-                            <i class="bi bi-chat-left-dots-fill"></i>
+                        <div class="stat-icon-box">
+                            <i class="bi bi-journal-text text-primary"></i>
                         </div>
                         <div>
-                            <h5 class="fw-bold text-dark mb-0">Help & Inquiries</h5>
-                            <small class="text-muted">Direct Support Desk</small>
+                            <h5 class="fw-bold mb-0" style="color: var(--church-dark-green);">Minutes & Documents</h5>
+                            <small class="text-muted">Official Downloads</small>
                         </div>
                     </div>
                     <p class="text-secondary small mb-4">
-                        Have questions regarding registration, accommodation, or travel? Submit an inquiry directly to the organizing committee.
+                        Access published diocesan reports, workshop materials, convention minutes, and study guides for authorized review.
+                    </p>
+                    <div class="mt-auto">
+                        <a href="/documents" class="btn btn-outline-primary btn-sm rounded-pill px-3 w-100 fw-semibold">
+                            Open Documents <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 6. Help & Contact -->
+            <div class="col-md-6 col-lg-4">
+                <div class="church-card h-100 p-4">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="stat-icon-box">
+                            <i class="bi bi-chat-left-dots-fill text-secondary"></i>
+                        </div>
+                        <div>
+                            <h5 class="fw-bold mb-0" style="color: var(--church-dark-green);">Support & Inquiries</h5>
+                            <small class="text-muted">Contact Committee</small>
+                        </div>
+                    </div>
+                    <p class="text-secondary small mb-4">
+                        Have questions about registration, accommodation, or travel? Submit an inquiry directly to the organizing team.
                     </p>
                     <div class="mt-auto">
                         <a href="/contact" class="btn btn-outline-secondary btn-sm rounded-pill px-3 w-100 fw-semibold">
@@ -525,80 +614,47 @@
                     </div>
                 </div>
             </div>
-
-            <!-- 6. Account & Administration -->
-            <div class="col-md-6 col-lg-4">
-                <div class="card h-100 shadow-sm border-0 rounded-4 p-4 feature-card">
-                    <div class="d-flex align-items-center gap-3 mb-3">
-                        <div class="rounded-circle bg-danger bg-opacity-10 text-danger d-flex align-items-center justify-content-center" style="width: 50px; height: 50px; font-size: 1.4rem;">
-                            <i class="bi bi-shield-lock-fill"></i>
-                        </div>
-                        <div>
-                            <h5 class="fw-bold text-dark mb-0">Account & Admin</h5>
-                            <small class="text-muted">Member & Officer Portals</small>
-                        </div>
-                    </div>
-                    <p class="text-secondary small mb-4">
-                        Sign in to your member profile, create a new youth account, or access the administrative dashboard for attendee management.
-                    </p>
-                    <div class="mt-auto d-flex gap-2">
-                        {{if .IsAdmin}}
-                            <a href="/dashboard" class="btn btn-danger btn-sm rounded-pill px-3 w-100 fw-semibold">
-                                Dashboard <i class="bi bi-arrow-right ms-1"></i>
-                            </a>
-                        {{else if .IsLoggedIn}}
-                            <a href="/profile" class="btn btn-primary btn-sm rounded-pill px-3 w-100 fw-semibold">
-                                My Profile <i class="bi bi-arrow-right ms-1"></i>
-                            </a>
-                        {{else}}
-                            <a href="/community/login" class="btn btn-outline-success btn-sm rounded-pill px-2 flex-grow-1 fw-semibold">Member</a>
-                            <a href="/login" class="btn btn-outline-danger btn-sm rounded-pill px-2 flex-grow-1 fw-semibold">Admin</a>
-                        {{end}}
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 </section>
 
-<!-- COMPREHENSIVE ORGANIZED FOOTER -->
-<footer class="bg-dark text-white pt-5 pb-4 mt-auto" role="contentinfo">
+<!-- FOOTER -->
+<footer class="text-white pt-5 pb-4 mt-auto" style="background: linear-gradient(135deg, #1b382b 0%, #12241c 100%); border-top: 3px solid var(--church-gold);" role="contentinfo">
     <div class="container">
         <div class="row g-4 mb-4">
             <!-- Col 1: About -->
             <div class="col-12 col-md-4">
-                <h6 class="fw-bold text-uppercase tracking-wider text-warning mb-3">
+                <h6 class="fw-bold text-uppercase gold-accent mb-3">
                     <i class="bi bi-shield-check me-1"></i> Methodist Church Nigeria
                 </h6>
                 <p class="small text-white-50 mb-2">
-                    Apa Diocesan Youth Fellowship Convention Management System. Empowering youth spiritual growth, fellowship, and convention organization.
+                    Apa Diocesan Youth Fellowship Convention Management System. Dedicated to spiritual renewal, convention organization, and digital fellowship.
                 </p>
                 <div class="small text-white-50">
-                    <i class="bi bi-geo-alt me-1 text-warning"></i> Apa Diocese, Benue / Nigeria
+                    <i class="bi bi-geo-alt me-1 gold-accent"></i> Diocese of Apa, Benue State, Nigeria
                 </div>
             </div>
 
-            <!-- Col 2: Public Navigation -->
+            <!-- Col 2: Navigation -->
             <div class="col-6 col-md-2">
-                <h6 class="fw-bold text-uppercase tracking-wider text-white mb-3 small">Quick Links</h6>
+                <h6 class="fw-bold text-uppercase text-white mb-3 small">Quick Links</h6>
                 <ul class="list-unstyled small d-flex flex-column gap-2 mb-0">
                     <li><a href="/" class="text-white-50 text-decoration-none">Home</a></li>
-                    <li><a href="/programmes" class="text-white-50 text-decoration-none">Live & Programmes</a></li>
+                    <li><a href="/live" class="text-white-50 text-decoration-none">Live Broadcast</a></li>
+                    <li><a href="/programmes" class="text-white-50 text-decoration-none">Programme Schedule</a></li>
                     <li><a href="/register" class="text-white-50 text-decoration-none">Register</a></li>
-                    <li><a href="#conventions" class="text-white-50 text-decoration-none">Conventions</a></li>
                     <li><a href="/announcements" class="text-white-50 text-decoration-none">Announcements</a></li>
                     <li><a href="/contact" class="text-white-50 text-decoration-none">Contact Us</a></li>
                 </ul>
             </div>
 
-            <!-- Col 3: Community Navigation -->
+            <!-- Col 3: Fellowship & Community -->
             <div class="col-6 col-md-3">
-                <h6 class="fw-bold text-uppercase tracking-wider text-white mb-3 small">Youth Community</h6>
+                <h6 class="fw-bold text-uppercase text-white mb-3 small">Youth Community</h6>
                 <ul class="list-unstyled small d-flex flex-column gap-2 mb-0">
                     <li><a href="/community" class="text-white-50 text-decoration-none">Community Feed</a></li>
-                    <li><a href="/programmes" class="text-white-50 text-decoration-none">Live Streaming</a></li>
-                    <li><a href="/messages" class="text-white-50 text-decoration-none">Chat & Calling</a></li>
-                    <li><a href="/profile" class="text-white-50 text-decoration-none">Member Profile</a></li>
+                    <li><a href="/live" class="text-white-50 text-decoration-none">Live Streaming</a></li>
+                    <li><a href="/messages" class="text-white-50 text-decoration-none">Messages & Calls</a></li>
                     <li><a href="/community/login" class="text-white-50 text-decoration-none">Member Login</a></li>
                     <li><a href="/signup" class="text-white-50 text-decoration-none">Create Account</a></li>
                 </ul>
@@ -606,15 +662,15 @@
 
             <!-- Col 4: Administrative Portal -->
             <div class="col-12 col-md-3">
-                <h6 class="fw-bold text-uppercase tracking-wider text-white mb-3 small">Administration</h6>
+                <h6 class="fw-bold text-uppercase text-white mb-3 small">Administration</h6>
                 <ul class="list-unstyled small d-flex flex-column gap-2 mb-3">
                     <li><a href="/login" class="text-white-50 text-decoration-none"><i class="bi bi-lock me-1"></i> Admin Login</a></li>
                     <li><a href="/dashboard" class="text-white-50 text-decoration-none"><i class="bi bi-speedometer2 me-1"></i> Dashboard</a></li>
                     <li><a href="/registrations" class="text-white-50 text-decoration-none"><i class="bi bi-people me-1"></i> Attendee Records</a></li>
-                    <li><a href="/admin/inquiries" class="text-white-50 text-decoration-none"><i class="bi bi-chat-left-text me-1"></i> Inquiries</a></li>
+                    <li><a href="/documents" class="text-white-50 text-decoration-none"><i class="bi bi-journal me-1"></i> Document Archives</a></li>
                 </ul>
                 <div class="p-2 rounded bg-black bg-opacity-25 small text-white-50">
-                    <i class="bi bi-shield-lock text-success me-1"></i> 256-bit Secure Portal
+                    <i class="bi bi-shield-lock text-success me-1"></i> Secure Administrative Portal
                 </div>
             </div>
         </div>

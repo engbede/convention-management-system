@@ -204,8 +204,8 @@ func GetUserByUsername(username string) (*models.User, error) {
 		COALESCE(profile_photo, ''),
 		COALESCE(cover_photo, ''),
 
-		COALESCE(is_verified, 0),
-		COALESCE(is_active, 1),
+		COALESCE(is_verified, FALSE),
+		COALESCE(is_active, TRUE),
 
 		COALESCE(followers, 0),
 		COALESCE(following, 0),
@@ -314,8 +314,8 @@ func GetUserByID(id int) (models.User, error) {
 		COALESCE(favorite_quote, ''),
 		COALESCE(water_baptized, 0),
 		COALESCE(holy_spirit_baptized, 0),
-		COALESCE(is_verified, 0),
-		COALESCE(is_active, 1),
+		COALESCE(is_verified, FALSE),
+		COALESCE(is_active, TRUE),
 		COALESCE(followers, 0),
 		COALESCE(following, 0),
 		created_at,
@@ -416,8 +416,8 @@ func GetUserByEmail(email string) (*models.User, error) {
 		COALESCE(profile_photo, ''),
 		COALESCE(cover_photo, ''),
 
-		COALESCE(is_verified, 0),
-		COALESCE(is_active, 1),
+		COALESCE(is_verified, FALSE),
+		COALESCE(is_active, TRUE),
 
 		COALESCE(followers, 0),
 		COALESCE(following, 0),

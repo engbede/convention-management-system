@@ -216,3 +216,90 @@ func TestProgrammeStateTransitions(t *testing.T) {
 		t.Errorf("expected cancelled programme to return IsCancelled() = true")
 	}
 }
+
+func TestPublicLiveViewing_AccessibleWithoutAuth(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Empty state when no live programme
+	req := httptest.NewRequest(http.MethodGet, "/live", nil)
+	rr := httptest.NewRecorder()
+
+	PublicLiveViewing(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200 OK for public live viewing, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "No live programme is broadcasting at the moment. Please check back later.") {
+		t.Errorf("expected friendly empty state message in rendered HTML")
+	}
+
+	// 2. Active live programme state
+	p := &models.Programme{
+		Title:             "Convention Revival Service",
+		Description:       "Evening praise, prayer and revival word",
+		Category:          models.ProgrammeCategoryService,
+		OrganizerID:       1,
+		ScheduleStartTime: time.Now(),
+		ScheduleEndTime:   time.Now().Add(2 * time.Hour),
+		Timezone:          "UTC",
+		Visibility:        models.ProgrammeVisibilityPublic,
+		Status:            models.ProgrammeStatusLive,
+		YouTubeVideoID:    "liveStream01",
+	}
+	_, err := repository.CreateProgramme(p)
+	if err != nil {
+		t.Fatalf("failed to create live test programme: %v", err)
+	}
+
+	reqLive := httptest.NewRequest(http.MethodGet, "/live", nil)
+	rrLive := httptest.NewRecorder()
+
+	PublicLiveViewing(rrLive, reqLive)
+
+	if rrLive.Code != http.StatusOK {
+		t.Fatalf("expected status 200 OK with live programme, got %d", rrLive.Code)
+	}
+
+	bodyLive := rrLive.Body.String()
+	if !strings.Contains(bodyLive, "Convention Revival Service") {
+		t.Errorf("expected live programme title in rendered HTML")
+	}
+	if !strings.Contains(bodyLive, "liveStream01") {
+		t.Errorf("expected YouTube embed ID in rendered HTML")
+	}
+}
+
+func TestProgrammeManagement_AdminProtection(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Unauthenticated request to /programmes/new should redirect to login
+	reqNew := httptest.NewRequest(http.MethodGet, "/programmes/new", nil)
+	rrNew := httptest.NewRecorder()
+	NewProgramme(rrNew, reqNew)
+	if rrNew.Code != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect to admin login for NewProgramme, got %d", rrNew.Code)
+	}
+
+	// 2. Non-admin POST to /programmes/create should be rejected with 403 Forbidden
+	form := url.Values{}
+	form.Set("title", "Unauthorized Programme")
+	reqCreate := httptest.NewRequest(http.MethodPost, "/programmes/create", strings.NewReader(form.Encode()))
+	reqCreate.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rrCreate := httptest.NewRecorder()
+	CreateProgramme(rrCreate, reqCreate)
+	if rrCreate.Code != http.StatusForbidden {
+		t.Errorf("expected 403 Forbidden for non-admin CreateProgramme, got %d", rrCreate.Code)
+	}
+
+	// 3. Non-admin request to /programmes/edit should redirect to login
+	reqEdit := httptest.NewRequest(http.MethodGet, "/programmes/edit?id=1", nil)
+	rrEdit := httptest.NewRecorder()
+	EditProgramme(rrEdit, reqEdit)
+	if rrEdit.Code != http.StatusSeeOther {
+		t.Errorf("expected 303 redirect to admin login for EditProgramme, got %d", rrEdit.Code)
+	}
+}

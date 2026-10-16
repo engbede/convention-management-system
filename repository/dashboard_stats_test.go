@@ -610,6 +610,28 @@ func TestAllRepositoryQueries_PostgresSyntaxValidation(t *testing.T) {
 				}
 			}
 
+			// 5. Verify no COALESCE with boolean column and integer fallback (SQLSTATE 42804)
+			booleanCoalesceCols := []string{
+				"is_verified",
+				"is_active",
+				"is_private",
+				"is_hidden",
+				"is_read",
+				"verified",
+				"active",
+				"checked_in",
+			}
+			for _, col := range booleanCoalesceCols {
+				lower := strings.ToLower(val)
+				if strings.Contains(lower, "coalesce("+col+", 0)") ||
+					strings.Contains(lower, "coalesce("+col+", 1)") ||
+					strings.Contains(lower, "coalesce("+col+",0)") ||
+					strings.Contains(lower, "coalesce("+col+",1)") {
+					t.Errorf("%s:%d SQL statement uses integer fallback in COALESCE for boolean column %q (causes SQLSTATE 42804 in PostgreSQL): %s",
+						file, line, col, strings.TrimSpace(val))
+				}
+			}
+
 			return true
 		})
 	}

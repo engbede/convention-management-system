@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{if .LiveProgramme}}{{.LiveProgramme.Title}} - Live Broadcast{{else}}Live Streaming & Programmes{{end}} | Apa Diocesan Youth Fellowship</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        :root {
+            --church-dark-green: #1b382b;
+            --church-charcoal: #1a2b22;
+            --church-gold: #c59b27;
+            --church-warm-ivory: #fbfaf7;
+            --church-card-bg: #ffffff;
+            --church-border: #e8e4dc;
+        }
+        body {
+            background-color: var(--church-warm-ivory);
+            color: var(--church-charcoal);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .church-nav {
+            background: linear-gradient(135deg, #1b382b 0%, #12241c 100%);
+            border-bottom: 3px solid var(--church-gold);
+        }
+        .gold-accent {
+            color: var(--church-gold);
+        }
+        .live-card {
+            background: var(--church-card-bg);
+            border: 1px solid var(--church-border);
+            border-radius: 1rem;
+            box-shadow: 0 8px 30px rgba(27, 56, 43, 0.08);
+            overflow: hidden;
+        }
+        .player-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 0.75rem;
+            background: #000;
+        }
+        .player-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+        .live-pulse {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: #dc3545;
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+        }
+        .category-badge {
+            background-color: #f4fbf7;
+            color: var(--church-dark-green);
+            border: 1px solid #b7dfc8;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        .gold-pill {
+            background-color: #fdf6e2;
+            color: #8c6b12;
+            border: 1px solid #eed690;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        .btn-church-primary {
+            background-color: var(--church-dark-green);
+            color: #ffffff;
+            border: 1px solid var(--church-dark-green);
+        }
+        .btn-church-primary:hover {
+            background-color: #12241c;
+            color: #ffffff;
+        }
+        .btn-church-gold {
+            background-color: var(--church-gold);
+            color: #1a2b22;
+            border: 1px solid var(--church-gold);
+            font-weight: 600;
+        }
+        .btn-church-gold:hover {
+            background-color: #b0891f;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAVIGATION -->
+<nav class="church-nav navbar navbar-expand-lg navbar-dark shadow-sm sticky-top">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="/">
+            <i class="bi bi-shield-check text-warning fs-4"></i>
+            <div>
+                <span class="d-none d-sm-inline">Methodist Church Nigeria</span>
+                <span class="d-inline d-sm-none">MCN Youth</span>
+                <div class="small text-white-50 fw-normal" style="font-size: 0.75rem;">Apa Diocesan Youth Fellowship</div>
+            </div>
+        </a>
+
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navContent">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="navContent">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
+                <li class="nav-item">
+                    <a class="nav-link" href="/"><i class="bi bi-house me-1"></i> Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active fw-bold" href="/live"><i class="bi bi-broadcast text-warning me-1"></i> Live Broadcast</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/programmes"><i class="bi bi-calendar3 me-1"></i> Programme Schedule</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/register"><i class="bi bi-pencil-square me-1"></i> Convention Register</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/announcements"><i class="bi bi-megaphone me-1"></i> Announcements</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/contact"><i class="bi bi-envelope me-1"></i> Contact Us</a>
+                </li>
+            </ul>
+
+            <ul class="navbar-nav ms-auto align-items-lg-center gap-2">
+                {{if .IsAdmin}}
+                    <li class="nav-item">
+                        <a href="/dashboard" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark">
+                            <i class="bi bi-speedometer2 me-1"></i> Admin Dashboard
+                        </a>
+                    </li>
+                {{else if .IsLoggedIn}}
+                    <li class="nav-item">
+                        <a href="/community" class="btn btn-outline-light btn-sm rounded-pill px-3">
+                            <i class="bi bi-people me-1"></i> Community Feed
+                        </a>
+                    </li>
+                {{else}}
+                    <li class="nav-item">
+                        <a href="/community/login" class="nav-link"><i class="bi bi-box-arrow-in-right me-1"></i> Member Login</a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/signup" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark">
+                            <i class="bi bi-person-plus me-1"></i> Join Fellowship
+                        </a>
+                    </li>
+                {{end}}
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<!-- MAIN CONTENT -->
+<main class="container my-5 flex-grow-1">
+    {{if .LiveProgramme}}
+        <!-- LIVE BROADCAST ACTIVE -->
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+
+                <div class="live-card p-4 p-md-5">
+                    <!-- Live Header Badge -->
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3 pb-3 border-bottom">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="live-pulse"></span>
+                            <span class="badge bg-danger text-uppercase px-3 py-1 rounded-pill fw-bold">Broadcasting Live Now</span>
+                            <span class="badge category-badge px-3 py-1 rounded-pill text-uppercase">{{.LiveProgramme.Category}}</span>
+                        </div>
+                        <div class="text-muted small">
+                            <i class="bi bi-globe me-1"></i> Public Official Broadcast
+                        </div>
+                    </div>
+
+                    <!-- YouTube Live Player Embed -->
+                    <div class="player-container mb-4 shadow-sm">
+                        {{if .LiveProgramme.YouTubeVideoID}}
+                            <iframe
+                                src="https://www.youtube.com/embed/{{.LiveProgramme.YouTubeVideoID}}?autoplay=1&rel=0&modestbranding=1"
+                                title="{{.LiveProgramme.Title}}"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowfullscreen>
+                            </iframe>
+                        {{else}}
+                            <div class="d-flex align-items-center justify-content-center h-100 text-white bg-dark">
+                                <div class="text-center p-4">
+                                    <i class="bi bi-broadcast fs-1 text-warning mb-2"></i>
+                                    <h5>Live Stream Feed Starting...</h5>
+                                    <p class="text-white-50 small mb-0">The broadcast stream is initializing. Please refresh in a moment.</p>
+                                </div>
+                            </div>
+                        {{end}}
+                    </div>
+
+                    <!-- Programme Information -->
+                    <div class="row g-4 align-items-start">
+                        <div class="col-lg-8">
+                            <h2 class="fw-bold mb-2" style="color: var(--church-dark-green);">
+                                {{.LiveProgramme.Title}}
+                            </h2>
+                            {{if .LiveProgramme.Description}}
+                                <p class="text-secondary mb-3 fs-6" style="white-space: pre-line;">
+                                    {{.LiveProgramme.Description}}
+                                </p>
+                            {{end}}
+
+                            <div class="d-flex flex-wrap gap-3 text-muted small">
+                                <div>
+                                    <i class="bi bi-clock me-1 text-success"></i>
+                                    Started: {{.LiveProgramme.ScheduleStartTime.Format "03:04 PM"}} ({{.LiveProgramme.Timezone}})
+                                </div>
+                                {{if .LiveProgramme.Organizer}}
+                                    <div>
+                                        <i class="bi bi-person-badge me-1 text-primary"></i>
+                                        Host: {{.LiveProgramme.Organizer.FullName}}
+                                    </div>
+                                {{end}}
+                            </div>
+                        </div>
+
+                        <div class="col-lg-4 text-lg-end">
+                            <div class="d-flex flex-column gap-2">
+                                <a href="/programmes/view?id={{.LiveProgramme.ID}}" class="btn btn-church-primary rounded-pill px-4 py-2 fw-semibold">
+                                    <i class="bi bi-chat-heart me-1"></i> Live Chat & Prayer Desk
+                                </a>
+                                <a href="/programmes" class="btn btn-outline-secondary rounded-pill px-4 py-2">
+                                    <i class="bi bi-calendar3 me-1"></i> All Programmes
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    {{else}}
+        <!-- NO LIVE BROADCAST CURRENTLY RUNNING (EMPTY STATE) -->
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+
+                <div class="live-card p-4 p-md-5 text-center">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-4" style="width: 80px; height: 80px; background-color: #f8f6f0; color: var(--church-gold); border: 2px solid #ecd8a5;">
+                        <i class="bi bi-broadcast-pin fs-1"></i>
+                    </div>
+
+                    <h2 class="fw-bold mb-2" style="color: var(--church-dark-green);">
+                        No Live Programme Broadcasting
+                    </h2>
+
+                    <p class="lead text-secondary mb-4 mx-auto" style="max-width: 580px;">
+                        No live programme is broadcasting at the moment. Please check back later.
+                    </p>
+
+                    <!-- Next Scheduled Programme (if available) -->
+                    {{if .NextProgramme}}
+                        <div class="card border-0 bg-light p-4 rounded-4 mb-4 text-start">
+                            <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                                <span class="badge gold-pill px-3 py-1 rounded-pill text-uppercase">Next Upcoming Programme</span>
+                                <span class="badge bg-secondary rounded-pill small text-uppercase">{{.NextProgramme.Category}}</span>
+                            </div>
+                            <h4 class="fw-bold mb-2" style="color: var(--church-dark-green);">
+                                {{.NextProgramme.Title}}
+                            </h4>
+                            <p class="text-muted small mb-3">
+                                {{.NextProgramme.Description}}
+                            </p>
+                            <div class="d-flex flex-wrap gap-3 text-muted small border-top pt-2">
+                                <div>
+                                    <i class="bi bi-calendar-event me-1 text-primary"></i>
+                                    <strong>Date:</strong> {{.NextProgramme.ScheduleStartTime.Format "Monday, 02 Jan 2006"}}
+                                </div>
+                                <div>
+                                    <i class="bi bi-clock me-1 text-success"></i>
+                                    <strong>Time:</strong> {{.NextProgramme.ScheduleStartTime.Format "03:04 PM"}} &ndash; {{.NextProgramme.ScheduleEndTime.Format "03:04 PM"}} ({{.NextProgramme.Timezone}})
+                                </div>
+                            </div>
+                        </div>
+                    {{end}}
+
+                    <!-- Active Convention Card (if available) -->
+                    {{if .ActiveConvention}}
+                        <div class="card border-0 p-3 rounded-3 mb-4 text-start" style="background-color: #f4fbf7; border: 1px solid #c2e5d1 !important;">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <i class="bi bi-calendar-check-fill text-success"></i>
+                                <strong style="color: var(--church-dark-green);">{{.ActiveConvention.Name}}</strong>
+                            </div>
+                            <div class="small text-muted mb-2 fst-italic">
+                                &ldquo;{{.ActiveConvention.Theme}}&rdquo;
+                            </div>
+                            <div class="small text-secondary">
+                                <i class="bi bi-geo-alt me-1"></i> {{.ActiveConvention.Venue}} &bull;
+                                <i class="bi bi-clock me-1 ms-1"></i> {{.ActiveConvention.StartDate}} &ndash; {{.ActiveConvention.EndDate}}
+                            </div>
+                        </div>
+                    {{end}}
+
+                    <!-- Action Navigation -->
+                    <div class="d-flex flex-wrap justify-content-center gap-3 pt-2">
+                        <a href="/programmes" class="btn btn-church-gold rounded-pill px-4 py-2">
+                            <i class="bi bi-calendar3 me-1"></i> View Programme Schedule
+                        </a>
+                        <a href="/register" class="btn btn-church-primary rounded-pill px-4 py-2">
+                            <i class="bi bi-pencil-square me-1"></i> Convention Registration
+                        </a>
+                        <a href="/" class="btn btn-outline-secondary rounded-pill px-4 py-2">
+                            <i class="bi bi-house me-1"></i> Return Home
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    {{end}}
+</main>
+
+<!-- FOOTER -->
+<footer class="py-4 mt-auto text-center text-muted small border-top bg-white">
+    <div class="container">
+        &copy; 2026 Methodist Church Nigeria &bull; Apa Diocesan Youth Fellowship &bull; Live & Online Programmes
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

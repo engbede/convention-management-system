@@ -372,9 +372,7 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 	mux.HandleFunc(
 		"/documents/download",
-		middleware.RequireAuth(
-			handlers.DownloadDocumentFile,
-		),
+		handlers.DownloadDocumentFile,
 	)
 	mux.HandleFunc(
 		"/documents/workspace",
@@ -809,9 +807,7 @@ func RegisterRoutes(mux *http.ServeMux) {
 		}
 		http.NotFound(w, r)
 	})
-	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/programmes?tab=live", http.StatusSeeOther)
-	})
+	mux.HandleFunc("/live", handlers.PublicLiveViewing)
 	mux.HandleFunc("/live-programmes", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/programmes", http.StatusSeeOther)
 	})

@@ -42,6 +42,8 @@ func ValidateRegistration(r models.Registration) map[string]string {
 
 	if strings.TrimSpace(r.Circuit) == "" {
 		errorsMap["circuit"] = "Circuit is required."
+	} else if !models.IsValidCircuit(r.Circuit) {
+		errorsMap["circuit"] = "Please select a valid circuit from the approved list."
 	}
 
 	if strings.TrimSpace(r.LocalChurch) == "" {
@@ -50,11 +52,6 @@ func ValidateRegistration(r models.Registration) map[string]string {
 
 	if strings.TrimSpace(r.Membership) == "" {
 		errorsMap["membership"] = "Membership is required."
-	}
-
-	if r.BibleStudyGroup == 0 {
-		errorsMap["bible_study_group"] =
-			"Select a Bible Study Group."
 	}
 
 	if strings.TrimSpace(r.EmergencyContactName) == "" {

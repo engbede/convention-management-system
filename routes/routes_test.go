@@ -192,12 +192,19 @@ func TestLiveProgrammesRoutes(t *testing.T) {
 		t.Errorf("Expected status 301 or 200 for /programmes/, got %d", rrSlash.Code)
 	}
 
-	// 3. Aliases /live and /live-programmes
+	// 3. Dedicated /live public viewing page serves 200 OK
+	reqLive := httptest.NewRequest(http.MethodGet, "/live", nil)
+	rrLive := httptest.NewRecorder()
+	mux.ServeHTTP(rrLive, reqLive)
+	if rrLive.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for dedicated /live page, got %d", rrLive.Code)
+	}
+
+	// 4. Aliases /live-programmes and /online-programmes
 	aliases := []struct {
 		path     string
 		expected string
 	}{
-		{"/live", "/programmes?tab=live"},
 		{"/live-programmes", "/programmes"},
 		{"/online-programmes", "/programmes"},
 	}

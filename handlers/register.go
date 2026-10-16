@@ -46,6 +46,7 @@ func ShowForm(
 		Action:     "/submit-registration",
 		ButtonText: "Register",
 		Convention: activeConvention,
+		Circuits:   models.ApprovedCircuits,
 		Notices:    notices,
 	}
 
@@ -106,12 +107,6 @@ func Register(
 		age = 0
 	}
 
-	// Convert Bible Study Group
-	group, err := strconv.Atoi(r.FormValue("bible_study_group"))
-	if err != nil {
-		group = 0
-	}
-
 	// First-time attendee
 	firstTime := r.FormValue("first_time_attendee") == "Yes"
 
@@ -138,9 +133,7 @@ func Register(
 		Relationship: relationship,
 		Address:      address,
 
-		ArrivalDate: arrivalDate,
-
-		BibleStudyGroup:   group,
+		ArrivalDate:       arrivalDate,
 		FirstTimeAttendee: firstTime,
 	}
 
@@ -162,6 +155,18 @@ func Register(
 		)
 		return
 	}
+
+	// Validate circuit against approved circuits
+	if !models.IsValidCircuit(circuit) {
+		renderRegistrationForm(
+			w,
+			reg,
+			"Please select a valid circuit from the approved list.",
+		)
+		return
+	}
+	circuit = models.NormalizeCircuit(circuit)
+	reg.Circuit = circuit
 
 	// Phone number validation
 	matched, _ := regexp.MatchString(
@@ -229,6 +234,13 @@ func Register(
 		)
 		return
 	}
+
+	// Automatic Bible Study Group Assignment (Groups 1–15, balanced distribution)
+	assignedGroup, err := repository.AssignNextBibleStudyGroup(reg.ConventionID)
+	if err != nil || assignedGroup < 1 || assignedGroup > 15 {
+		assignedGroup = 1
+	}
+	reg.BibleStudyGroup = assignedGroup
 
 	err = repository.CreateRegistration(&reg)
 

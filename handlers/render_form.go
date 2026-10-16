@@ -23,6 +23,7 @@ func renderRegistrationForm(
 		ButtonText:   "Register",
 		Convention:   convention,
 		Registration: reg,
+		Circuits:     models.ApprovedCircuits,
 		Notices:      notices,
 		Error:        errMsg,
 	}

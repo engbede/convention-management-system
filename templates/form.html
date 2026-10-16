@@ -444,13 +444,30 @@ value="{{.Registration.ID}}">
                     Circuit <span class="text-danger">*</span>
                 </label>
 
-                <input
-                    type="text"
-                    class="form-control"
+                <select
+                    class="form-select"
                     name="circuit"
-                    value="{{.Registration.Circuit}}"
-                    placeholder="Enter your Circuit"
                     required>
+                    <option value="">-- Select Circuit --</option>
+                    {{if .Circuits}}
+                        {{range .Circuits}}
+                            <option value="{{.}}" {{if eq $.Registration.Circuit .}}selected{{end}}>{{.}}</option>
+                        {{end}}
+                    {{else}}
+                        <option value="Adoka" {{if eq .Registration.Circuit "Adoka"}}selected{{end}}>Adoka</option>
+                        <option value="Edikwu" {{if eq .Registration.Circuit "Edikwu"}}selected{{end}}>Edikwu</option>
+                        <option value="Entekpa" {{if eq .Registration.Circuit "Entekpa"}}selected{{end}}>Entekpa</option>
+                        <option value="Iga" {{if eq .Registration.Circuit "Iga"}}selected{{end}}>Iga</option>
+                        <option value="Oba" {{if eq .Registration.Circuit "Oba"}}selected{{end}}>Oba</option>
+                        <option value="Ojantelle" {{if eq .Registration.Circuit "Ojantelle"}}selected{{end}}>Ojantelle</option>
+                        <option value="Ojope" {{if eq .Registration.Circuit "Ojope"}}selected{{end}}>Ojope</option>
+                        <option value="Onaje" {{if eq .Registration.Circuit "Onaje"}}selected{{end}}>Onaje</option>
+                        <option value="Trinity" {{if eq .Registration.Circuit "Trinity"}}selected{{end}}>Trinity</option>
+                        <option value="Ugboju/Onyagede" {{if eq .Registration.Circuit "Ugboju/Onyagede"}}selected{{end}}>Ugboju/Onyagede</option>
+                        <option value="Ugbokpo" {{if eq .Registration.Circuit "Ugbokpo"}}selected{{end}}>Ugbokpo</option>
+                        <option value="Unmonomi" {{if eq .Registration.Circuit "Unmonomi"}}selected{{end}}>Unmonomi</option>
+                    {{end}}
+                </select>
 
             </div>
 
@@ -773,79 +790,15 @@ required>
 
 <div class="col-md-6">
 
-<label>Bible Study Group</label>
+<label class="form-label fw-bold">Bible Study Group</label>
 
-<select
-class="form-select"
-name="bible_study_group"
-required>
-
-<option value="">
-Select Group
-</option>
-
-<option value="1"
-{{if eq .Registration.BibleStudyGroup 1}}selected{{end}}>
-Group 1
-</option>
-<option value="2"
-{{if eq .Registration.BibleStudyGroup 2}}selected{{end}}>
-Group 2
-</option>
-<option value="3"
-{{if eq .Registration.BibleStudyGroup 3}}selected{{end}}>
-Group 3
-</option>
-<option value="4"
-{{if eq .Registration.BibleStudyGroup 4}}selected{{end}}>
-Group 4
-</option>
-<option value="5"
-{{if eq .Registration.BibleStudyGroup 5}}selected{{end}}>
-Group 5
-</option>
-<option value="6"
-{{if eq .Registration.BibleStudyGroup 6}}selected{{end}}>
-Group 6
-</option>
-<option value="7"
-{{if eq .Registration.BibleStudyGroup 7}}selected{{end}}>
-Group 7
-</option>
-<option value="8"
-{{if eq .Registration.BibleStudyGroup 8}}selected{{end}}>
-Group 8
-</option>
-<option value="9"
-{{if eq .Registration.BibleStudyGroup 9}}selected{{end}}>
-    Group 9
-</option>
-<option value="10"
-{{if eq .Registration.BibleStudyGroup 10}}selected{{end}}>
-Group 10
-</option>
-<option value="11"
-{{if eq .Registration.BibleStudyGroup 11}}selected{{end}}>
-Group 11
-</option>
-<option value="12"
-{{if eq .Registration.BibleStudyGroup 12}}selected{{end}}>
-Group 12
-</option>
-<option value="13"
-{{if eq .Registration.BibleStudyGroup 13}}selected{{end}}>
-Group 13
-</option>
-<option value="14"
-{{if eq .Registration.BibleStudyGroup 14}}selected{{end}}>
-Group 14
-</option>
-<option value="15"
-{{if eq .Registration.BibleStudyGroup 15}}selected{{end}}>
-Group 15
-</option>
-
-</select>
+<div class="form-control bg-light text-muted d-flex align-items-center py-2">
+    <i class="bi bi-info-circle-fill text-primary me-2 fs-5"></i>
+    <div>
+        <span class="fw-semibold text-dark d-block">Automatically Assigned</span>
+        <small class="text-muted">You will be balanced into an active convention study group (Groups 1–15).</small>
+    </div>
+</div>
 
 </div>
 

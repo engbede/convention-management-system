@@ -61,6 +61,19 @@ type ProgrammeFormData struct {
 	ErrorMessage        string
 }
 
+// PublicLiveViewData models template context for /live public viewing page
+type PublicLiveViewData struct {
+	LiveProgramme       *models.Programme
+	NextProgramme       *models.Programme
+	ActiveConvention    *models.Convention
+	CurrentUser         *models.User
+	IsLoggedIn          bool
+	IsAdmin             bool
+	UnreadMessagesCount int
+	UnreadCount         int
+	UnreadNotifications int
+}
+
 func isCurrentUserAdmin(r *http.Request) bool {
 	cookie, err := r.Cookie("admin_session")
 	if err == nil {
@@ -171,6 +184,57 @@ func ListProgrammes(w http.ResponseWriter, r *http.Request) {
 	Render(w, "programmes_list.html", data)
 }
 
+// PublicLiveViewing renders the dedicated public live viewing page (/live).
+func PublicLiveViewing(w http.ResponseWriter, r *http.Request) {
+	currentUser, isLoggedIn, isAdmin := getAuthenticatedUser(r)
+
+	liveList, _ := repository.GetLiveProgrammes()
+	var liveProg *models.Programme
+	for i := range liveList {
+		if liveList[i].Visibility == models.ProgrammeVisibilityPublic || isLoggedIn || isAdmin {
+			liveProg = &liveList[i]
+			break
+		}
+	}
+
+	var nextProg *models.Programme
+	if liveProg == nil {
+		upcomingList, _ := repository.GetUpcomingProgrammes(5)
+		for i := range upcomingList {
+			if upcomingList[i].Visibility == models.ProgrammeVisibilityPublic || isLoggedIn || isAdmin {
+				nextProg = &upcomingList[i]
+				break
+			}
+		}
+	}
+
+	var activeConv *models.Convention
+	conv, err := repository.GetActiveConvention()
+	if err == nil && conv.ID > 0 {
+		activeConv = &conv
+	}
+
+	var unreadMsgs, unreadNotifs int
+	if currentUser != nil {
+		unreadMsgs, _ = repository.CountTotalUnreadMessages(currentUser.ID)
+		unreadNotifs, _ = repository.CountUnreadNotifications(currentUser.ID)
+	}
+
+	data := PublicLiveViewData{
+		LiveProgramme:       liveProg,
+		NextProgramme:       nextProg,
+		ActiveConvention:    activeConv,
+		CurrentUser:         currentUser,
+		IsLoggedIn:          isLoggedIn,
+		IsAdmin:             isAdmin,
+		UnreadMessagesCount: unreadMsgs,
+		UnreadCount:         unreadNotifs,
+		UnreadNotifications: unreadNotifs,
+	}
+
+	Render(w, "live_programme.html", data)
+}
+
 // ViewProgramme renders the single programme view page with live player, chat, and prayer requests.
 func ViewProgramme(w http.ResponseWriter, r *http.Request) {
 	idStr := r.URL.Query().Get("id")
@@ -249,8 +313,8 @@ func ViewProgramme(w http.ResponseWriter, r *http.Request) {
 // NewProgramme displays the programme creation form.
 func NewProgramme(w http.ResponseWriter, r *http.Request) {
 	currentUser, isLoggedIn, isAdmin := getAuthenticatedUser(r)
-	if !isLoggedIn && !isAdmin {
-		http.Redirect(w, r, "/community/login?next=/programmes/new", http.StatusSeeOther)
+	if !isAdmin {
+		http.Redirect(w, r, "/login?error=Administrator+privileges+required", http.StatusSeeOther)
 		return
 	}
 
@@ -291,9 +355,9 @@ func CreateProgramme(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentUser, isLoggedIn, isAdmin := getAuthenticatedUser(r)
-	if !isLoggedIn && !isAdmin {
-		http.Redirect(w, r, "/community/login", http.StatusSeeOther)
+	currentUser, _, isAdmin := getAuthenticatedUser(r)
+	if !isAdmin {
+		http.Error(w, "Unauthorized: Administrator privileges required", http.StatusForbidden)
 		return
 	}
 
@@ -375,8 +439,8 @@ func CreateProgramme(w http.ResponseWriter, r *http.Request) {
 // EditProgramme displays the programme edit form.
 func EditProgramme(w http.ResponseWriter, r *http.Request) {
 	currentUser, isLoggedIn, isAdmin := getAuthenticatedUser(r)
-	if !isLoggedIn && !isAdmin {
-		http.Redirect(w, r, "/community/login", http.StatusSeeOther)
+	if !isAdmin {
+		http.Redirect(w, r, "/login?error=Administrator+privileges+required", http.StatusSeeOther)
 		return
 	}
 
@@ -390,15 +454,6 @@ func EditProgramme(w http.ResponseWriter, r *http.Request) {
 	p, err := repository.GetProgrammeByID(progID)
 	if err != nil || p == nil {
 		http.Error(w, "Programme not found", http.StatusNotFound)
-		return
-	}
-
-	var currentUserID int
-	if currentUser != nil {
-		currentUserID = currentUser.ID
-	}
-	if !services.CanUserManageProgramme(p, currentUserID, isAdmin) {
-		http.Error(w, "Unauthorized to edit this programme", http.StatusForbidden)
 		return
 	}
 
@@ -430,9 +485,9 @@ func UpdateProgramme(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentUser, isLoggedIn, isAdmin := getAuthenticatedUser(r)
-	if !isLoggedIn && !isAdmin {
-		http.Redirect(w, r, "/community/login", http.StatusSeeOther)
+	_, _, isAdmin := getAuthenticatedUser(r)
+	if !isAdmin {
+		http.Error(w, "Unauthorized: Administrator privileges required", http.StatusForbidden)
 		return
 	}
 
@@ -446,15 +501,6 @@ func UpdateProgramme(w http.ResponseWriter, r *http.Request) {
 	p, err := repository.GetProgrammeByID(progID)
 	if err != nil || p == nil {
 		http.Error(w, "Programme not found", http.StatusNotFound)
-		return
-	}
-
-	var currentUserID int
-	if currentUser != nil {
-		currentUserID = currentUser.ID
-	}
-	if !services.CanUserManageProgramme(p, currentUserID, isAdmin) {
-		http.Error(w, "Unauthorized to edit this programme", http.StatusForbidden)
 		return
 	}
 
@@ -524,6 +570,16 @@ func TransitionProgrammeStatusHandler(w http.ResponseWriter, r *http.Request) {
 	currentUser, isLoggedIn, isAdmin := getAuthenticatedUser(r)
 	if !isLoggedIn && !isAdmin {
 		http.Error(w, "Authentication required", http.StatusUnauthorized)
+		return
+	}
+	if !isAdmin {
+		if strings.HasPrefix(r.Header.Get("Accept"), "application/json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Unauthorized: Administrator privileges required"})
+			return
+		}
+		http.Error(w, "Unauthorized: Administrator privileges required", http.StatusForbidden)
 		return
 	}
 
@@ -830,9 +886,9 @@ func AssignModeratorHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentUser, isLoggedIn, isAdmin := getAuthenticatedUser(r)
-	if !isLoggedIn && !isAdmin {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	_, _, isAdmin := getAuthenticatedUser(r)
+	if !isAdmin {
+		http.Error(w, "Unauthorized: Administrator privileges required", http.StatusForbidden)
 		return
 	}
 
@@ -842,15 +898,6 @@ func AssignModeratorHandler(w http.ResponseWriter, r *http.Request) {
 	p, err := repository.GetProgrammeByID(progID)
 	if err != nil || p == nil {
 		http.Error(w, "Programme not found", http.StatusNotFound)
-		return
-	}
-
-	var currentUserID int
-	if currentUser != nil {
-		currentUserID = currentUser.ID
-	}
-	if !services.CanUserManageProgramme(p, currentUserID, isAdmin) {
-		http.Error(w, "Permission denied", http.StatusForbidden)
 		return
 	}
 
@@ -865,9 +912,9 @@ func RemoveModeratorHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	currentUser, isLoggedIn, isAdmin := getAuthenticatedUser(r)
-	if !isLoggedIn && !isAdmin {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+	_, _, isAdmin := getAuthenticatedUser(r)
+	if !isAdmin {
+		http.Error(w, "Unauthorized: Administrator privileges required", http.StatusForbidden)
 		return
 	}
 
@@ -877,15 +924,6 @@ func RemoveModeratorHandler(w http.ResponseWriter, r *http.Request) {
 	p, err := repository.GetProgrammeByID(progID)
 	if err != nil || p == nil {
 		http.Error(w, "Programme not found", http.StatusNotFound)
-		return
-	}
-
-	var currentUserID int
-	if currentUser != nil {
-		currentUserID = currentUser.ID
-	}
-	if !services.CanUserManageProgramme(p, currentUserID, isAdmin) {
-		http.Error(w, "Permission denied", http.StatusForbidden)
 		return
 	}
 

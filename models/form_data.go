@@ -7,6 +7,7 @@ type FormData struct {
 
 	Registration Registration
 	Convention   Convention
+	Circuits     []string
 
 	Errors map[string]string
 

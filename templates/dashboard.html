@@ -1,639 +1,520 @@
 {{define "dashboard.html"}}
-
 {{template "admin_layout" .}}
-
 {{end}}
 
 {{define "content"}}
+<style>
+    .stat-metric-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.85rem;
+        padding: 1.25rem 1.5rem;
+        box-shadow: 0 4px 12px rgba(20, 36, 28, 0.04);
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .stat-metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(20, 36, 28, 0.08);
+    }
+    .stat-metric-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+    }
+    .metric-green::before { background-color: #1b382b; }
+    .metric-gold::before { background-color: #c59b27; }
+    .metric-navy::before { background-color: #1d2d44; }
+    .metric-teal::before { background-color: #0d9488; }
+    .metric-slate::before { background-color: #475569; }
+    .metric-amber::before { background-color: #d97706; }
 
-<div class="container-fluid">
+    .stat-label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #64748b;
+        margin-bottom: 0.25rem;
+    }
+    .stat-number {
+        font-size: 1.85rem;
+        font-weight: 800;
+        color: #0f172a;
+        line-height: 1.2;
+    }
+    .stat-subtext {
+        font-size: 0.78rem;
+        color: #94a3b8;
+        margin-top: 0.25rem;
+    }
+    .convention-hero-card {
+        background: linear-gradient(135deg, #1b382b 0%, #12241c 100%);
+        color: #ffffff;
+        border: 1px solid #233f30;
+        border-radius: 1rem;
+        box-shadow: 0 8px 24px rgba(20, 36, 28, 0.12);
+        position: relative;
+    }
+    .quick-op-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+        text-decoration: none;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        transition: all 0.15s ease;
+    }
+    .quick-op-card:hover {
+        background-color: #f1f5f9;
+        border-color: #cbd5e1;
+        color: #0f172a;
+        transform: translateY(-2px);
+    }
+    .quick-op-icon {
+        width: 40px;
+        height: 40px;
+        border-radius: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+    }
+    .table-custom-clean th {
+        background-color: #f8fafc;
+        color: #475569;
+        font-weight: 700;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid #e2e8f0;
+        padding: 0.75rem 1rem;
+    }
+    .table-custom-clean td {
+        padding: 0.75rem 1rem;
+        vertical-align: middle;
+        font-size: 0.88rem;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .table-custom-clean tbody tr:hover {
+        background-color: #f8fafc;
+    }
+</style>
 
-    <h2 class="mb-3">
-        Administrator Dashboard
-    </h2>
+<div class="container-fluid p-0">
 
-    <p class="text-muted">
-        Welcome to the Apa Diocesan Youth Fellowship Management System.
-    </p>
-    
-
-<!-- HEADER -->
-<div class="container mt-4">
-
-    <h2>ADMINISTRATOR DASHBOARD</h2>
-
-    <p class="text-muted">
-        Welcome to the Apa Diocesan Youth Fellowship Management System.
-    </p>
-
-</div>
-
-<!-- ACTIVE CONVENTION -->
-<div class="container">
-
-    <div class="alert alert-primary">
-
-        <h5>ACTIVE CONVENTION</h5>
-
-        <strong>{{.Convention.Name}}</strong>
-
-        <br>
-
-        <strong>Theme:</strong>
-        {{.Convention.Theme}}
-
-        <br>
-
-        <strong>Venue:</strong>
-        {{.Convention.Venue}}
-
-        <br>
-
-        {{.Convention.StartDate}} -
-        {{.Convention.EndDate}}
-
-    </div>
-
-</div>
-
-<!-- ACTION CARDS -->
-<div class="container mb-5">
-
-    <div class="row">
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card h-100 shadow-sm">
-
-                <div class="card-body text-center">
-
-                    <h3>👥</h3>
-
-                    <h5>Registrations</h5>
-
-                    <a href="/registrations" class="btn btn-primary">
-                        Open
-                    </a>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-4 mb-3">
-
-    <div class="card h-100 shadow-sm">
-
-        <div class="card-body text-center">
-
-            <h3>👔</h3>
-
-            <h5>Officials</h5>
-
-            <p>
-
-                Register, edit and manage convention officials.
-
+    <!-- PAGE HEADER -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+        <div>
+            <h3 class="fw-bold mb-1" style="color: #0f172a;">Mission Control & Operations</h3>
+            <p class="text-muted small mb-0">
+                Apa Diocesan Youth Fellowship &bull; Real-time convention management and church community oversight
             </p>
-
-            <a
-                href="/officials"
-                class="btn btn-primary">
-
-                Open
-
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="/registrations" class="btn btn-outline-dark btn-sm rounded-pill px-3">
+                <i class="bi bi-people me-1"></i> Registrations
             </a>
-
-        </div>
-
-    </div>
-
-</div>
-        <div class="col-md-4 mb-3">
-
-    <div class="card h-100 shadow-sm">
-
-        <div class="card-body text-center">
-
-            <h3>🏕️</h3>
-
-            <h5>Convention Management</h5>
-
-            <p>
-
-                Create, edit, activate and manage conventions.
-
-            </p>
-
-            <a
-                href="/conventions"
-                class="btn btn-primary">
-
-                Open
-
+            <a href="/export/pdf" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                <i class="bi bi-file-earmark-pdf me-1"></i> Export PDF
             </a>
-
-        </div>
-
-    </div>
-
-</div>
-
-<div class="col-md-4 mb-3">
-
-    <div class="card h-100 shadow-sm">
-
-        <div class="card-body text-center">
-
-            <h3>📝</h3>
-
-            <h5>Registration Form</h5>
-
-            <p>
-
-                Open the public registration page.
-
-            </p>
-
-            <a
-                href="/register"
-                target="_blank"
-                class="btn btn-success">
-
-                Register
-
+            <a href="/export/excel" class="btn btn-outline-success btn-sm rounded-pill px-3">
+                <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
             </a>
-
-        </div>
-
-    </div>
-
-</div>
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card h-100 shadow-sm">
-
-                <div class="card-body text-center">
-
-                    <h3>📑</h3>
-
-                    <h5>Export PDF</h5>
-
-                    <p>Download registration report as PDF.</p>
-
-                    <a href="/export/pdf" class="btn btn-secondary">
-                        Export
-                    </a>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card h-100 shadow-sm">
-
-                <div class="card-body text-center">
-
-                    <h3>📄</h3>
-
-                    <h5>Export Excel</h5>
-
-                    <a href="/export/excel" class="btn btn-success">
-                        Export
-                    </a>
-
-                </div>
-
-            </div>
-
-        </div>
-        <div class="col-md-4 mb-3">
-
-    <div class="card h-100 shadow-sm">
-
-        <div class="card-body text-center">
-
-            <h3>📢</h3>
-
-            <h5>Notice Board</h5>
-
-            <p>
-
-                Create announcements, meeting notices and emergency alerts.
-
-            </p>
-
-            <a
-                href="/notices"
-                class="btn btn-primary">
-
-                Open
-
+            <a href="/live" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark" target="_blank">
+                <i class="bi bi-broadcast me-1"></i> Live Stream Desk
             </a>
+        </div>
+    </div>
 
+    <!-- ACTIVE CONVENTION BANNER -->
+    {{if .Convention}}
+        <div class="convention-hero-card p-4 mb-4">
+            <div class="row align-items-center g-3">
+                <div class="col-lg-8">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="badge bg-success rounded-pill px-3 py-1">
+                            <span class="spinner-grow spinner-grow-sm text-white me-1" style="width: 0.35rem; height: 0.35rem;" role="status"></span>
+                            ACTIVE CONVENTION
+                        </span>
+                        <span class="badge bg-warning text-dark rounded-pill px-2 py-1 small fw-bold">
+                            Edition {{.Convention.Year}}
+                        </span>
+                    </div>
+                    <h4 class="fw-bold mb-1 text-white">{{.Convention.Name}}</h4>
+                    <p class="text-white-50 small mb-2 fst-italic">&ldquo;{{.Convention.Theme}}&rdquo;</p>
+                    <div class="d-flex flex-wrap gap-3 text-white-50 small">
+                        <div><i class="bi bi-geo-alt text-warning me-1"></i>{{.Convention.Venue}}</div>
+                        <div><i class="bi bi-calendar-event text-warning me-1"></i>{{.Convention.StartDate}} &ndash; {{.Convention.EndDate}}</div>
+                    </div>
+                </div>
+                <div class="col-lg-4 text-lg-end">
+                    <div class="d-flex flex-wrap justify-content-lg-end gap-2">
+                        <a href="/conventions" class="btn btn-light btn-sm rounded-pill px-3 fw-semibold text-dark">
+                            <i class="bi bi-gear me-1"></i> Manage Convention
+                        </a>
+                        <a href="/register" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark" target="_blank">
+                            <i class="bi bi-pencil-square me-1"></i> Public Form
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {{else}}
+        <div class="alert alert-warning border-0 rounded-3 p-3 mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <i class="bi bi-exclamation-triangle-fill text-warning fs-5 me-2"></i>
+                <strong>No Active Convention Running</strong> &ndash; Activate a convention session to begin receiving official registrations.
+            </div>
+            <a href="/conventions" class="btn btn-sm btn-dark rounded-pill px-3">Conventions Hub</a>
+        </div>
+    {{end}}
+
+    <!-- METRICS GRID -->
+    <div class="row g-3 mb-4">
+        <!-- 1. Total Registrations -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-metric-card metric-green h-100">
+                <div class="stat-label">Total Registrations</div>
+                <div class="stat-number">{{.Stats.TotalRegistrations}}</div>
+                <div class="stat-subtext">Registered delegates across all circuits</div>
+            </div>
         </div>
 
+        <!-- 2. Checked In Attendance -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-metric-card metric-teal h-100">
+                <div class="stat-label">Accreditation & Checked In</div>
+                <div class="stat-number text-success">{{.Stats.CheckedIn}}</div>
+                <div class="stat-subtext">{{printf "%.1f" .Stats.AttendanceRate}}% overall check-in rate</div>
+            </div>
+        </div>
+
+        <!-- 3. Pending Check-in -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-metric-card metric-amber h-100">
+                <div class="stat-label">Pending Venue Check-In</div>
+                <div class="stat-number text-warning">{{.Stats.Pending}}</div>
+                <div class="stat-subtext">Awaiting arrival and badge scan</div>
+            </div>
+        </div>
+
+        <!-- 4. Circuits Represented -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-metric-card metric-gold h-100">
+                <div class="stat-label">Circuits Represented</div>
+                <div class="stat-number" style="color: #8c6b12;">{{len .Stats.Circuits}} <span class="fs-6 text-muted fw-normal">/ 12 Approved</span></div>
+                <div class="stat-subtext">Apa diocesan circuits in registry</div>
+            </div>
+        </div>
+
+        <!-- 5. Bible Study Groups -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-metric-card metric-navy h-100">
+                <div class="stat-label">Bible Study Groups</div>
+                <div class="stat-number text-primary">15</div>
+                <div class="stat-subtext">Automated balanced distribution units</div>
+            </div>
+        </div>
+
+        <!-- 6. Membership Breakdown -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-metric-card metric-slate h-100">
+                <div class="stat-label">Diocesan Members</div>
+                <div class="stat-number">{{.Stats.MemberCount}}</div>
+                <div class="stat-subtext">{{.Stats.NonMemberCount}} guest & non-member attendees</div>
+            </div>
+        </div>
+
+        <!-- 7. Gender Balance -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-metric-card metric-green h-100">
+                <div class="stat-label">Gender Distribution</div>
+                <div class="stat-number fs-4 mt-1">
+                    <span class="text-primary">{{.Stats.MaleCount}} M</span>
+                    <span class="text-muted mx-1">/</span>
+                    <span class="text-danger">{{.Stats.FemaleCount}} F</span>
+                </div>
+                <div class="stat-subtext">Balanced delegate demographic</div>
+            </div>
+        </div>
+
+        <!-- 8. First-Time Attendees -->
+        <div class="col-sm-6 col-xl-3">
+            <div class="stat-metric-card metric-teal h-100">
+                <div class="stat-label">First-Time Attendees</div>
+                <div class="stat-number text-info">{{.Stats.FirstTimeCount}}</div>
+                <div class="stat-subtext">New convention participants</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUICK MODULE DIRECTORY -->
+    <div class="mb-4">
+        <h6 class="fw-bold text-uppercase text-secondary small tracking-wider mb-3">
+            <i class="bi bi-grid-fill me-1"></i> Operational Workspaces
+        </h6>
+        <div class="row g-3">
+            <div class="col-sm-6 col-lg-3">
+                <a href="/registrations" class="quick-op-card">
+                    <div class="quick-op-icon bg-primary bg-opacity-10 text-primary">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold small">Attendee Records</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Search, filter & manage</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <a href="/print/idcards" class="quick-op-card">
+                    <div class="quick-op-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-person-vcard-fill"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold small">ID Cards & Badges</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Batch credential printing</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <a href="/documents" class="quick-op-card">
+                    <div class="quick-op-icon bg-dark bg-opacity-10 text-dark">
+                        <i class="bi bi-journal-bookmark-fill"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold small">Documents & Minutes</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Official archive downloads</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <a href="/programmes" class="quick-op-card">
+                    <div class="quick-op-icon bg-warning bg-opacity-10 text-warning">
+                        <i class="bi bi-broadcast-pin"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold small">Live Programmes</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Broadcast studio control</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <a href="/notices" class="quick-op-card">
+                    <div class="quick-op-icon bg-danger bg-opacity-10 text-danger">
+                        <i class="bi bi-megaphone-fill"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold small">Official Notices</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Announcements & bulletins</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <a href="/finance" class="quick-op-card">
+                    <div class="quick-op-icon bg-success bg-opacity-10 text-success">
+                        <i class="bi bi-cash-stack"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold small">Financial Records</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Convention income & costs</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <a href="/admin/inquiries" class="quick-op-card">
+                    <div class="quick-op-icon bg-info bg-opacity-10 text-info">
+                        <i class="bi bi-envelope-paper-fill"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold small">Inquiry Desk</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Attendee support queries</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <a href="/backup" class="quick-op-card">
+                    <div class="quick-op-icon bg-secondary bg-opacity-10 text-secondary">
+                        <i class="bi bi-database-check"></i>
+                    </div>
+                    <div>
+                        <div class="fw-bold small">Database Backup</div>
+                        <div class="text-muted" style="font-size: 0.72rem;">Data safety & snapshots</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- DETAILED BREAKDOWN TABLES & CHARTS -->
+    <div class="row g-4 mb-4">
+        <!-- Circuit Table -->
+        <div class="col-lg-6">
+            <div class="card border-0 rounded-4 shadow-sm h-100 bg-white">
+                <div class="card-header bg-white border-bottom py-3 px-4 d-flex justify-content-between align-items-center">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-diagram-3 me-2 text-primary"></i>Registrations by Circuit
+                    </h6>
+                    <span class="badge bg-light text-muted border rounded-pill">{{len .Stats.Circuits}} Circuits</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-custom-clean mb-0">
+                        <thead>
+                            <tr>
+                                <th>Circuit Name</th>
+                                <th class="text-end">Registered Attendees</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {{if .Stats.Circuits}}
+                                {{range .Stats.Circuits}}
+                                    <tr>
+                                        <td class="fw-semibold text-dark">{{.Circuit}} Circuit</td>
+                                        <td class="text-end fw-bold text-success">{{.Count}}</td>
+                                    </tr>
+                                {{end}}
+                            {{else}}
+                                <tr>
+                                    <td colspan="2" class="text-center text-muted py-3">No circuit records available yet.</td>
+                                </tr>
+                            {{end}}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Marital & Demographics Breakdown -->
+        <div class="col-lg-6">
+            <div class="card border-0 rounded-4 shadow-sm h-100 bg-white">
+                <div class="card-header bg-white border-bottom py-3 px-4">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-pie-chart me-2 text-success"></i>Demographic Analysis
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <!-- Progress Stats -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between small fw-bold mb-1">
+                            <span>Attendance Check-in Progress</span>
+                            <span>{{printf "%.1f" .Stats.AttendanceRate}}% ({{.Stats.CheckedIn}} / {{.Stats.TotalRegistrations}})</span>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar bg-success" role="progressbar" style="width: {{printf "%.1f" .Stats.AttendanceRate}}%;" aria-valuenow="{{.Stats.CheckedIn}}" aria-valuemin="0" aria-valuemax="{{.Stats.TotalRegistrations}}"></div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="text-muted small fw-bold">Marital Status Breakdown</div>
+                                <div class="mt-2 small">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Single:</span>
+                                        <strong>{{.Stats.SingleCount}}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Married:</span>
+                                        <strong>{{.Stats.MarriedCount}}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>Divorced / Other:</span>
+                                        <strong>{{.Stats.DivorcedCount}}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="p-3 bg-light rounded-3">
+                                <div class="text-muted small fw-bold">Membership Type</div>
+                                <div class="mt-2 small">
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Confirmed Members:</span>
+                                        <strong class="text-success">{{.Stats.MemberCount}}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between mb-1">
+                                        <span>Guests & Visitors:</span>
+                                        <strong class="text-secondary">{{.Stats.NonMemberCount}}</strong>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span>First-Time Visitors:</span>
+                                        <strong class="text-info">{{.Stats.FirstTimeCount}}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Canvas for Visual Charts -->
+                    <div class="row mt-4">
+                        <div class="col-6">
+                            <h6 class="text-center small text-muted mb-2">Gender Ratio</h6>
+                            <div style="height: 140px;">
+                                <canvas id="genderMiniChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-center small text-muted mb-2">Membership Status</h6>
+                            <div style="height: 140px;">
+                                <canvas id="membershipMiniChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
 </div>
 
-
-<div class="col-md-4 md-3">
-
-<div class="card shadow h-100">
-
-<div class="card-body text-center">
-
-<h5>Documentation</h5>
-
-<p>
-
-Store convention minutes, agendas, reports and resolutions.
-
-</p>
-
-<a
-href="/documents"
-class="btn btn-dark">
-
-Open
-
-</a>
-
-</div>
-
-</div>
-
-</div>
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card h-100 shadow-sm">
-
-                <div class="card-body text-center">
-
-                    <h3>🚪</h3>
-
-                    <h5>Logout</h5>
-
-                    <a href="/logout" class="btn btn-danger">
-                        Logout
-                    </a>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-<!-- DASHBOARD STATISTICS -->
-<div class="container mt-5">
-
-    <h3 class="mb-4">
-        DASHBOARD STATISTICS
-    </h3>
-
-    
-    <div class="row">
-
-        <div class="col-md-3 mb-3">
-
-            <div class="card shadow-sm">
-
-                <div class="card-body text-center">
-
-                    <h6>Total Registrations</h6>
-
-                    <h3>{{.Stats.TotalRegistrations}}</h3>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        
-        <div class="col-md-3 mb-3">
-
-            <div class="card shadow-sm">
-
-                <div class="card-body text-center">
-
-                    <h6>Male</h6>
-
-                    <h3>{{.Stats.MaleCount}}</h3>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-3 mb-3">
-
-            <div class="card shadow-sm">
-
-                <div class="card-body text-center">
-
-                    <h6>Female</h6>
-
-                    <h3>{{.Stats.FemaleCount}}</h3>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-3 mb-3">
-    <div class="card shadow-sm">
-        <div class="card-body text-center">
-            <h6>Members</h6>
-            <h3>{{.Stats.MemberCount}}</h3>
-        </div>
-    </div>
-</div>
-
-<div class="col-md-3 mb-3">
-    <div class="card shadow-sm">
-        <div class="card-body text-center">
-            <h6>Non-Members</h6>
-            <h3>{{.Stats.NonMemberCount}}</h3>
-        </div>
-    </div>
-</div>
-
-<!-- ATTENDANCE -->
-<div class="container mt-5">
-
-    <div class="row">
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card text-center border-success shadow-sm">
-
-                <div class="card-body">
-
-                    <h5>Checked In</h5>
-
-                    <h2>{{.Stats.CheckedIn}}</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card text-center border-warning shadow-sm">
-
-                <div class="card-body">
-
-                    <h5>Pending Check-In</h5>
-
-                    <h2>{{.Stats.Pending}}</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card text-center border-primary shadow-sm">
-
-                <div class="card-body">
-
-                    <h5>Attendance Rate</h5>
-
-                    <h2>{{printf "%.1f" .Stats.AttendanceRate}}%</h2>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-<!-- CIRCUIT TABLE -->
-<div class="container mt-5">
-
-    <h4 class="mb-3">
-        REGISTRATIONS BY CIRCUIT
-    </h4>
-
-    <table class="table table-bordered table-striped">
-
-        <thead class="table-dark">
-
-            <tr>
-
-                <th>Circuit</th>
-
-                <th>Total</th>
-
-            </tr>
-
-        </thead>
-
-        <tbody>
-
-            {{range .Stats.Circuits}}
-
-            <tr>
-
-                <td>{{.Circuit}}</td>
-
-                <td>{{.Count}}</td>
-
-            </tr>
-
-            {{end}}
-
-        </tbody>
-
-    </table>
-
-</div>
-
-<!-- CHARTS -->
-<div class="container mt-5">
-
-    <h3 class="mb-4">
-        Dashboard Charts
-    </h3>
-
-    <div class="row">
-
-        <div class="col-md-6">
-
-            <div class="card p-3">
-
-                <h5 class="text-center">
-                    Gender Distribution
-                </h5>
-
-                <canvas id="genderChart"></canvas>
-
-            </div>
-
-        </div>
-
-        <div class="col-md-6">
-
-            <div class="card p-3">
-
-                <h5 class="text-center">
-                    Membership Distribution
-                </h5>
-
-                <canvas id="membershipChart"></canvas>
-
-            </div>
-
-        </div>
-
-    </div>
-
-    <div class="row mt-4">
-
-        <div class="col-md-12">
-
-            <div class="card p-3">
-
-                <h5 class="text-center">
-                    Registrations by Circuit
-                </h5>
-
-                <canvas id="circuitChart"></canvas>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</div>
-
-<!-- FOOTER -->
-<footer class="bg-light text-center p-3 mt-5">
-
-    <small>
-        Apa Diocesan Youth Fellowship Management System © 2026
-    </small>
-
-</footer>
-
+<!-- CHART SCRIPTS -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
+    // Gender Mini Chart
+    new Chart(document.getElementById("genderMiniChart"), {
+        type: "doughnut",
+        data: {
+            labels: ["Male", "Female"],
+            datasets: [{
+                data: [{{.Stats.MaleCount}}, {{.Stats.FemaleCount}}],
+                backgroundColor: ["#1d2d44", "#c59b27"],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } }
+            }
+        }
+    });
 
-// ================= GENDER =================
-
-new Chart(document.getElementById("genderChart"), {
-
-    type: "bar",
-
-    data: {
-
-        labels: ["Male", "Female"],
-
-        datasets: [{
-
-            label: "Registrations",
-
-            data: [
-                {{.Stats.MaleCount}},
-                {{.Stats.FemaleCount}}
-            ]
-
-        }]
-
-    }
-
-});
-
-// ================= MEMBERSHIP =================
-
-new Chart(document.getElementById("membershipChart"), {
-
-    type: "pie",
-
-    data: {
-
-        labels: ["Members", "Non-Members"],
-
-        datasets: [{
-
-            data: [
-                {{.Stats.MemberCount}},
-                {{.Stats.NonMemberCount}}
-            ]
-
-        }]
-
-    }
-
-});
-
-// ================= CIRCUITS =================
-
-const circuitLabels = [
-
-{{range .Stats.Circuits}}
-
-"{{.Circuit}}",
-
-{{end}}
-
-];
-
-const circuitData = [
-
-{{range .Stats.Circuits}}
-
-{{.Count}},
-
-{{end}}
-
-];
-
-new Chart(document.getElementById("circuitChart"), {
-
-    type: "bar",
-
-    data: {
-
-        labels: circuitLabels,
-
-        datasets: [{
-
-            label: "Registrations per Circuit",
-
-            data: circuitData
-
-        }]
-
-    }
-
-});
-
+    // Membership Mini Chart
+    new Chart(document.getElementById("membershipMiniChart"), {
+        type: "doughnut",
+        data: {
+            labels: ["Members", "Guests"],
+            datasets: [{
+                data: [{{.Stats.MemberCount}}, {{.Stats.NonMemberCount}}],
+                backgroundColor: ["#1b382b", "#94a3b8"],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } }
+            }
+        }
+    });
 </script>
-
-</div>
-
 {{end}}

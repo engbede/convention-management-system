@@ -1,23 +1,195 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Registration Successful</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Registration Successful | Apa Diocesan Youth Fellowship</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+        :root {
+            --church-dark-green: #1b382b;
+            --church-charcoal: #1a2b22;
+            --church-gold: #c59b27;
+            --church-warm-ivory: #fbfaf7;
+            --church-card-bg: #ffffff;
+            --church-border: #e8e4dc;
+        }
+        body {
+            background-color: var(--church-warm-ivory);
+            color: var(--church-charcoal);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .church-header {
+            background: linear-gradient(135deg, #1b382b 0%, #12241c 100%);
+            border-bottom: 3px solid var(--church-gold);
+            color: #ffffff;
+        }
+        .success-card {
+            background: var(--church-card-bg);
+            border: 1px solid var(--church-border);
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px rgba(27, 56, 43, 0.08);
+        }
+        .group-badge-box {
+            background: linear-gradient(135deg, #f4fbf7 0%, #e8f5ee 100%);
+            border: 1.5px solid #a3d9ba;
+            border-radius: 0.75rem;
+        }
+        .info-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #5d6d63;
+            font-weight: 600;
+        }
+        .info-value {
+            font-size: 1.05rem;
+            color: var(--church-dark-green);
+            font-weight: 600;
+        }
+        .gold-pill {
+            background-color: #fdf6e2;
+            color: #8c6b12;
+            border: 1px solid #eed690;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background-color: #ffffff !important;
+            }
+            .success-card {
+                box-shadow: none !important;
+                border: 1px solid #ccc !important;
+            }
+        }
+    </style>
 </head>
 <body>
 
-<h1>Registration Successful</h1>
+<!-- HEADER -->
+<header class="church-header py-3 shadow-sm no-print">
+    <div class="container d-flex justify-content-between align-items-center">
+        <a href="/" class="text-white text-decoration-none d-flex align-items-center gap-2">
+            <i class="bi bi-shield-check text-warning fs-4"></i>
+            <div>
+                <div class="fw-bold fs-6">METHODIST CHURCH NIGERIA</div>
+                <div class="small text-white-50" style="font-size: 0.75rem;">Apa Diocesan Youth Fellowship</div>
+            </div>
+        </a>
+        <div class="d-flex gap-2">
+            <a href="/" class="btn btn-outline-light btn-sm rounded-pill px-3">
+                <i class="bi bi-house me-1"></i> Home
+            </a>
+            <a href="/live" class="btn btn-warning btn-sm rounded-pill px-3 fw-bold text-dark">
+                <i class="bi bi-broadcast me-1"></i> Live Stream
+            </a>
+        </div>
+    </div>
+</header>
 
-<p>
-Thank you, <strong>{{.FullName}}</strong>.
-</p>
+<main class="container my-5 flex-grow-1">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-md-10">
 
-<p>
-Your registration has been received.
-</p>
+            <div class="success-card p-4 p-md-5">
+                <!-- Checkmark Header -->
+                <div class="text-center mb-4">
+                    <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success bg-opacity-10 text-success mb-3" style="width: 72px; height: 72px; font-size: 2.5rem;">
+                        <i class="bi bi-check-circle-fill"></i>
+                    </div>
+                    <h2 class="fw-bold mb-1" style="color: var(--church-dark-green);">Registration Confirmed</h2>
+                    <p class="text-muted mb-0">Your convention participation has been successfully recorded in the diocesan registry.</p>
+                </div>
 
-<a href="/">
-Register Another Person
-</a>
+                <!-- Assigned Bible Study Group Callout -->
+                <div class="group-badge-box p-4 mb-4 text-center">
+                    <span class="badge gold-pill px-3 py-1 rounded-pill small fw-bold text-uppercase mb-2">Automated Group Assignment</span>
+                    <h4 class="fw-bold mb-1" style="color: var(--church-dark-green);">
+                        Registration successful. Your Bible Study Group is Group {{.BibleStudyGroup}}.
+                    </h4>
+                    <p class="text-muted small mb-0">
+                        Please assemble with <strong>Group {{.BibleStudyGroup}}</strong> during Bible study workshops, interactive prayer seminars, and group devotionals.
+                    </p>
+                </div>
 
+                <!-- Registration Details Grid -->
+                <div class="card border-0 bg-light p-3 rounded-3 mb-4">
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <span class="info-label">Participant Name</span>
+                            <div class="info-value">{{.FullName}}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <span class="info-label">Registration Number</span>
+                            <div class="info-value font-monospace" style="color: var(--church-gold);">
+                                {{if .RegistrationNumber}}{{.RegistrationNumber}}{{else}}Pending Generation{{end}}
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <span class="info-label">Circuit</span>
+                            <div class="info-value">{{.Circuit}} Circuit</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <span class="info-label">Local Church</span>
+                            <div class="info-value">{{if .LocalChurch}}{{.LocalChurch}}{{else}}Not Specified{{end}}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <span class="info-label">Assigned Bible Study Group</span>
+                            <div class="info-value text-success">Group {{.BibleStudyGroup}}</div>
+                        </div>
+                        <div class="col-sm-6">
+                            <span class="info-label">Arrival Date</span>
+                            <div class="info-value">{{if .ArrivalDate}}{{.ArrivalDate}}{{else}}Scheduled Convention Start{{end}}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QR Code Display (if available) -->
+                {{if .QRCode}}
+                <div class="text-center p-3 mb-4 border rounded-3 bg-white">
+                    <p class="info-label mb-2">Official Digital Check-in Pass</p>
+                    <img src="/{{.QRCode}}" alt="Convention QR Code Pass" class="img-fluid rounded border p-2 bg-light" style="max-width: 180px; max-height: 180px;" onerror="this.parentElement.style.display='none'">
+                    <div class="small text-muted mt-2">
+                        Present this QR code on arrival at the accreditation desk for instant check-in.
+                    </div>
+                </div>
+                {{end}}
+
+                <!-- Action Controls -->
+                <div class="d-flex flex-wrap justify-content-center gap-3 pt-2 no-print">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" onclick="window.print()">
+                        <i class="bi bi-printer me-2"></i> Print Slip
+                    </button>
+                    <a href="/register" class="btn btn-outline-success rounded-pill px-4">
+                        <i class="bi bi-person-plus me-2"></i> Register Another Person
+                    </a>
+                    <a href="/live" class="btn btn-warning rounded-pill px-4 fw-bold text-dark">
+                        <i class="bi bi-broadcast me-2"></i> View Live Programme
+                    </a>
+                    <a href="/" class="btn btn-primary rounded-pill px-4" style="background-color: var(--church-dark-green); border-color: var(--church-dark-green);">
+                        <i class="bi bi-house me-2"></i> Return to Homepage
+                    </a>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+</main>
+
+<footer class="text-center py-3 text-muted small mt-auto no-print">
+    <div class="container">
+        &copy; 2026 Methodist Church Nigeria &bull; Apa Diocesan Youth Fellowship Convention Registry
+    </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
