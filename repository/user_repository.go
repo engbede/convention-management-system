@@ -108,6 +108,15 @@ VALUES (
 )
 `
 
+	waterBaptizedInt := 0
+	if user.WaterBaptized {
+		waterBaptizedInt = 1
+	}
+	holySpiritBaptizedInt := 0
+	if user.HolySpiritBaptized {
+		holySpiritBaptizedInt = 1
+	}
+
 	res, err := database.DB.Exec(
 		query,
 		user.FullName,
@@ -156,8 +165,8 @@ VALUES (
 		user.Vision,
 		user.FavoriteQuote,
 
-		user.WaterBaptized,
-		user.HolySpiritBaptized,
+		waterBaptizedInt,
+		holySpiritBaptizedInt,
 
 		user.IsVerified,
 		user.IsActive,
@@ -325,6 +334,7 @@ func GetUserByID(id int) (models.User, error) {
 	`
 
 	var user models.User
+	var waterBaptizedInt, holySpiritBaptizedInt int
 
 	err := database.DB.QueryRow(query, id).Scan(
 
@@ -373,8 +383,8 @@ func GetUserByID(id int) (models.User, error) {
 		&user.Vision,
 		&user.FavoriteQuote,
 
-		&user.WaterBaptized,
-		&user.HolySpiritBaptized,
+		&waterBaptizedInt,
+		&holySpiritBaptizedInt,
 
 		&user.IsVerified,
 		&user.IsActive,
@@ -386,7 +396,14 @@ func GetUserByID(id int) (models.User, error) {
 		&user.UpdatedAt,
 	)
 
-	return user, err
+	if err != nil {
+		return user, err
+	}
+
+	user.WaterBaptized = (waterBaptizedInt == 1)
+	user.HolySpiritBaptized = (holySpiritBaptizedInt == 1)
+
+	return user, nil
 }
 
 func GetUserByEmail(email string) (*models.User, error) {
@@ -469,4 +486,37 @@ func GetUserByEmail(email string) (*models.User, error) {
 	}
 
 	return &user, nil
+}
+
+// UserExistsByUsername checks if a username is already taken (case-insensitive).
+func UserExistsByUsername(username string) (bool, error) {
+	trimmed := strings.TrimSpace(username)
+	if trimmed == "" {
+		return false, nil
+	}
+	var count int
+	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE LOWER(username) = LOWER($1)", trimmed).Scan(&count)
+	return count > 0, err
+}
+
+// UserExistsByEmail checks if an email is already registered (case-insensitive).
+func UserExistsByEmail(email string) (bool, error) {
+	trimmed := strings.TrimSpace(email)
+	if trimmed == "" {
+		return false, nil
+	}
+	var count int
+	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE LOWER(email) = LOWER($1)", trimmed).Scan(&count)
+	return count > 0, err
+}
+
+// UserExistsByPhone checks if a phone number is already registered.
+func UserExistsByPhone(phone string) (bool, error) {
+	trimmed := strings.TrimSpace(phone)
+	if trimmed == "" {
+		return false, nil
+	}
+	var count int
+	err := database.DB.QueryRow("SELECT COUNT(*) FROM users WHERE phone = $1", trimmed).Scan(&count)
+	return count > 0, err
 }

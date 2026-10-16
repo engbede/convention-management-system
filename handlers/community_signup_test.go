@@ -177,3 +177,164 @@ func TestSignup_MethodNotAllowed(t *testing.T) {
 		t.Errorf("Expected redirect to /signup, got %q", loc)
 	}
 }
+
+func TestSignup_DuplicateEmail(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Register initial user
+	formData1 := url.Values{
+		"full_name":        {"First Email User"},
+		"username":         {"email_user_1"},
+		"email":            {"unique_email@example.com"},
+		"password":         {"ValidPass123!"},
+		"confirm_password": {"ValidPass123!"},
+	}
+	req1 := httptest.NewRequest(http.MethodPost, "/create-account", strings.NewReader(formData1.Encode()))
+	req1.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr1 := httptest.NewRecorder()
+	Signup(rr1, req1)
+	if rr1.Code != http.StatusSeeOther {
+		t.Fatalf("Failed to create first user: %d %s", rr1.Code, rr1.Body.String())
+	}
+
+	// Attempt duplicate email with different casing
+	formData2 := url.Values{
+		"full_name":        {"Second Email User"},
+		"username":         {"email_user_2"},
+		"email":            {"UNIQUE_EMAIL@EXAMPLE.COM"},
+		"password":         {"ValidPass123!"},
+		"confirm_password": {"ValidPass123!"},
+	}
+	req2 := httptest.NewRequest(http.MethodPost, "/create-account", strings.NewReader(formData2.Encode()))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr2 := httptest.NewRecorder()
+	Signup(rr2, req2)
+
+	if rr2.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for duplicate email, got %d", rr2.Code)
+	}
+	if !strings.Contains(rr2.Body.String(), "Email is already registered") {
+		t.Errorf("Expected 'Email is already registered' in response, got %q", rr2.Body.String())
+	}
+}
+
+func TestSignup_DuplicatePhone(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Register initial user
+	formData1 := url.Values{
+		"full_name":        {"First Phone User"},
+		"username":         {"phone_user_1"},
+		"phone":            {"08011112222"},
+		"password":         {"ValidPass123!"},
+		"confirm_password": {"ValidPass123!"},
+	}
+	req1 := httptest.NewRequest(http.MethodPost, "/create-account", strings.NewReader(formData1.Encode()))
+	req1.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr1 := httptest.NewRecorder()
+	Signup(rr1, req1)
+	if rr1.Code != http.StatusSeeOther {
+		t.Fatalf("Failed to create first user: %d %s", rr1.Code, rr1.Body.String())
+	}
+
+	// Attempt duplicate phone
+	formData2 := url.Values{
+		"full_name":        {"Second Phone User"},
+		"username":         {"phone_user_2"},
+		"phone":            {"08011112222"},
+		"password":         {"ValidPass123!"},
+		"confirm_password": {"ValidPass123!"},
+	}
+	req2 := httptest.NewRequest(http.MethodPost, "/create-account", strings.NewReader(formData2.Encode()))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr2 := httptest.NewRecorder()
+	Signup(rr2, req2)
+
+	if rr2.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for duplicate phone, got %d", rr2.Code)
+	}
+	if !strings.Contains(rr2.Body.String(), "Phone number is already registered") {
+		t.Errorf("Expected 'Phone number is already registered' in response, got %q", rr2.Body.String())
+	}
+}
+
+func TestShowSignup_POST(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	formData := url.Values{
+		"full_name":        {"Post Signup User"},
+		"username":         {"post_signup_user"},
+		"email":            {"post_signup@example.com"},
+		"phone":            {"08055556666"},
+		"password":         {"Pass123456!"},
+		"confirm_password": {"Pass123456!"},
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/signup", strings.NewReader(formData.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr := httptest.NewRecorder()
+
+	ShowSignup(rr, req)
+
+	if rr.Code != http.StatusSeeOther {
+		t.Fatalf("Expected status 303 See Other for POST /signup, got %d", rr.Code)
+	}
+	if loc := rr.Header().Get("Location"); loc != "/community/login" {
+		t.Errorf("Expected redirect to /community/login, got %q", loc)
+	}
+
+	user, err := repository.GetUserByUsername("post_signup_user")
+	if err != nil {
+		t.Fatalf("Expected user to be created via POST /signup, err=%v", err)
+	}
+	if user.FullName != "Post Signup User" {
+		t.Errorf("Expected FullName 'Post Signup User', got %q", user.FullName)
+	}
+}
+
+func TestSignup_PostgreSQLErrorParsing(t *testing.T) {
+	// Directly test that PostgreSQL error strings are mapped to user-friendly 400 responses
+	testCases := []struct {
+		errStr           string
+		expectedMsg      string
+		unexpectedSubstr string
+	}{
+		{
+			errStr:           `ERROR: duplicate key value violates unique constraint "users_username_key" (SQLSTATE 23505)`,
+			expectedMsg:      "Username is already taken.",
+			unexpectedSubstr: "SQLSTATE",
+		},
+		{
+			errStr:           `ERROR: duplicate key value violates unique constraint "users_email_key" (SQLSTATE 23505)`,
+			expectedMsg:      "Email is already registered.",
+			unexpectedSubstr: "users_email_key",
+		},
+		{
+			errStr:           `ERROR: duplicate key value violates unique constraint "users_phone_key" (SQLSTATE 23505)`,
+			expectedMsg:      "Phone number is already registered.",
+			unexpectedSubstr: "ERROR",
+		},
+	}
+
+	for _, tc := range testCases {
+		errLower := strings.ToLower(tc.errStr)
+		var userMsg string
+		if strings.Contains(errLower, "users.username") || strings.Contains(errLower, "users_username") || (strings.Contains(errLower, "23505") && strings.Contains(errLower, "username")) {
+			userMsg = "Username is already taken."
+		} else if strings.Contains(errLower, "users.email") || strings.Contains(errLower, "users_email") || (strings.Contains(errLower, "23505") && strings.Contains(errLower, "email")) {
+			userMsg = "Email is already registered."
+		} else if strings.Contains(errLower, "users.phone") || strings.Contains(errLower, "users_phone") || (strings.Contains(errLower, "23505") && strings.Contains(errLower, "phone")) {
+			userMsg = "Phone number is already registered."
+		}
+
+		if userMsg != tc.expectedMsg {
+			t.Errorf("For error %q, expected user message %q, got %q", tc.errStr, tc.expectedMsg, userMsg)
+		}
+		if strings.Contains(userMsg, tc.unexpectedSubstr) {
+			t.Errorf("User message leaked internal database details: %s", userMsg)
+		}
+	}
+}

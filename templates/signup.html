@@ -36,6 +36,12 @@
 
                 <div class="card-body">
 
+                    {{if .Error}}
+                    <div class="alert alert-danger" role="alert">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>{{.Error}}
+                    </div>
+                    {{end}}
+
                     <form action="/create-account" method="POST">
 
                         <div class="mb-3">

@@ -15,6 +15,10 @@ func ShowSignup(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
+	if r.Method == http.MethodPost {
+		Signup(w, r)
+		return
+	}
 	Render(
 		w,
 		"signup.html",
@@ -85,6 +89,41 @@ func Signup(
 		return
 	}
 
+	// Pre-validate uniqueness across PostgreSQL and SQLite
+	if exists, err := repository.UserExistsByUsername(username); err == nil && exists {
+		log.Printf("[Registration Validation] username already taken: %q", username)
+		http.Error(
+			w,
+			"Username is already taken.",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	if email != "" {
+		if exists, err := repository.UserExistsByEmail(email); err == nil && exists {
+			log.Printf("[Registration Validation] email already registered: %q", email)
+			http.Error(
+				w,
+				"Email is already registered.",
+				http.StatusBadRequest,
+			)
+			return
+		}
+	}
+
+	if phone != "" {
+		if exists, err := repository.UserExistsByPhone(phone); err == nil && exists {
+			log.Printf("[Registration Validation] phone already registered: %q", phone)
+			http.Error(
+				w,
+				"Phone number is already registered.",
+				http.StatusBadRequest,
+			)
+			return
+		}
+	}
+
 	hash, err := bcrypt.GenerateFromPassword(
 		[]byte(password),
 		bcrypt.DefaultCost,
@@ -122,7 +161,8 @@ func Signup(
 
 	if err != nil {
 		log.Printf("[Registration Failure] operation=CreateUser username=%q email=%q err=%v", username, email, err)
-		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.username") {
+		errStr := strings.ToLower(err.Error())
+		if strings.Contains(errStr, "users.username") || strings.Contains(errStr, "users_username") || (strings.Contains(errStr, "23505") && strings.Contains(errStr, "username")) {
 			http.Error(
 				w,
 				"Username is already taken.",
@@ -130,10 +170,18 @@ func Signup(
 			)
 			return
 		}
-		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.email") {
+		if strings.Contains(errStr, "users.email") || strings.Contains(errStr, "users_email") || (strings.Contains(errStr, "23505") && strings.Contains(errStr, "email")) {
 			http.Error(
 				w,
 				"Email is already registered.",
+				http.StatusBadRequest,
+			)
+			return
+		}
+		if strings.Contains(errStr, "users.phone") || strings.Contains(errStr, "users_phone") || (strings.Contains(errStr, "23505") && strings.Contains(errStr, "phone")) {
+			http.Error(
+				w,
+				"Phone number is already registered.",
 				http.StatusBadRequest,
 			)
 			return

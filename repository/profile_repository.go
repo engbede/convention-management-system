@@ -73,6 +73,7 @@ func GetUserProfile(userID int) (*models.User, error) {
 	`
 
 	var user models.User
+	var waterBaptizedInt, holySpiritBaptizedInt int
 
 	err := database.DB.QueryRow(query, userID).Scan(
 
@@ -111,8 +112,8 @@ func GetUserProfile(userID int) (*models.User, error) {
 		&user.Calling,
 		&user.SpiritualGifts,
 
-		&user.WaterBaptized,
-		&user.HolySpiritBaptized,
+		&waterBaptizedInt,
+		&holySpiritBaptizedInt,
 
 		// Interests
 		&user.FavoritePreacher,
@@ -145,6 +146,9 @@ func GetUserProfile(userID int) (*models.User, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	user.WaterBaptized = (waterBaptizedInt == 1)
+	user.HolySpiritBaptized = (holySpiritBaptizedInt == 1)
 
 	// Generate initials
 	parts := strings.Fields(user.FullName)
@@ -215,6 +219,15 @@ func UpdateUserProfile(user *models.User) error {
 	WHERE id=$31
 	`
 
+	waterBaptizedInt := 0
+	if user.WaterBaptized {
+		waterBaptizedInt = 1
+	}
+	holySpiritBaptizedInt := 0
+	if user.HolySpiritBaptized {
+		holySpiritBaptizedInt = 1
+	}
+
 	_, err := database.DB.Exec(
 
 		query,
@@ -241,8 +254,8 @@ func UpdateUserProfile(user *models.User) error {
 		user.Calling,
 		user.SpiritualGifts,
 
-		user.WaterBaptized,
-		user.HolySpiritBaptized,
+		waterBaptizedInt,
+		holySpiritBaptizedInt,
 
 		user.FavoritePreacher,
 		user.FavoriteChristianBook,

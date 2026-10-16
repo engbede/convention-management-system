@@ -238,3 +238,90 @@ func TestExistingUsersRemainAccessible(t *testing.T) {
 		t.Errorf("Expected 'bob', got %q", bob.Username)
 	}
 }
+
+func TestUserExistsByUsername_Email_Phone(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Create user with known username, email, and phone
+	testUser := &models.User{
+		FullName:     "Check User",
+		Username:     "check_user",
+		Email:        "check_user@example.com",
+		Phone:        "08098765432",
+		PasswordHash: "hashedpass",
+	}
+	if err := CreateUser(testUser); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
+
+	existsUser, err := UserExistsByUsername("check_user")
+	if err != nil || !existsUser {
+		t.Errorf("Expected UserExistsByUsername('check_user') = true, got %v, err=%v", existsUser, err)
+	}
+
+	// Test case-insensitivity
+	existsUserUpper, err := UserExistsByUsername("CHECK_USER")
+	if err != nil || !existsUserUpper {
+		t.Errorf("Expected UserExistsByUsername('CHECK_USER') = true, got %v, err=%v", existsUserUpper, err)
+	}
+
+	existsNonExistent, err := UserExistsByUsername("does_not_exist_user")
+	if err != nil || existsNonExistent {
+		t.Errorf("Expected UserExistsByUsername('does_not_exist_user') = false, got %v, err=%v", existsNonExistent, err)
+	}
+
+	existsEmail, err := UserExistsByEmail("check_user@example.com")
+	if err != nil || !existsEmail {
+		t.Errorf("Expected UserExistsByEmail('check_user@example.com') = true, got %v, err=%v", existsEmail, err)
+	}
+
+	existsEmailUpper, err := UserExistsByEmail("CHECK_USER@EXAMPLE.COM")
+	if err != nil || !existsEmailUpper {
+		t.Errorf("Expected UserExistsByEmail('CHECK_USER@EXAMPLE.COM') = true, got %v, err=%v", existsEmailUpper, err)
+	}
+
+	emptyEmail, err := UserExistsByEmail("")
+	if err != nil || emptyEmail {
+		t.Errorf("Expected UserExistsByEmail('') = false, got %v, err=%v", emptyEmail, err)
+	}
+
+	existsPhone, err := UserExistsByPhone("08098765432")
+	if err != nil || !existsPhone {
+		t.Errorf("Expected UserExistsByPhone('08098765432') = true, got %v, err=%v", existsPhone, err)
+	}
+
+	emptyPhone, err := UserExistsByPhone("")
+	if err != nil || emptyPhone {
+		t.Errorf("Expected UserExistsByPhone('') = false, got %v, err=%v", emptyPhone, err)
+	}
+}
+
+func TestCreateUser_BaptismIntegerCompatibility(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	user := &models.User{
+		FullName:           "Baptism Test User",
+		Username:           "baptized_user",
+		PasswordHash:       "hashedpass",
+		WaterBaptized:      true,
+		HolySpiritBaptized: false,
+	}
+
+	if err := CreateUser(user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	// Verify GetUserByID returns proper boolean values
+	fetched, err := GetUserByID(user.ID)
+	if err != nil {
+		t.Fatalf("GetUserByID failed: %v", err)
+	}
+	if !fetched.WaterBaptized {
+		t.Errorf("Expected WaterBaptized to be true")
+	}
+	if fetched.HolySpiritBaptized {
+		t.Errorf("Expected HolySpiritBaptized to be false")
+	}
+}
