@@ -712,3 +712,51 @@ func TestGroupGovernanceAndModeration(t *testing.T) {
 		t.Fatalf("Author deleting own message failed: %v", err)
 	}
 }
+
+func TestGetUserInbox_AutoEnrollment(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Initially, user 3 is not enrolled in any direct or custom groups.
+	// But MigrateSQLite seeded "Youth General Community" and auto-enrolled existing users.
+	// Let's create user 4 who has no conversations at all.
+	_, err := database.DB.Exec(`
+		INSERT INTO users (id, full_name, username, password_hash)
+		VALUES (4, 'New Youth Member', 'newyouth', 'hash4');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to insert user 4: %v", err)
+	}
+
+	// Verify user 4 has 0 conversations in DB before calling GetUserInbox
+	convs, err := repository.GetUserConversations(4)
+	if err != nil {
+		t.Fatalf("GetUserConversations failed: %v", err)
+	}
+	if len(convs) != 0 {
+		t.Fatalf("Expected 0 conversations for user 4 initially, got %d", len(convs))
+	}
+
+	// Calling GetUserInbox(4) should auto-enroll user 4 into Youth General Community
+	items, unread, err := GetUserInbox(4)
+	if err != nil {
+		t.Fatalf("GetUserInbox failed: %v", err)
+	}
+
+	if len(items) == 0 {
+		t.Errorf("Expected user 4 to be auto-enrolled into default Youth General Community, got 0 items")
+	}
+
+	foundGeneral := false
+	for _, item := range items {
+		if item.Title == "Youth General Community" {
+			foundGeneral = true
+			break
+		}
+	}
+	if !foundGeneral {
+		t.Errorf("Expected 'Youth General Community' group in user 4's inbox items")
+	}
+
+	_ = unread
+}

@@ -27,6 +27,9 @@ func Render(
 		"announcements.html",
 		"forgot_password.html",
 		"reset_password.html",
+		"guidelines.html",
+		"privacy.html",
+		"terms.html",
 		"user login.html":
 
 		tmpl, err = template.ParseFiles(

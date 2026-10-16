@@ -727,5 +727,19 @@ func seedDefaultCommunityGroupsPostgres() error {
 			}
 		}
 	}
+
+	// Ensure all existing users are enrolled in the open "Youth General Community"
+	_, _ = DB.Exec(`
+		INSERT INTO conversation_members (conversation_id, user_id, role, joined_at)
+		SELECT c.id, u.id, 'member', CURRENT_TIMESTAMP
+		FROM conversations c
+		CROSS JOIN users u
+		WHERE c.type = 'group' AND c.title = 'Youth General Community'
+		  AND NOT EXISTS (
+			  SELECT 1 FROM conversation_members cm
+			  WHERE cm.conversation_id = c.id AND cm.user_id = u.id
+		  );
+	`)
+
 	return nil
 }

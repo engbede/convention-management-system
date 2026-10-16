@@ -545,6 +545,24 @@ func RegisterRoutes(mux *http.ServeMux) {
 		handlers.CommunityLogout,
 	)
 
+	// Public Policy & Community Guidelines
+	mux.HandleFunc(
+		"/community/guidelines",
+		handlers.CommunityGuidelinesHandler,
+	)
+	mux.HandleFunc(
+		"/guidelines",
+		handlers.CommunityGuidelinesHandler,
+	)
+	mux.HandleFunc(
+		"/privacy",
+		handlers.PrivacyPolicyHandler,
+	)
+	mux.HandleFunc(
+		"/terms",
+		handlers.TermsOfUseHandler,
+	)
+
 	// Youth Community Chat & Messaging
 	mux.HandleFunc(
 		"/messages",

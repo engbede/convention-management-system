@@ -347,6 +347,17 @@
                         </a>
                         {{end}}
                     {{else}}
+                        {{if .Error}}
+                        <!-- Error State -->
+                        <div class="text-center p-4 text-muted mt-4">
+                            <i class="bi bi-exclamation-triangle-fill text-warning fs-1 mb-2 d-block"></i>
+                            <h6 class="text-dark">Unable to load conversations</h6>
+                            <p class="small text-secondary mb-3">{{.Error}}</p>
+                            <a href="/messages" class="btn btn-sm btn-outline-success rounded-pill px-3">
+                                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+                            </a>
+                        </div>
+                        {{else}}
                         <!-- Empty State: No Conversations -->
                         <div class="text-center p-4 text-muted mt-5">
                             <i class="bi bi-chat-square-heart text-success fs-1 mb-2 d-block"></i>
@@ -357,6 +368,7 @@
                                 Start a Conversation
                             </button>
                         </div>
+                        {{end}}
                     {{end}}
                 </div>
             </div>

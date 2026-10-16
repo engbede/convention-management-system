@@ -160,7 +160,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 	query := fmt.Sprintf(`
 		SELECT id, type, COALESCE(title, ''), COALESCE(category, 'general'),
 		       COALESCE(description, ''), COALESCE(avatar_url, ''),
-		       COALESCE(call_permission, 'all'), COALESCE(is_public, 1),
+		       COALESCE(call_permission, 'all'), COALESCE(is_public, TRUE),
 		       COALESCE(join_policy, 'approval'),
 		       created_by, last_message_at, created_at, updated_at
 		FROM conversations
@@ -170,7 +170,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 	var conv models.Conversation
 	var lastMsg, createdAtRaw, updatedAtRaw any
 	var title, category, description, avatarURL, callPermission, joinPolicy string
-	var isPublic int
+	var isPublic bool
 
 	err := database.DB.QueryRow(query, conversationID).Scan(
 		&conv.ID,
@@ -196,7 +196,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 	conv.Description = description
 	conv.AvatarURL = avatarURL
 	conv.CallPermission = callPermission
-	conv.IsPublic = isPublic == 1
+	conv.IsPublic = isPublic
 	conv.JoinPolicy = joinPolicy
 	conv.CreatedAt = parseSQLTime(createdAtRaw)
 	conv.UpdatedAt = parseSQLTime(updatedAtRaw)
@@ -267,7 +267,7 @@ func SaveMessage(msg *models.Message) error {
 			attachment_url, attachment_name, attachment_size, attachment_type,
 			is_edited, is_deleted, created_at, updated_at
 		)
-		VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`,
 		helpers.Placeholder(1),
 		helpers.Placeholder(2),
@@ -426,12 +426,12 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 			COALESCE(c.description, ''),
 			COALESCE(c.avatar_url, ''),
 			COALESCE(c.call_permission, 'all'),
-			COALESCE(c.is_public, 1),
+			COALESCE(c.is_public, TRUE),
 			(SELECT COUNT(*) FROM conversation_members WHERE conversation_id = c.id) as member_count,
 			COALESCE(c.last_message_at, c.created_at) as sort_time,
 			cm.last_read_message_id,
-			COALESCE(cm.is_muted, 0),
-			COALESCE(cm.is_archived, 0),
+			COALESCE(cm.is_muted, FALSE),
+			COALESCE(cm.is_archived, FALSE),
 			-- Other user details for direct chat
 			COALESCE(u.id, 0),
 			COALESCE(u.full_name, ''),
@@ -472,8 +472,8 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 	for rows.Next() {
 		var item models.ConversationItem
 		var lastReadID int
-		var isMuted, isArchived int
-		var isPublic int
+		var isMuted, isArchived bool
+		var isPublic bool
 		var sortTimeRaw any
 		var otherID int
 		var otherName, otherUsername, otherPhoto string
@@ -508,9 +508,9 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 			return nil, err
 		}
 
-		item.IsPublic = isPublic == 1
-		item.IsMuted = isMuted == 1
-		item.IsArchived = isArchived == 1
+		item.IsPublic = isPublic
+		item.IsMuted = isMuted
+		item.IsArchived = isArchived
 
 		if item.Type == "direct" && otherID != 0 {
 			item.OtherUser = models.User{
@@ -581,9 +581,9 @@ func CountTotalUnreadMessages(userID int) (int, error) {
 
 // ToggleMuteConversation toggles the is_muted state for a user in a conversation.
 func ToggleMuteConversation(convID, userID int) (bool, error) {
-	var currentMuted int
+	var currentMuted bool
 	querySelect := fmt.Sprintf(`
-		SELECT COALESCE(is_muted, 0)
+		SELECT COALESCE(is_muted, FALSE)
 		FROM conversation_members
 		WHERE conversation_id = %s AND user_id = %s
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
@@ -592,10 +592,7 @@ func ToggleMuteConversation(convID, userID int) (bool, error) {
 		return false, err
 	}
 
-	newMuted := 1
-	if currentMuted == 1 {
-		newMuted = 0
-	}
+	newMuted := !currentMuted
 
 	queryUpdate := fmt.Sprintf(`
 		UPDATE conversation_members
@@ -607,14 +604,14 @@ func ToggleMuteConversation(convID, userID int) (bool, error) {
 		return false, err
 	}
 
-	return newMuted == 1, nil
+	return newMuted, nil
 }
 
 // ToggleArchiveConversation toggles the is_archived state for a user in a conversation.
 func ToggleArchiveConversation(convID, userID int) (bool, error) {
-	var currentArchived int
+	var currentArchived bool
 	querySelect := fmt.Sprintf(`
-		SELECT COALESCE(is_archived, 0)
+		SELECT COALESCE(is_archived, FALSE)
 		FROM conversation_members
 		WHERE conversation_id = %s AND user_id = %s
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
@@ -623,10 +620,7 @@ func ToggleArchiveConversation(convID, userID int) (bool, error) {
 		return false, err
 	}
 
-	newArchived := 1
-	if currentArchived == 1 {
-		newArchived = 0
-	}
+	newArchived := !currentArchived
 
 	queryUpdate := fmt.Sprintf(`
 		UPDATE conversation_members
@@ -638,29 +632,28 @@ func ToggleArchiveConversation(convID, userID int) (bool, error) {
 		return false, err
 	}
 
-	return newArchived == 1, nil
+	return newArchived, nil
 }
 
 // GetConversationMemberSettings gets the mute and archive status for a member.
 func GetConversationMemberSettings(convID, userID int) (isMuted, isArchived bool, err error) {
-	var mutedVal, archivedVal int
 	query := fmt.Sprintf(`
-		SELECT COALESCE(is_muted, 0), COALESCE(is_archived, 0)
+		SELECT COALESCE(is_muted, FALSE), COALESCE(is_archived, FALSE)
 		FROM conversation_members
 		WHERE conversation_id = %s AND user_id = %s
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
-	err = database.DB.QueryRow(query, convID, userID).Scan(&mutedVal, &archivedVal)
+	err = database.DB.QueryRow(query, convID, userID).Scan(&isMuted, &isArchived)
 	if err != nil {
 		return false, false, err
 	}
-	return mutedVal == 1, archivedVal == 1, nil
+	return isMuted, isArchived, nil
 }
 
 // IsConversationMutedBy checks if a conversation is muted by a specific user.
 func IsConversationMutedBy(convID, userID int) bool {
-	var muted int
+	var muted bool
 	query := fmt.Sprintf(`
-		SELECT COALESCE(is_muted, 0)
+		SELECT COALESCE(is_muted, FALSE)
 		FROM conversation_members
 		WHERE conversation_id = %s AND user_id = %s
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
@@ -668,7 +661,7 @@ func IsConversationMutedBy(convID, userID int) bool {
 	if err != nil {
 		return false
 	}
-	return muted == 1
+	return muted
 }
 
 // CountMessagesInConversation returns the total number of messages in a conversation.
@@ -683,8 +676,8 @@ func CountMessagesInConversation(convID int) (int, error) {
 func MarkMessageNotificationsAsRead(receiverID, senderID int) error {
 	query := fmt.Sprintf(`
 		UPDATE notifications
-		SET is_read = 1
-		WHERE receiver_id = %s AND sender_id = %s AND type = 'message' AND is_read = 0
+		SET is_read = TRUE
+		WHERE receiver_id = %s AND sender_id = %s AND type = 'message' AND is_read = FALSE
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
 	_, err := database.DB.Exec(query, receiverID, senderID)
 	return err
@@ -804,7 +797,7 @@ func SearchMessages(userID int, query string, conversationID *int, limit, offset
 			JOIN users u ON m.sender_id = u.id
 			WHERE m.conversation_id = %s
 			  AND (m.body LIKE %s OR m.attachment_name LIKE %s)
-			  AND m.is_deleted = 0
+			  AND m.is_deleted = FALSE
 			ORDER BY m.created_at DESC
 			LIMIT %s OFFSET %s
 		`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5), helpers.Placeholder(6))
@@ -819,7 +812,7 @@ func SearchMessages(userID int, query string, conversationID *int, limit, offset
 			JOIN conversation_members cm ON m.conversation_id = cm.conversation_id AND cm.user_id = %s
 			JOIN users u ON m.sender_id = u.id
 			WHERE (m.body LIKE %s OR m.attachment_name LIKE %s)
-			  AND m.is_deleted = 0
+			  AND m.is_deleted = FALSE
 			ORDER BY m.created_at DESC
 			LIMIT %s OFFSET %s
 		`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5))
@@ -867,7 +860,7 @@ func GetConversationSharedMedia(conversationID int, limit int) ([]models.Message
 		WHERE m.conversation_id = %s
 		  AND m.attachment_url IS NOT NULL
 		  AND m.attachment_url != ''
-		  AND m.is_deleted = 0
+		  AND m.is_deleted = FALSE
 		ORDER BY m.created_at DESC
 		LIMIT %s
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
@@ -1078,17 +1071,12 @@ func CreateGroupConversation(title, category, description, avatarURL, callPermis
 	}
 	defer tx.Rollback()
 
-	isPublicVal := 1
-	if !isPublic {
-		isPublicVal = 0
-	}
-
 	insertQuery := fmt.Sprintf(`
 		INSERT INTO conversations (type, title, category, description, avatar_url, call_permission, is_public, join_policy, created_by, created_at, updated_at)
 		VALUES ('group', %s, %s, %s, %s, %s, %s, 'approval', %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5), helpers.Placeholder(6), helpers.Placeholder(7))
 
-	res, err := tx.Exec(insertQuery, title, category, description, avatarURL, callPermission, isPublicVal, creatorID)
+	res, err := tx.Exec(insertQuery, title, category, description, avatarURL, callPermission, isPublic, creatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -1137,7 +1125,7 @@ func GetConversationMembers(conversationID int) ([]models.ConversationMember, er
 	query := fmt.Sprintf(`
 		SELECT cm.id, cm.conversation_id, cm.user_id, cm.role,
 		       COALESCE(cm.last_read_message_id, 0),
-		       COALESCE(cm.is_muted, 0), COALESCE(cm.is_archived, 0), cm.joined_at,
+		       COALESCE(cm.is_muted, FALSE), COALESCE(cm.is_archived, FALSE), cm.joined_at,
 		       u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''), COALESCE(u.church_name, '')
 		FROM conversation_members cm
 		JOIN users u ON cm.user_id = u.id
@@ -1161,7 +1149,7 @@ func GetConversationMembers(conversationID int) ([]models.ConversationMember, er
 	var members []models.ConversationMember
 	for rows.Next() {
 		var m models.ConversationMember
-		var isMuted, isArchived int
+		var isMuted, isArchived bool
 		var joinedAtRaw any
 		var photo, church string
 
@@ -1174,8 +1162,8 @@ func GetConversationMembers(conversationID int) ([]models.ConversationMember, er
 			return nil, err
 		}
 
-		m.IsMuted = isMuted == 1
-		m.IsArchived = isArchived == 1
+		m.IsMuted = isMuted
+		m.IsArchived = isArchived
 		m.JoinedAt = parseSQLTime(joinedAtRaw)
 		m.User.ProfilePhoto = photo
 		m.User.ChurchName = church
@@ -1191,7 +1179,7 @@ func GetConversationMember(conversationID, userID int) (*models.ConversationMemb
 	query := fmt.Sprintf(`
 		SELECT cm.id, cm.conversation_id, cm.user_id, cm.role,
 		       COALESCE(cm.last_read_message_id, 0),
-		       COALESCE(cm.is_muted, 0), COALESCE(cm.is_archived, 0), cm.joined_at,
+		       COALESCE(cm.is_muted, FALSE), COALESCE(cm.is_archived, FALSE), cm.joined_at,
 		       u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
 		FROM conversation_members cm
 		JOIN users u ON cm.user_id = u.id
@@ -1200,7 +1188,7 @@ func GetConversationMember(conversationID, userID int) (*models.ConversationMemb
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
 
 	var m models.ConversationMember
-	var isMuted, isArchived int
+	var isMuted, isArchived bool
 	var joinedAtRaw any
 	var photo string
 
@@ -1213,8 +1201,8 @@ func GetConversationMember(conversationID, userID int) (*models.ConversationMemb
 		return nil, err
 	}
 
-	m.IsMuted = isMuted == 1
-	m.IsArchived = isArchived == 1
+	m.IsMuted = isMuted
+	m.IsArchived = isArchived
 	m.JoinedAt = parseSQLTime(joinedAtRaw)
 	m.User.ProfilePhoto = photo
 	m.User.Initials = utils.Initials(m.User.FullName)
@@ -1388,7 +1376,7 @@ func GetMessageByID(messageID int) (*models.Message, error) {
 func SoftDeleteMessage(messageID, deletedByID int) error {
 	query := fmt.Sprintf(`
 		UPDATE messages
-		SET is_deleted = 1,
+		SET is_deleted = TRUE,
 		    deleted_by = %s,
 		    deleted_at = CURRENT_TIMESTAMP,
 		    body = 'This message was removed by a moderator.',
@@ -1667,4 +1655,32 @@ func CountPendingGroupMembershipRequests(convID int) (int, error) {
 	var count int
 	err := database.DB.QueryRow(query, convID).Scan(&count)
 	return count, err
+}
+
+// EnsureDefaultCommunityMembership enrolls the user into the open default community group, creating it if needed.
+func EnsureDefaultCommunityMembership(userID int) error {
+	if database.DB == nil {
+		return errors.New("database not initialized")
+	}
+	var generalConvID int
+	query := "SELECT id FROM conversations WHERE type = 'group' AND title = 'Youth General Community' LIMIT 1"
+	err := database.DB.QueryRow(query).Scan(&generalConvID)
+	if err == sql.ErrNoRows {
+		insertQuery := fmt.Sprintf(`
+			INSERT INTO conversations (type, title, category, description, call_permission, is_public, join_policy, created_by, created_at, updated_at)
+			VALUES ('group', 'Youth General Community', 'general', 'Open fellowship space for all convention youth, announcements, and general discussions.', 'anyone', TRUE, 'open', %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		`, helpers.Placeholder(1))
+		res, insErr := database.DB.Exec(insertQuery, userID)
+		if insErr != nil {
+			return insErr
+		}
+		if lastID, lErr := res.LastInsertId(); lErr == nil && lastID > 0 {
+			generalConvID = int(lastID)
+		} else {
+			_ = database.DB.QueryRow("SELECT id FROM conversations WHERE type = 'group' AND title = 'Youth General Community' LIMIT 1").Scan(&generalConvID)
+		}
+	} else if err != nil {
+		return err
+	}
+	return AddConversationMember(generalConvID, userID, "member")
 }

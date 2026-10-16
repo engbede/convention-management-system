@@ -168,6 +168,7 @@ type GroupMembershipRequest struct {
 // ChatViewData holds template data for the chat interface.
 type ChatViewData struct {
 	CurrentUser          User
+	Error                string
 	Conversations        []ConversationItem
 	ActiveConversation   *Conversation
 	ActiveRecipient      *User

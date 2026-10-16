@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"strconv"
@@ -46,8 +47,11 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 	currentUser.Initials = utils.Initials(currentUser.FullName)
 
 	// Fetch conversations list
+	var inboxError string
 	conversations, unreadMsgs, err := services.GetUserInbox(currentUserID)
 	if err != nil {
+		log.Printf("[Chat Inbox Error] user_id=%d failed to load inbox: %v", currentUserID, err)
+		inboxError = "Unable to load conversations at this moment. Please refresh."
 		conversations = []models.ConversationItem{}
 	}
 
@@ -144,6 +148,7 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 
 	data := models.ChatViewData{
 		CurrentUser:          currentUser,
+		Error:                inboxError,
 		Conversations:        conversations,
 		ActiveConversation:   activeConv,
 		ActiveRecipient:      activeRecipient,

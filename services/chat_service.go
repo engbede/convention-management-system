@@ -268,6 +268,15 @@ func GetUserInbox(userID int) ([]models.ConversationItem, int, error) {
 		return nil, 0, err
 	}
 
+	// If user is not yet part of any conversations, ensure they are enrolled in the open default Youth General Community
+	if len(conversations) == 0 {
+		if err := repository.EnsureDefaultCommunityMembership(userID); err == nil {
+			if reloaded, rErr := repository.GetUserConversations(userID); rErr == nil {
+				conversations = reloaded
+			}
+		}
+	}
+
 	unread, err := repository.CountTotalUnreadMessages(userID)
 	if err != nil {
 		unread = 0

@@ -70,6 +70,10 @@ func TestRouteAccessibility_PublicRoutes(t *testing.T) {
 		{name: "Forgot Password", path: "/forgot-password"},
 		{name: "Reset Password", path: "/reset-password"},
 		{name: "Live Programmes", path: "/programmes"},
+		{name: "Community Guidelines", path: "/community/guidelines"},
+		{name: "Guidelines Alias", path: "/guidelines"},
+		{name: "Privacy Policy", path: "/privacy"},
+		{name: "Terms of Use", path: "/terms"},
 	}
 
 	for _, tc := range publicRoutes {

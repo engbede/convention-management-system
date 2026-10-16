@@ -1,115 +1,606 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-
-    <title>Community Login</title>
-
+    <title>Community Login — Methodist Church Nigeria, Diocese of Apa Youth Fellowship</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        :root {
+            --mcn-navy: #0a2240;
+            --mcn-navy-dark: #06162a;
+            --mcn-navy-light: #163a66;
+            --mcn-green: #1e5631;
+            --mcn-green-light: #2d7745;
+            --mcn-gold: #c59b27;
+            --mcn-gold-light: #fdf8ed;
+            --mcn-gold-border: #e6c875;
+            --mcn-bg: #fcfbf7;
+            --mcn-surface: #ffffff;
+            --mcn-text: #212529;
+            --mcn-muted: #596169;
+        }
+
+        body {
+            background-color: var(--mcn-bg);
+            color: var(--mcn-text);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            line-height: 1.6;
+        }
+
+        /* Top Brand Navigation Bar */
+        .brand-navbar {
+            background-color: var(--mcn-navy);
+            border-bottom: 3px solid var(--mcn-gold);
+            padding: 0.75rem 0;
+        }
+        .brand-navbar .church-title {
+            color: #ffffff;
+            font-size: 0.95rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+            line-height: 1.25;
+        }
+        .brand-navbar .church-sub {
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* Left-hand Welcome Section */
+        .welcome-section {
+            padding: 2.5rem 2rem 2.5rem 1rem;
+        }
+        .welcome-badge {
+            background-color: rgba(10, 34, 64, 0.08);
+            color: var(--mcn-navy);
+            font-weight: 700;
+            font-size: 0.8rem;
+            letter-spacing: 0.05em;
+            text-transform: uppercase;
+            padding: 0.4rem 0.85rem;
+            border-radius: 2rem;
+            display: inline-block;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(10, 34, 64, 0.12);
+        }
+        .welcome-heading {
+            color: var(--mcn-navy);
+            font-size: 1.85rem;
+            font-weight: 800;
+            line-height: 1.25;
+            letter-spacing: -0.01em;
+            margin-bottom: 1.25rem;
+        }
+        .welcome-lead {
+            font-size: 1.05rem;
+            color: var(--mcn-muted);
+            margin-bottom: 1.5rem;
+        }
+        .welcome-lead strong {
+            color: var(--mcn-navy);
+        }
+
+        /* Scripture Box */
+        .scripture-card {
+            background-color: var(--mcn-gold-light);
+            border: 1px solid var(--mcn-gold-border);
+            border-left: 5px solid var(--mcn-gold);
+            border-radius: 0 0.75rem 0.75rem 0;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.75rem;
+            box-shadow: 0 4px 12px rgba(197, 155, 39, 0.08);
+        }
+        .scripture-text {
+            font-size: 1.05rem;
+            font-style: italic;
+            color: #3e3215;
+            line-height: 1.55;
+            margin-bottom: 0.5rem;
+        }
+        .scripture-ref {
+            font-weight: 700;
+            color: var(--mcn-navy);
+            font-size: 0.9rem;
+            text-align: right;
+        }
+
+        /* Values Grid */
+        .values-list {
+            margin-bottom: 1.75rem;
+        }
+        .value-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 0.85rem;
+        }
+        .value-icon-box {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, rgba(30, 86, 49, 0.12) 0%, rgba(10, 34, 64, 0.1) 100%);
+            color: var(--mcn-green);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.15rem;
+            margin-right: 0.85rem;
+            flex-shrink: 0;
+            border: 1px solid rgba(30, 86, 49, 0.15);
+        }
+        .value-title {
+            font-weight: 700;
+            color: var(--mcn-navy);
+            margin-right: 0.35rem;
+        }
+        .value-desc {
+            color: var(--mcn-muted);
+            font-size: 0.92rem;
+            line-height: 1.45;
+        }
+
+        /* Commitment Box */
+        .commitment-banner {
+            background-color: #ffffff;
+            border: 1px solid rgba(10, 34, 64, 0.1);
+            border-radius: 0.75rem;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        .commitment-banner .motto {
+            color: var(--mcn-green);
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        /* Guidelines & Privacy Notice Summary */
+        .policy-summary-box {
+            background: #ffffff;
+            border: 1px solid rgba(10, 34, 64, 0.08);
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            font-size: 0.88rem;
+            color: var(--mcn-muted);
+        }
+        .policy-links a {
+            color: var(--mcn-navy);
+            font-weight: 600;
+            text-decoration: underline;
+            margin-right: 0.75rem;
+        }
+        .policy-links a:hover {
+            color: var(--mcn-green);
+        }
+
+        /* Right-hand Login Card */
+        .login-card-wrapper {
+            padding: 1.5rem 0.5rem;
+        }
+        .login-card {
+            background: var(--mcn-surface);
+            border-radius: 1.25rem;
+            border: 1px solid rgba(10, 34, 64, 0.1);
+            box-shadow: 0 15px 40px rgba(10, 34, 64, 0.09);
+            padding: 2.25rem 2rem;
+            position: relative;
+        }
+        .login-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, var(--mcn-navy) 0%, var(--mcn-green) 50%, var(--mcn-gold) 100%);
+            border-radius: 1.25rem 1.25rem 0 0;
+        }
+        .logo-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+        .logo-img {
+            height: 60px;
+            width: auto;
+            object-fit: contain;
+            border-radius: 50%;
+            padding: 2px;
+            background: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+        }
+        .login-card-title {
+            color: var(--mcn-navy);
+            font-weight: 800;
+            font-size: 1.5rem;
+            text-align: center;
+            margin-bottom: 0.25rem;
+        }
+        .login-card-subtitle {
+            text-align: center;
+            color: var(--mcn-muted);
+            font-size: 0.9rem;
+            margin-bottom: 1.75rem;
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: var(--mcn-navy);
+            font-size: 0.88rem;
+            margin-bottom: 0.35rem;
+        }
+        .form-control {
+            border-radius: 0.5rem;
+            padding: 0.65rem 0.85rem;
+            border: 1px solid #ced4da;
+            font-size: 0.95rem;
+            min-height: 44px;
+        }
+        .form-control:focus {
+            border-color: var(--mcn-navy-light);
+            box-shadow: 0 0 0 0.2rem rgba(10, 34, 64, 0.15);
+        }
+        .input-group .btn {
+            border-color: #ced4da;
+            color: var(--mcn-muted);
+            min-width: 44px;
+        }
+        .input-group .btn:hover {
+            background-color: #f8f9fa;
+            color: var(--mcn-navy);
+        }
+
+        .btn-navy-submit {
+            background: linear-gradient(135deg, var(--mcn-navy) 0%, var(--mcn-navy-light) 100%);
+            color: #ffffff;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 0.01em;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(10, 34, 64, 0.2);
+            min-height: 46px;
+        }
+        .btn-navy-submit:hover {
+            background: linear-gradient(135deg, var(--mcn-navy-dark) 0%, var(--mcn-navy) 100%);
+            color: #ffffff;
+            box-shadow: 0 6px 16px rgba(10, 34, 64, 0.3);
+            transform: translateY(-1px);
+        }
+        .btn-navy-submit:active {
+            transform: translateY(0);
+        }
+
+        .forgot-link {
+            color: var(--mcn-green);
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .forgot-link:hover {
+            text-decoration: underline;
+            color: var(--mcn-green-light);
+        }
+
+        .create-account-link {
+            color: var(--mcn-navy);
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .create-account-link:hover {
+            text-decoration: underline;
+            color: var(--mcn-green);
+        }
+
+        /* Footer */
+        footer.page-footer {
+            margin-top: auto;
+            background-color: #ffffff;
+            border-top: 1px solid rgba(10, 34, 64, 0.08);
+            padding: 1.5rem 0;
+            font-size: 0.85rem;
+            color: var(--mcn-muted);
+        }
+        footer.page-footer a {
+            color: var(--mcn-muted);
+            text-decoration: none;
+            margin: 0 0.5rem;
+        }
+        footer.page-footer a:hover {
+            color: var(--mcn-navy);
+            text-decoration: underline;
+        }
+
+        @media (max-width: 991.98px) {
+            .welcome-section {
+                padding: 1.5rem 0.5rem 1rem 0.5rem;
+            }
+            .welcome-heading {
+                font-size: 1.45rem;
+            }
+            .login-card-wrapper {
+                padding: 1rem 0.25rem 2rem 0.25rem;
+            }
+            .login-card {
+                padding: 1.75rem 1.25rem;
+            }
+        }
+    </style>
 </head>
+<body>
 
-<body class="bg-light">
+<!-- Top Navigation -->
+<nav class="brand-navbar">
+    <div class="container d-flex align-items-center justify-content-between">
+        <a href="/" class="d-flex align-items-center text-decoration-none text-white gap-2">
+            <img src="/static/images/church_logo.png" alt="Methodist Church Nigeria" height="42" class="rounded-circle bg-white p-1">
+            <img src="/static/images/youth_logo.png" alt="Diocese of Apa Youth Fellowship" height="42" class="rounded-circle bg-white p-1">
+            <div class="d-none d-sm-block">
+                <div class="church-title">METHODIST CHURCH NIGERIA</div>
+                <div class="church-sub">Diocese of Apa — Youth Fellowship Community</div>
+            </div>
+        </a>
+        <div class="d-flex align-items-center gap-2">
+            <a href="/" class="btn btn-outline-light btn-sm rounded-pill px-3">
+                <i class="bi bi-house me-1"></i> Home
+            </a>
+            <a href="/signup" class="btn btn-warning btn-sm rounded-pill px-3 text-dark fw-bold">
+                <i class="bi bi-person-plus me-1"></i> Register
+            </a>
+        </div>
+    </div>
+</nav>
 
-<div class="container">
+<!-- Main Container -->
+<main class="container my-auto py-3 py-lg-4">
+    <div class="row align-items-center g-4 g-lg-5">
 
-    <div class="row justify-content-center mt-5">
+        <!-- Left-hand Section: Welcome & Fellowship Values -->
+        <div class="col-lg-7 welcome-section">
 
-        <div class="col-md-6 col-lg-5">
+            <div class="welcome-badge">
+                <i class="bi bi-cross me-1"></i> Diocese of Apa • Youth Fellowship
+            </div>
 
-            <div class="card shadow">
+            <h1 class="welcome-heading">
+                WELCOME TO THE METHODIST CHURCH NIGERIA, DIOCESE OF APA — YOUTH FELLOWSHIP COMMUNITY!
+            </h1>
 
-                <div class="card-header bg-success text-white text-center">
+            <div class="welcome-lead">
+                <p class="mb-2">
+                    <strong>Grace and peace to you in the name of our Lord and Saviour, Jesus Christ!</strong>
+                </p>
+                <p class="mb-2">
+                    This platform is more than just a social feed. It is a place for faith, fellowship, unity, spiritual growth, and meaningful connections.
+                </p>
+                <p class="mb-0">
+                    Here, we encourage one another, share uplifting messages, stay informed about church activities, and grow together in Christ.
+                </p>
+            </div>
 
-                    <h2>Community Login</h2>
+            <!-- Scripture Callout -->
+            <div class="scripture-card">
+                <div class="scripture-text">
+                    “Let no man despise thy youth; but be thou an example of the believers, in word, in conversation, in charity, in spirit, in faith, in purity.”
+                </div>
+                <div class="scripture-ref">— 1 Timothy 4:12 (KJV)</div>
+            </div>
 
+            <!-- Our Fellowship Values -->
+            <h5 class="fw-bold text-navy mb-3" style="color:var(--mcn-navy);">Our Fellowship Values</h5>
+            <div class="values-list">
+                <div class="value-item">
+                    <span class="value-icon-box"><i class="bi bi-book"></i></span>
+                    <div>
+                        <span class="value-title">Faith:</span>
+                        <span class="value-desc">Growing together through prayer and the Word of God.</span>
+                    </div>
+                </div>
+                <div class="value-item">
+                    <span class="value-icon-box"><i class="bi bi-people-fill"></i></span>
+                    <div>
+                        <span class="value-title">Fellowship:</span>
+                        <span class="value-desc">Building stronger relationships across our circuits and local churches.</span>
+                    </div>
+                </div>
+                <div class="value-item">
+                    <span class="value-icon-box"><i class="bi bi-heart-fill"></i></span>
+                    <div>
+                        <span class="value-title">Unity:</span>
+                        <span class="value-desc">Encouraging love, mutual respect, and cooperation among all members.</span>
+                    </div>
+                </div>
+                <div class="value-item">
+                    <span class="value-icon-box"><i class="bi bi-graph-up-arrow"></i></span>
+                    <div>
+                        <span class="value-title">Spiritual Growth:</span>
+                        <span class="value-desc">Sharing testimonies, godly discussions, and uplifting messages.</span>
+                    </div>
+                </div>
+                <div class="value-item">
+                    <span class="value-icon-box"><i class="bi bi-gift-fill"></i></span>
+                    <div>
+                        <span class="value-title">Service:</span>
+                        <span class="value-desc">Using our gifts and talents to serve God and positively impact our generation.</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Community Commitment -->
+            <div class="commitment-banner">
+                <div class="fw-bold text-dark mb-1">
+                    <i class="bi bi-check2-circle text-success me-1"></i>
+                    Let us keep this platform respectful, Christ-centred, encouraging, and welcoming to everyone.
+                </div>
+                <div class="motto">
+                    One Faith. One Fellowship. One Purpose — Glorifying God and Advancing His Kingdom.
+                </div>
+            </div>
+
+            <!-- Platform Guidelines & Privacy Summary -->
+            <div class="policy-summary-box">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <i class="bi bi-shield-lock-fill text-success fs-5"></i>
+                    <strong class="text-dark">Guidelines & Privacy Commitment</strong>
+                </div>
+                <p class="mb-2">
+                    We are dedicated to maintaining a godly, safe environment. Members are expected to treat others with Christian love, avoid harassment or spam, and respect fellow members' privacy. For full details on member standards and how registration data is handled:
+                </p>
+                <div class="policy-links d-flex flex-wrap gap-2 pt-1">
+                    <a href="/community/guidelines"><i class="bi bi-journal-text me-1"></i>Community Guidelines</a>
+                    <a href="/privacy"><i class="bi bi-shield-check me-1"></i>Privacy Policy</a>
+                    <a href="/terms"><i class="bi bi-file-text me-1"></i>Terms of Use</a>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right-hand Section: Login Card -->
+        <div class="col-lg-5 login-card-wrapper">
+            <div class="login-card">
+
+                <!-- Logos -->
+                <div class="logo-row">
+                    <img src="/static/images/church_logo.png" alt="Methodist Church Nigeria" class="logo-img" title="Methodist Church Nigeria">
+                    <img src="/static/images/youth_logo.png" alt="Diocese of Apa Youth Fellowship" class="logo-img" title="Diocese of Apa Youth Fellowship">
                 </div>
 
-                <div class="card-body">
+                <h2 class="login-card-title">Welcome Back!</h2>
+                <p class="login-card-subtitle">Sign in to continue to your Youth Fellowship community.</p>
 
-                    <form method="POST" action="/community/login">
+                <!-- Error Alert -->
+                {{if .Error}}
+                <div class="alert alert-danger d-flex align-items-center mb-3 py-2 px-3 rounded" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill fs-5 me-2 flex-shrink-0"></i>
+                    <div class="small">{{.Error}}</div>
+                </div>
+                {{end}}
 
-                        <div class="mb-3">
+                <form method="POST" action="/community/login" id="loginForm" novalidate>
 
-                            <label class="form-label" for="loginUsername">
-                                Username
-                            </label>
-
+                    <!-- Email or Username -->
+                    <div class="mb-3">
+                        <label class="form-label" for="loginUsername">
+                            Username or Email Address
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white text-muted">
+                                <i class="bi bi-person"></i>
+                            </span>
                             <input
                                 type="text"
                                 id="loginUsername"
                                 name="username"
                                 class="form-control"
+                                value="{{if .Username}}{{.Username}}{{end}}"
+                                placeholder="Enter your username or email"
+                                autocomplete="username"
                                 required>
-
                         </div>
+                    </div>
 
-                        <div class="mb-3">
-
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <label class="form-label mb-0" for="loginPassword">
-                                    Password
-                                </label>
-                                <a href="/forgot-password" class="small text-decoration-none text-success">
-                                    Forgot Password?
-                                </a>
-                            </div>
-
-                            <div class="input-group">
-                                <input
-                                    type="password"
-                                    id="loginPassword"
-                                    name="password"
-                                    class="form-control"
-                                    required>
-                                <button
-                                    class="btn btn-outline-secondary"
-                                    type="button"
-                                    id="toggleLoginPassword"
-                                    aria-label="Show password"
-                                    title="Show password">
-                                    <i class="bi bi-eye"></i>
-                                </button>
-                            </div>
-
+                    <!-- Password -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label mb-0" for="loginPassword">
+                                Password
+                            </label>
+                            <a href="/forgot-password" class="forgot-link">
+                                Forgot Password?
+                            </a>
                         </div>
+                        <div class="input-group">
+                            <span class="input-group-text bg-white text-muted">
+                                <i class="bi bi-lock"></i>
+                            </span>
+                            <input
+                                type="password"
+                                id="loginPassword"
+                                name="password"
+                                class="form-control"
+                                placeholder="Enter your password"
+                                autocomplete="current-password"
+                                required>
+                            <button
+                                class="btn btn-outline-secondary"
+                                type="button"
+                                id="toggleLoginPassword"
+                                aria-label="Show password"
+                                title="Show password">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                        </div>
+                    </div>
 
-                        <button
-                            type="submit"
-                            class="btn btn-success w-100">
+                    <!-- Remember Me -->
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" class="form-check-input" id="rememberMe" name="remember_me">
+                        <label class="form-check-label text-muted small" for="rememberMe">
+                            Keep me signed in on this device
+                        </label>
+                    </div>
 
-                            Login
+                    <!-- Submit Button -->
+                    <button
+                        type="submit"
+                        id="submitBtn"
+                        class="btn btn-navy-submit w-100">
+                        <span class="spinner-border spinner-border-sm d-none me-2" id="loginSpinner" role="status" aria-hidden="true"></span>
+                        <span id="btnText"><i class="bi bi-box-arrow-in-right me-1"></i> Sign In</span>
+                    </button>
 
-                        </button>
+                </form>
 
-                    </form>
+                <hr class="my-4">
 
-                    <hr>
+                <!-- Register Link -->
+                <p class="text-center mb-0 small text-muted">
+                    Don't have an account yet?
+                    <a href="/signup" class="create-account-link ms-1">
+                        Create Account
+                    </a>
+                </p>
 
-                    <p class="text-center mb-0">
-
-                        Don't have an account?
-
-                        <a href="/signup">
-                            Create Account
-                        </a>
-
-                    </p>
-
+                <div class="text-center mt-3">
+                    <a href="/" class="small text-muted text-decoration-none">
+                        <i class="bi bi-arrow-left me-1"></i> Back to Church Website
+                    </a>
                 </div>
 
             </div>
-
         </div>
 
     </div>
+</main>
 
-</div>
+<!-- Footer -->
+<footer class="page-footer text-center">
+    <div class="container">
+        <div class="mb-2">
+            <a href="/community/guidelines">Community Guidelines</a> •
+            <a href="/privacy">Privacy Policy</a> •
+            <a href="/terms">Terms of Use</a> •
+            <a href="/signup">New Registration</a> •
+            <a href="/forgot-password">Password Reset</a>
+        </div>
+        <div class="text-secondary small">
+            © Methodist Church Nigeria, Diocese of Apa — Youth Fellowship. All rights reserved.
+        </div>
+    </div>
+</footer>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Show/Hide password toggle
     const toggleBtn = document.getElementById('toggleLoginPassword');
     const pwdInput = document.getElementById('loginPassword');
     if (toggleBtn && pwdInput) {
@@ -125,6 +616,36 @@ document.addEventListener('DOMContentLoaded', function() {
                 icon.classList.replace('bi-eye-slash', 'bi-eye');
                 this.setAttribute('aria-label', 'Show password');
                 this.setAttribute('title', 'Show password');
+            }
+        });
+    }
+
+    // Submit button spinner on submission
+    const form = document.getElementById('loginForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const spinner = document.getElementById('loginSpinner');
+    const btnText = document.getElementById('btnText');
+
+    if (form && submitBtn) {
+        form.addEventListener('submit', function(e) {
+            const username = document.getElementById('loginUsername');
+            if (username && !username.value.trim()) {
+                e.preventDefault();
+                username.focus();
+                return;
+            }
+            if (pwdInput && !pwdInput.value) {
+                e.preventDefault();
+                pwdInput.focus();
+                return;
+            }
+
+            if (spinner && btnText) {
+                spinner.classList.remove('d-none');
+                btnText.textContent = ' Signing In...';
+                submitBtn.disabled = true;
+                // Allow the form to submit
+                form.submit();
             }
         });
     }
