@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"convention-management-system/database"
+	"convention-management-system/repository"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -462,8 +463,8 @@ func TestCommunityGroups(t *testing.T) {
 		t.Fatalf("Demoting back to member failed: %v", err)
 	}
 
-	// 6. UpdateGroupSettings: Change call permission to 'all'
-	err = UpdateGroupSettings(1, group.ID, "Youth Bible Study Revised", "bible_study", "New description", "all")
+	// 6. UpdateGroupSettings: Change call permission to 'all' and join_policy to 'open'
+	err = UpdateGroupSettings(1, group.ID, "Youth Bible Study Revised", "bible_study", "New description", "all", "open")
 	if err != nil {
 		t.Fatalf("UpdateGroupSettings failed: %v", err)
 	}
@@ -538,7 +539,176 @@ func TestCommunityGroups(t *testing.T) {
 	}
 }
 
+func TestGroupGovernanceAndModeration(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
 
+	// 1. Create a group requiring approval (default policy)
+	group, err := CreateGroup(1, "Governance Test Group", "prayer", "Prayer and governance", "admin_only", true, nil)
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
 
+	// Direct joining must fail because join_policy == 'approval'
+	err = JoinGroup(2, group.ID)
+	if err == nil {
+		t.Fatalf("Expected JoinGroup to fail for approval-required group, got nil")
+	}
 
+	// 2. Submit membership request
+	req, err := RequestGroupMembership(2, group.ID, "I want to join the prayer team")
+	if err != nil {
+		t.Fatalf("RequestGroupMembership failed: %v", err)
+	}
+	if req.Status != "pending" {
+		t.Errorf("Expected status 'pending', got %q", req.Status)
+	}
 
+	// Duplicate request should fail
+	_, err = RequestGroupMembership(2, group.ID, "Another try")
+	if err == nil {
+		t.Errorf("Expected duplicate RequestGroupMembership to fail, got nil")
+	}
+
+	// Requester cancels request
+	err = CancelGroupMembershipRequest(2, group.ID)
+	if err != nil {
+		t.Fatalf("CancelGroupMembershipRequest failed: %v", err)
+	}
+
+	// Re-submit request
+	req, err = RequestGroupMembership(2, group.ID, "Requesting again")
+	if err != nil {
+		t.Fatalf("Re-submitting RequestGroupMembership failed: %v", err)
+	}
+
+	// Non-admin (user 3) cannot review request
+	err = ReviewGroupMembershipRequest(3, req.ID, "approve")
+	if err == nil {
+		t.Errorf("Expected non-admin review to fail, got nil")
+	}
+
+	// Requester cannot review own request
+	err = ReviewGroupMembershipRequest(2, req.ID, "approve")
+	if err == nil {
+		t.Errorf("Expected self-review to fail, got nil")
+	}
+
+	// Owner approves request
+	err = ReviewGroupMembershipRequest(1, req.ID, "approve")
+	if err != nil {
+		t.Fatalf("Owner ReviewGroupMembershipRequest approve failed: %v", err)
+	}
+
+	// Verify user 2 is now member
+	isMember, _ := repository.IsConversationMember(group.ID, 2)
+	if !isMember {
+		t.Errorf("Expected user 2 to be a member after approval")
+	}
+
+	// User 3 requests and is rejected
+	req3, err := RequestGroupMembership(3, group.ID, "User 3 request")
+	if err != nil {
+		t.Fatalf("User 3 RequestGroupMembership failed: %v", err)
+	}
+	err = ReviewGroupMembershipRequest(1, req3.ID, "reject")
+	if err != nil {
+		t.Fatalf("ReviewGroupMembershipRequest reject failed: %v", err)
+	}
+	isMember3, _ := repository.IsConversationMember(group.ID, 3)
+	if isMember3 {
+		t.Errorf("Expected user 3 to not be a member after rejection")
+	}
+
+	// 3. Group Administration & Ownership Transfer
+	// Owner promotes user 2 to admin
+	err = UpdateGroupMemberRole(1, group.ID, 2, "admin")
+	if err != nil {
+		t.Fatalf("Promoting user 2 to admin failed: %v", err)
+	}
+
+	// User 2 (admin) cannot demote owner user 1
+	err = UpdateGroupMemberRole(2, group.ID, 1, "member")
+	if err == nil {
+		t.Errorf("Expected admin demoting owner to fail, got nil")
+	}
+
+	// User 1 transfers ownership to user 2
+	err = UpdateGroupMemberRole(1, group.ID, 2, "owner")
+	if err != nil {
+		t.Fatalf("Ownership transfer failed: %v", err)
+	}
+
+	// Check new roles: user 2 is owner, user 1 is admin
+	m2, _ := repository.GetConversationMember(group.ID, 2)
+	m1, _ := repository.GetConversationMember(group.ID, 1)
+	if m2.Role != "owner" {
+		t.Errorf("Expected user 2 to be owner, got %q", m2.Role)
+	}
+	if m1.Role != "admin" {
+		t.Errorf("Expected user 1 to be admin, got %q", m1.Role)
+	}
+
+	// User 1 cannot remove owner user 2
+	err = RemoveGroupMember(1, group.ID, 2)
+	if err == nil {
+		t.Errorf("Expected RemoveGroupMember on owner to fail, got nil")
+	}
+
+	// User 2 (owner) demotes user 1 to member
+	err = UpdateGroupMemberRole(2, group.ID, 1, "member")
+	if err != nil {
+		t.Fatalf("Demoting user 1 to member failed: %v", err)
+	}
+
+	// User 2 cannot demote self or change own role
+	err = UpdateGroupMemberRole(2, group.ID, 2, "member")
+	if err == nil {
+		t.Errorf("Expected UpdateGroupMemberRole on self to fail, got nil")
+	}
+	// Check that admin count is still 1
+	adminCount, _ := repository.CountGroupAdministrators(group.ID)
+	if adminCount != 1 {
+		t.Errorf("Expected exactly 1 administrator, got %d", adminCount)
+	}
+
+	// 4. Message Moderation
+	// User 1 sends a message
+	msg1, err := SendMessage(group.ID, 1, "Hello from user 1", "client-mod-1", nil)
+	if err != nil {
+		t.Fatalf("SendMessage failed: %v", err)
+	}
+
+	// User 3 (non-member) cannot delete user 1's message
+	err = ModerateDeleteMessage(3, msg1.ID)
+	if err == nil {
+		t.Errorf("Expected non-member delete to fail, got nil")
+	}
+
+	// User 2 (owner) moderates/deletes user 1's message
+	err = ModerateDeleteMessage(2, msg1.ID)
+	if err != nil {
+		t.Fatalf("ModerateDeleteMessage by owner failed: %v", err)
+	}
+
+	deletedMsg, err := repository.GetMessageByID(msg1.ID)
+	if err != nil {
+		t.Fatalf("GetMessageByID failed: %v", err)
+	}
+	if !deletedMsg.IsDeleted {
+		t.Errorf("Expected msg to be deleted, got IsDeleted=false")
+	}
+	if deletedMsg.Body != "This message was removed by a moderator." {
+		t.Errorf("Expected redacted body, got %q", deletedMsg.Body)
+	}
+
+	// Author deletes their own message
+	msg2, err := SendMessage(group.ID, 1, "Another message by user 1", "client-mod-2", nil)
+	if err != nil {
+		t.Fatalf("SendMessage 2 failed: %v", err)
+	}
+	err = ModerateDeleteMessage(1, msg2.ID)
+	if err != nil {
+		t.Fatalf("Author deleting own message failed: %v", err)
+	}
+}

@@ -1,16 +1,37 @@
 package repository
 
 import (
+	"database/sql"
+	"strings"
+	"time"
+
 	"convention-management-system/database"
 	"convention-management-system/models"
-	"strings"
 )
 
 func CreateUser(user *models.User) error {
+	if user.CreatedAt.IsZero() {
+		user.CreatedAt = time.Now()
+	}
+	if user.UpdatedAt.IsZero() {
+		user.UpdatedAt = time.Now()
+	}
+	if user.Role == "" {
+		user.Role = "attendee"
+	}
+	user.IsActive = true
+
+	var emailVal interface{} = user.Email
+	if user.Email == "" {
+		emailVal = nil
+	}
+	var phoneVal interface{} = user.Phone
+	if user.Phone == "" {
+		phoneVal = nil
+	}
 
 	query := `
 INSERT INTO users (
-
 	full_name,
 	username,
 	email,
@@ -68,39 +89,31 @@ INSERT INTO users (
 
 	created_at,
 	updated_at
-
 )
 VALUES (
-
-	?,?,?,?,?,
-	?,
-	?,?,?,?,?,
-	?,?,?,?,?,
-	?,?,?,?,?,
-	?,?,?,?,?,
-	?,?,?,?,?,
-	?,?,?,?,?,
-	?,?,?,?,?,
-	?,?,?,
-	?,
-	?,
-	?,
-	?,
-	?,
-	?,
-	?
-
+	?, ?, ?, ?,
+	?, ?,
+	?, ?, ?, ?,
+	?, ?, ?, ?,
+	?, ?,
+	?, ?, ?, ?, ?,
+	?, ?, ?, ?, ?,
+	?, ?, ?, ?,
+	?, ?, ?,
+	?, ?, ?,
+	?, ?,
+	?, ?,
+	?, ?,
+	?, ?
 )
 `
 
-	_, err := database.DB.Exec(
-
+	res, err := database.DB.Exec(
 		query,
-
 		user.FullName,
 		user.Username,
-		user.Email,
-		user.Phone,
+		emailVal,
+		phoneVal,
 
 		user.PasswordHash,
 		user.Role,
@@ -155,43 +168,48 @@ VALUES (
 		user.CreatedAt,
 		user.UpdatedAt,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	if id, err := res.LastInsertId(); err == nil {
+		user.ID = int(id)
+	}
+
+	return nil
 }
 
 func GetUserByUsername(username string) (*models.User, error) {
 
 	query := `
 	SELECT
-
 		id,
 		full_name,
 		username,
-		email,
-		phone,
+		COALESCE(email, ''),
+		COALESCE(phone, ''),
 
 		password_hash,
-		role,
+		COALESCE(role, 'attendee'),
 
-		bio,
-		gender,
-		birth_date,
-		location,
+		COALESCE(bio, ''),
+		COALESCE(gender, ''),
+		COALESCE(birth_date, ''),
+		COALESCE(location, ''),
 
-		website,
+		COALESCE(website, ''),
 
-		profile_photo,
-		cover_photo,
+		COALESCE(profile_photo, ''),
+		COALESCE(cover_photo, ''),
 
-		is_verified,
-		is_active,
+		COALESCE(is_verified, 0),
+		COALESCE(is_active, 1),
 
-		followers,
-		following,
+		COALESCE(followers, 0),
+		COALESCE(following, 0),
 
 		created_at,
 		updated_at
-
 	FROM users
 	WHERE username = ?
 	`
@@ -367,4 +385,86 @@ func GetUserByID(id int) (models.User, error) {
 	)
 
 	return user, err
+}
+
+func GetUserByEmail(email string) (*models.User, error) {
+	trimmed := strings.TrimSpace(email)
+	if trimmed == "" {
+		return nil, sql.ErrNoRows
+	}
+
+	query := `
+	SELECT
+		id,
+		full_name,
+		username,
+		COALESCE(email, ''),
+		COALESCE(phone, ''),
+
+		password_hash,
+		COALESCE(role, 'attendee'),
+
+		COALESCE(bio, ''),
+		COALESCE(gender, ''),
+		COALESCE(birth_date, ''),
+		COALESCE(location, ''),
+
+		COALESCE(website, ''),
+
+		COALESCE(profile_photo, ''),
+		COALESCE(cover_photo, ''),
+
+		COALESCE(is_verified, 0),
+		COALESCE(is_active, 1),
+
+		COALESCE(followers, 0),
+		COALESCE(following, 0),
+
+		created_at,
+		updated_at
+	FROM users
+	WHERE LOWER(email) = LOWER(?)
+	LIMIT 1
+	`
+
+	var user models.User
+	err := database.DB.QueryRow(query, trimmed).Scan(
+		&user.ID,
+		&user.FullName,
+		&user.Username,
+		&user.Email,
+		&user.Phone,
+		&user.PasswordHash,
+		&user.Role,
+		&user.Bio,
+		&user.Gender,
+		&user.BirthDate,
+		&user.Location,
+		&user.Website,
+		&user.ProfilePhoto,
+		&user.CoverPhoto,
+		&user.IsVerified,
+		&user.IsActive,
+		&user.Followers,
+		&user.Following,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	parts := strings.Fields(user.FullName)
+	switch len(parts) {
+	case 0:
+		user.Initials = "?"
+	case 1:
+		user.Initials = strings.ToUpper(parts[0][:1])
+	default:
+		user.Initials = strings.ToUpper(
+			parts[0][:1] + parts[len(parts)-1][:1],
+		)
+	}
+
+	return &user, nil
 }

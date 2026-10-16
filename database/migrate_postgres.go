@@ -411,6 +411,7 @@ ALTER TABLE conversations ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT '';
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS call_permission TEXT DEFAULT 'all';
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRUE;
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS join_policy VARCHAR(50) DEFAULT 'approval';
 
 CREATE INDEX IF NOT EXISTS idx_pg_conversations_category ON conversations(category);
 
@@ -454,6 +455,8 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_name TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_size BIGINT DEFAULT 0;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_type TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_by BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
 CREATE INDEX IF NOT EXISTS idx_pg_conv_members_user ON conversation_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_pg_conv_members_conv ON conversation_members(conversation_id);
@@ -527,8 +530,94 @@ CREATE TABLE IF NOT EXISTS call_participants (
 
 CREATE INDEX IF NOT EXISTS idx_pg_call_participants_call ON call_participants(call_id);
 CREATE INDEX IF NOT EXISTS idx_pg_call_participants_user ON call_participants(user_id);
-`)
 
+CREATE TABLE IF NOT EXISTS programmes (
+    id BIGSERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    category TEXT NOT NULL DEFAULT 'service',
+    organizer_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    schedule_start_time TIMESTAMP NOT NULL,
+    schedule_end_time TIMESTAMP NOT NULL,
+    timezone TEXT NOT NULL DEFAULT 'UTC',
+    visibility TEXT NOT NULL DEFAULT 'public',
+    youtube_video_id TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'draft',
+    cancellation_reason TEXT DEFAULT '',
+    recording_available BOOLEAN DEFAULT FALSE,
+    recording_video_id TEXT DEFAULT '',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_programmes_status ON programmes(status);
+CREATE INDEX IF NOT EXISTS idx_pg_programmes_visibility ON programmes(visibility);
+CREATE INDEX IF NOT EXISTS idx_pg_programmes_category ON programmes(category);
+CREATE INDEX IF NOT EXISTS idx_pg_programmes_start_time ON programmes(schedule_start_time);
+CREATE INDEX IF NOT EXISTS idx_pg_programmes_organizer ON programmes(organizer_id);
+
+CREATE TABLE IF NOT EXISTS programme_moderators (
+    id BIGSERIAL PRIMARY KEY,
+    programme_id BIGINT NOT NULL REFERENCES programmes(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(programme_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_programme_moderators_prog ON programme_moderators(programme_id);
+CREATE INDEX IF NOT EXISTS idx_pg_programme_moderators_user ON programme_moderators(user_id);
+
+CREATE TABLE IF NOT EXISTS programme_chat_messages (
+    id BIGSERIAL PRIMARY KEY,
+    programme_id BIGINT NOT NULL REFERENCES programmes(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message TEXT NOT NULL,
+    is_hidden BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_programme_chat_prog_time ON programme_chat_messages(programme_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_pg_programme_chat_user ON programme_chat_messages(user_id);
+
+CREATE TABLE IF NOT EXISTS programme_prayer_requests (
+    id BIGSERIAL PRIMARY KEY,
+    programme_id BIGINT NOT NULL REFERENCES programmes(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    request TEXT NOT NULL,
+    is_private BOOLEAN DEFAULT FALSE,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_programme_prayer_prog_time ON programme_prayer_requests(programme_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_pg_programme_prayer_user ON programme_prayer_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_pg_programme_prayer_private ON programme_prayer_requests(is_private);
+
+CREATE TABLE IF NOT EXISTS programme_notifications_log (
+    id BIGSERIAL PRIMARY KEY,
+    programme_id BIGINT NOT NULL REFERENCES programmes(id) ON DELETE CASCADE,
+    notification_type TEXT NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(programme_id, notification_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_programme_notif_log ON programme_notifications_log(programme_id, notification_type);
+
+CREATE TABLE IF NOT EXISTS group_membership_requests (
+    id BIGSERIAL PRIMARY KEY,
+    conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(50) NOT NULL DEFAULT 'pending',
+    request_message TEXT DEFAULT '',
+    reviewed_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_group_req_conv_status ON group_membership_requests(conversation_id, status);
+CREATE INDEX IF NOT EXISTS idx_pg_group_req_user ON group_membership_requests(user_id);
+`)
 	if err != nil {
 		return err
 	}

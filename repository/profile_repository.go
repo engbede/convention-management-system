@@ -146,7 +146,6 @@ func GetUserProfile(userID int) (*models.User, error) {
 		return nil, err
 	}
 
-
 	// Generate initials
 	parts := strings.Fields(user.FullName)
 
@@ -164,11 +163,8 @@ func GetUserProfile(userID int) (*models.User, error) {
 		)
 	}
 
-
 	return &user, nil
 }
-
-
 
 func UpdateUserProfile(user *models.User) error {
 
@@ -267,8 +263,6 @@ func UpdateUserProfile(user *models.User) error {
 	return err
 }
 
-
-
 func UpdateProfilePhoto(
 	userID int,
 	filename string,
@@ -291,8 +285,6 @@ func UpdateProfilePhoto(
 	return err
 }
 
-
-
 func UpdateCoverPhoto(
 	userID int,
 	filename string,
@@ -314,8 +306,6 @@ func UpdateCoverPhoto(
 
 	return err
 }
-
-
 
 func GetProfilePhotos(userID int) (string, string, error) {
 

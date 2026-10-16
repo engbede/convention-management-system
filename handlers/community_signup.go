@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -62,6 +63,7 @@ func Signup(
 		username == "" ||
 		password == "" {
 
+		log.Printf("[Registration Validation] missing required fields for username=%q full_name=%q", username, fullName)
 		http.Error(
 			w,
 			"Please complete all required fields.",
@@ -73,6 +75,7 @@ func Signup(
 
 	if password != confirmPassword {
 
+		log.Printf("[Registration Validation] passwords do not match for username=%q", username)
 		http.Error(
 			w,
 			"Passwords do not match.",
@@ -88,7 +91,7 @@ func Signup(
 	)
 
 	if err != nil {
-
+		log.Printf("[Registration Error] bcrypt hashing failed for username=%q: %v", username, err)
 		http.Error(
 			w,
 			"Unable to create account.",
@@ -118,13 +121,29 @@ func Signup(
 	)
 
 	if err != nil {
+		log.Printf("[Registration Failure] operation=CreateUser username=%q email=%q err=%v", username, email, err)
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.username") {
+			http.Error(
+				w,
+				"Username is already taken.",
+				http.StatusBadRequest,
+			)
+			return
+		}
+		if strings.Contains(err.Error(), "UNIQUE constraint failed: users.email") {
+			http.Error(
+				w,
+				"Email is already registered.",
+				http.StatusBadRequest,
+			)
+			return
+		}
 
 		http.Error(
 			w,
-			err.Error(),
+			"Unable to create account. Please try again later.",
 			http.StatusInternalServerError,
 		)
-
 		return
 	}
 

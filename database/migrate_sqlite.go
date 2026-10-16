@@ -725,18 +725,13 @@ CREATE TABLE IF NOT EXISTS conversations (
     avatar_url TEXT DEFAULT '',
     call_permission TEXT DEFAULT 'all',
     is_public INTEGER DEFAULT 1,
+    join_policy TEXT DEFAULT 'approval',
     created_by INTEGER NOT NULL,
     last_message_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
 );
-`); err != nil {
-		return err
-	}
-
-	if err := execMigration(`
-CREATE INDEX IF NOT EXISTS idx_conversations_category ON conversations(category);
 `); err != nil {
 		return err
 	}
@@ -785,6 +780,8 @@ CREATE TABLE IF NOT EXISTS messages (
     reply_to_message_id INTEGER,
     is_edited BOOLEAN DEFAULT 0,
     is_deleted BOOLEAN DEFAULT 0,
+    deleted_by INTEGER,
+    deleted_at DATETIME,
     attachment_url TEXT,
     attachment_name TEXT,
     attachment_size INTEGER DEFAULT 0,
@@ -793,7 +790,8 @@ CREATE TABLE IF NOT EXISTS messages (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
     FOREIGN KEY(sender_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY(reply_to_message_id) REFERENCES messages(id) ON DELETE SET NULL
+    FOREIGN KEY(reply_to_message_id) REFERENCES messages(id) ON DELETE SET NULL,
+    FOREIGN KEY(deleted_by) REFERENCES users(id) ON DELETE SET NULL
 );
 `); err != nil {
 		return err
@@ -923,7 +921,39 @@ CREATE INDEX IF NOT EXISTS idx_call_participants_user ON call_participants(user_
 		return err
 	}
 
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_conversations_category
+ON conversations(category);
+`); err != nil {
+		return err
+	}
+
 	if err := seedDefaultCommunityGroups(); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS password_resets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    email TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    used INTEGER DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_password_resets_token_hash ON password_resets(token_hash);
+CREATE INDEX IF NOT EXISTS idx_password_resets_user_id ON password_resets(user_id);
+`); err != nil {
+		return err
+	}
+
+	if err := migrateLiveProgrammesTables(); err != nil {
+		return err
+	}
+
+	if err := migrateGroupGovernanceAndModeration(); err != nil {
 		return err
 	}
 
@@ -931,6 +961,7 @@ CREATE INDEX IF NOT EXISTS idx_call_participants_user ON call_participants(user_
 }
 
 func migrateConversationGroupColumns() error {
+
 	queries := []string{
 		`ALTER TABLE conversations ADD COLUMN category TEXT DEFAULT 'general'`,
 		`ALTER TABLE conversations ADD COLUMN description TEXT DEFAULT ''`,
@@ -1084,6 +1115,149 @@ func migrateUserProfileColumns() error {
 		if err := addColumn(query); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func migrateLiveProgrammesTables() error {
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS programmes (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			title TEXT NOT NULL,
+			description TEXT DEFAULT '',
+			category TEXT NOT NULL DEFAULT 'service',
+			organizer_id INTEGER NOT NULL,
+			schedule_start_time DATETIME NOT NULL,
+			schedule_end_time DATETIME NOT NULL,
+			timezone TEXT NOT NULL DEFAULT 'UTC',
+			visibility TEXT NOT NULL DEFAULT 'public',
+			youtube_video_id TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'draft',
+			cancellation_reason TEXT DEFAULT '',
+			recording_available INTEGER DEFAULT 0,
+			recording_video_id TEXT DEFAULT '',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(organizer_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_programmes_status ON programmes(status);`,
+		`CREATE INDEX IF NOT EXISTS idx_programmes_visibility ON programmes(visibility);`,
+		`CREATE INDEX IF NOT EXISTS idx_programmes_category ON programmes(category);`,
+		`CREATE INDEX IF NOT EXISTS idx_programmes_start_time ON programmes(schedule_start_time);`,
+		`CREATE INDEX IF NOT EXISTS idx_programmes_organizer ON programmes(organizer_id);`,
+
+		`CREATE TABLE IF NOT EXISTS programme_moderators (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			programme_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			assigned_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(programme_id) REFERENCES programmes(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+			UNIQUE(programme_id, user_id)
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_programme_moderators_prog ON programme_moderators(programme_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_programme_moderators_user ON programme_moderators(user_id);`,
+
+		`CREATE TABLE IF NOT EXISTS programme_chat_messages (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			programme_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			message TEXT NOT NULL,
+			is_hidden INTEGER DEFAULT 0,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(programme_id) REFERENCES programmes(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_programme_chat_prog_time ON programme_chat_messages(programme_id, created_at);`,
+		`CREATE INDEX IF NOT EXISTS idx_programme_chat_user ON programme_chat_messages(user_id);`,
+
+		`CREATE TABLE IF NOT EXISTS programme_prayer_requests (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			programme_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			request TEXT NOT NULL,
+			is_private INTEGER DEFAULT 0,
+			status TEXT NOT NULL DEFAULT 'pending',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(programme_id) REFERENCES programmes(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_programme_prayer_prog_time ON programme_prayer_requests(programme_id, created_at);`,
+		`CREATE INDEX IF NOT EXISTS idx_programme_prayer_user ON programme_prayer_requests(user_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_programme_prayer_private ON programme_prayer_requests(is_private);`,
+
+		`CREATE TABLE IF NOT EXISTS programme_notifications_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			programme_id INTEGER NOT NULL,
+			notification_type TEXT NOT NULL,
+			sent_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(programme_id) REFERENCES programmes(id) ON DELETE CASCADE,
+			UNIQUE(programme_id, notification_type)
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_programme_notif_log ON programme_notifications_log(programme_id, notification_type);`,
+	}
+
+	for _, q := range queries {
+		if err := execMigration(q); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateGroupGovernanceAndModeration() error {
+	// 1. Add join_policy to conversations
+	_ = addColumn(`ALTER TABLE conversations ADD COLUMN join_policy TEXT DEFAULT 'approval'`)
+
+	// 2. Ensure existing group 2 ("Youth General Community") has open join policy, preserving other groups
+	if DB != nil {
+		_, _ = DB.Exec(`UPDATE conversations SET join_policy = 'open' WHERE id = 2 AND (join_policy IS NULL OR join_policy = '' OR join_policy = 'approval')`)
+	}
+
+	// 3. Add moderation columns to messages
+	_ = addColumn(`ALTER TABLE messages ADD COLUMN deleted_by INTEGER`)
+	_ = addColumn(`ALTER TABLE messages ADD COLUMN deleted_at DATETIME`)
+
+	// 4. Create group_membership_requests table and indexes
+	queries := []string{
+		`CREATE TABLE IF NOT EXISTS group_membership_requests (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			conversation_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			status TEXT NOT NULL DEFAULT 'pending',
+			request_message TEXT DEFAULT '',
+			reviewed_by INTEGER,
+			reviewed_at DATETIME,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY(reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_group_req_conv_status ON group_membership_requests(conversation_id, status);`,
+		`CREATE INDEX IF NOT EXISTS idx_group_req_user ON group_membership_requests(user_id);`,
+	}
+
+	for _, q := range queries {
+		if err := execMigration(q); err != nil {
+			return err
+		}
+	}
+
+	// 5. Reconcile group administrators: ensure every group has at least one administrator (owner or admin)
+	if DB != nil {
+		_, _ = DB.Exec(`
+			INSERT INTO conversation_members (conversation_id, user_id, role, joined_at)
+			SELECT c.id, c.created_by, 'owner', CURRENT_TIMESTAMP
+			FROM conversations c
+			WHERE c.type = 'group'
+			  AND NOT EXISTS (
+				  SELECT 1 FROM conversation_members cm
+				  WHERE cm.conversation_id = c.id AND cm.role IN ('owner', 'admin')
+			  )
+			  AND EXISTS (SELECT 1 FROM users u WHERE u.id = c.created_by)
+		`)
 	}
 
 	return nil

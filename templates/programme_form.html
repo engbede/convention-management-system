@@ -1,0 +1,178 @@
+{{template "header" .}}
+{{template "navbar" .}}
+
+<div class="container py-4" style="max-width: 800px;">
+
+    <!-- Navigation Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="/programmes" class="text-success text-decoration-none">Programmes</a></li>
+            <li class="breadcrumb-item active">{{if .IsEdit}}Edit Programme{{else}}Schedule New Programme{{end}}</li>
+        </ol>
+    </nav>
+
+    {{if .ErrorMessage}}
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm mb-4" role="alert">
+        <i class="bi bi-exclamation-circle-fill me-2"></i> {{.ErrorMessage}}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {{end}}
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-header bg-success text-white py-3 px-4">
+            <h4 class="mb-0 fw-bold">
+                <i class="bi {{if .IsEdit}}bi-pencil-square{{else}}bi-camera-video{{end}} me-2"></i>
+                {{if .IsEdit}}Edit Programme Details{{else}}Schedule Live Stream or Programme{{end}}
+            </h4>
+            <small class="opacity-90">Manage online church broadcasts, prayer sessions, and Bible studies.</small>
+        </div>
+
+        <form action="{{if .IsEdit}}/programmes/update{{else}}/programmes/create{{end}}" method="POST" class="card-body p-4">
+            {{if .IsEdit}}
+            <input type="hidden" name="id" value="{{.Programme.ID}}">
+            {{end}}
+
+            <!-- Title -->
+            <div class="mb-3">
+                <label for="title" class="form-label fw-bold">Programme Title <span class="text-danger">*</span></label>
+                <input
+                    type="text"
+                    class="form-control rounded-3"
+                    id="title"
+                    name="title"
+                    placeholder="e.g. Sunday Youth Celebration Service"
+                    value="{{if .Programme}}{{.Programme.Title}}{{end}}"
+                    required
+                    maxlength="200">
+            </div>
+
+            <!-- Category & Visibility -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label for="category" class="form-label fw-bold">Programme Category</label>
+                    <select class="form-select rounded-3" id="category" name="category">
+                        <option value="service" {{if and .Programme (eq .Programme.Category "service")}}selected{{end}}>Church Service</option>
+                        <option value="prayer" {{if and .Programme (eq .Programme.Category "prayer")}}selected{{end}}>Prayer Meeting</option>
+                        <option value="bible_study" {{if and .Programme (eq .Programme.Category "bible_study")}}selected{{end}}>Bible Study</option>
+                        <option value="youth_fellowship" {{if and .Programme (eq .Programme.Category "youth_fellowship")}}selected{{end}}>Youth Fellowship</option>
+                        <option value="convention" {{if and .Programme (eq .Programme.Category "convention")}}selected{{end}}>Convention</option>
+                        <option value="special" {{if and .Programme (eq .Programme.Category "special")}}selected{{end}}>Special Event</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="visibility" class="form-label fw-bold">Viewing Access</label>
+                    <select class="form-select rounded-3" id="visibility" name="visibility">
+                        <option value="public" {{if and .Programme (eq .Programme.Visibility "public")}}selected{{end}}>Public (Anyone with link can watch)</option>
+                        <option value="members_only" {{if and .Programme (eq .Programme.Visibility "members_only")}}selected{{end}}>Members Only (Login required to view)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- YouTube Video URL or ID -->
+            <div class="mb-3">
+                <label for="youtube_url" class="form-label fw-bold">YouTube Live Stream / Video Link</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light text-danger"><i class="bi bi-youtube"></i></span>
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="youtube_url"
+                        name="youtube_url"
+                        placeholder="https://www.youtube.com/watch?v=... or youtu.be/... or 11-char Video ID"
+                        value="{{if .Programme}}{{.Programme.YouTubeVideoID}}{{end}}">
+                </div>
+                <div class="form-text small text-muted">
+                    Paste any standard YouTube Live or video URL. The system will securely extract the video identifier and configure the privacy-enhanced player.
+                </div>
+            </div>
+
+            <!-- Schedule Dates & Timezone -->
+            <div class="row g-3 mb-3">
+                <div class="col-md-5">
+                    <label for="schedule_start_time" class="form-label fw-bold">Start Date & Time</label>
+                    <input
+                        type="datetime-local"
+                        class="form-control rounded-3"
+                        id="schedule_start_time"
+                        name="schedule_start_time"
+                        value="{{if and .Programme (not .Programme.ScheduleStartTime.IsZero)}}{{.Programme.ScheduleStartTime.Format "2006-01-02T15:04"}}{{end}}"
+                        required>
+                </div>
+                <div class="col-md-5">
+                    <label for="schedule_end_time" class="form-label fw-bold">End Date & Time</label>
+                    <input
+                        type="datetime-local"
+                        class="form-control rounded-3"
+                        id="schedule_end_time"
+                        name="schedule_end_time"
+                        value="{{if and .Programme (not .Programme.ScheduleEndTime.IsZero)}}{{.Programme.ScheduleEndTime.Format "2006-01-02T15:04"}}{{end}}"
+                        required>
+                </div>
+                <div class="col-md-2">
+                    <label for="timezone" class="form-label fw-bold">Timezone</label>
+                    <input
+                        type="text"
+                        class="form-control rounded-3"
+                        id="timezone"
+                        name="timezone"
+                        value="{{if .Programme}}{{.Programme.Timezone}}{{else}}UTC{{end}}"
+                        required>
+                </div>
+            </div>
+
+            <!-- Description -->
+            <div class="mb-3">
+                <label for="description" class="form-label fw-bold">Description & Order of Service</label>
+                <textarea
+                    class="form-control rounded-3"
+                    id="description"
+                    name="description"
+                    rows="4"
+                    placeholder="Provide details about the service, scripture themes, speakers, and prayer pointers...">{{if .Programme}}{{.Programme.Description}}{{end}}</textarea>
+            </div>
+
+            <!-- Additional Settings if Editing -->
+            {{if .IsEdit}}
+            <div class="p-3 bg-light rounded-3 border mb-3">
+                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-film me-1"></i> Recording & Archive Options</h6>
+                <div class="form-check form-switch mb-2">
+                    <input class="form-check-input" type="checkbox" id="recording_available" name="recording_available" value="1" {{if .Programme.RecordingAvailable}}checked{{end}}>
+                    <label class="form-check-label fw-semibold" for="recording_available">Make Recording Available After Stream Ends</label>
+                </div>
+                <div>
+                    <label for="recording_video_id" class="form-label small fw-semibold text-secondary">Custom Recording Video URL / ID (optional if different from live stream)</label>
+                    <input
+                        type="text"
+                        class="form-control form-control-sm rounded-3"
+                        id="recording_video_id"
+                        name="recording_video_id"
+                        placeholder="Leave blank to use the live stream video"
+                        value="{{.Programme.RecordingVideoID}}">
+                </div>
+            </div>
+            {{else}}
+            <!-- Default Status for new creation -->
+            <div class="mb-3">
+                <label for="status" class="form-label fw-bold">Initial Status</label>
+                <select class="form-select rounded-3" id="status" name="status">
+                    <option value="draft">Save as Draft (Private)</option>
+                    <option value="scheduled" selected>Publish as Scheduled (Upcoming)</option>
+                </select>
+            </div>
+            {{end}}
+
+            <!-- Form Actions -->
+            <div class="d-flex justify-content-end gap-2 pt-3 border-top">
+                <a href="/programmes" class="btn btn-light rounded-pill px-4">Cancel</a>
+                <button type="submit" class="btn btn-success rounded-pill px-4 fw-bold">
+                    <i class="bi {{if .IsEdit}}bi-check-lg{{else}}bi-cloud-upload{{end}} me-1"></i>
+                    {{if .IsEdit}}Save Changes{{else}}Schedule Programme{{end}}
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>
+
+{{template "footer" .}}
+

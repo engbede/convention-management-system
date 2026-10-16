@@ -24,6 +24,9 @@ func Render(
 		"login.html",
 		"success.html",
 		"signup.html",
+		"announcements.html",
+		"forgot_password.html",
+		"reset_password.html",
 		"user login.html":
 
 		tmpl, err = template.ParseFiles(
@@ -70,16 +73,17 @@ func Render(
 			),
 		)
 
-	case "chat.html":
+	case "chat.html",
+		"programmes_list.html",
+		"programme_view.html",
+		"programme_form.html":
 
-		tmpl = template.Must(
-			template.ParseFiles(
-				"templates/partials/header.html",
-				"templates/partials/navbar.html",
-				"templates/partials/avatar.html",
-				"templates/partials/footer.html",
-				"templates/chat.html",
-			),
+		tmpl, err = template.ParseFiles(
+			"templates/partials/header.html",
+			"templates/partials/navbar.html",
+			"templates/partials/avatar.html",
+			"templates/partials/footer.html",
+			"templates/"+page,
 		)
 
 	default:

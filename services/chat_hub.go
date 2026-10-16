@@ -13,29 +13,29 @@ import (
 
 // WSEvent represents the standard envelope for real-time WebSocket messages and WebRTC signaling.
 type WSEvent struct {
-	Type           string                       `json:"type"` // "new_message", "typing", "read_receipt", "subscribe", "presence", "error", "call_offer", "call_answer", "ice_candidate", "call_decline", "call_end", "call_busy", "call_unavailable", "group_call_started", "group_call_participant_joined", "group_call_participant_left", "group_call_state_updated", "group_call_signal", "group_call_kicked", "group_call_ended"
-	ConversationID int                          `json:"conversation_id,omitempty"`
-	UserID         int                          `json:"user_id,omitempty"`
-	Username       string                       `json:"username,omitempty"`
-	TargetUserID   int                          `json:"target_user_id,omitempty"`
-	IsTyping       bool                         `json:"is_typing,omitempty"`
-	IsOnline       bool                         `json:"is_online,omitempty"`
-	CallType       string                       `json:"call_type,omitempty"` // "audio" or "video"
-	CallID         int                          `json:"call_id,omitempty"`
-	CallerName     string                       `json:"caller_name,omitempty"`
-	CallerAvatar   string                       `json:"caller_avatar,omitempty"`
-	SDP            string                       `json:"sdp,omitempty"`
-	Candidate      any                          `json:"candidate,omitempty"`
-	Duration       int                          `json:"duration,omitempty"`
-	Message        *models.Message              `json:"message,omitempty"`
-	Error          string                       `json:"error,omitempty"`
-	Room           *models.GroupCallRoom        `json:"room,omitempty"`
-	Participant    *models.CallParticipantInfo  `json:"participant,omitempty"`
+	Type           string                        `json:"type"` // "new_message", "typing", "read_receipt", "subscribe", "presence", "error", "call_offer", "call_answer", "ice_candidate", "call_decline", "call_end", "call_busy", "call_unavailable", "group_call_started", "group_call_participant_joined", "group_call_participant_left", "group_call_state_updated", "group_call_signal", "group_call_kicked", "group_call_ended"
+	ConversationID int                           `json:"conversation_id,omitempty"`
+	UserID         int                           `json:"user_id,omitempty"`
+	Username       string                        `json:"username,omitempty"`
+	TargetUserID   int                           `json:"target_user_id,omitempty"`
+	IsTyping       bool                          `json:"is_typing,omitempty"`
+	IsOnline       bool                          `json:"is_online,omitempty"`
+	CallType       string                        `json:"call_type,omitempty"` // "audio" or "video"
+	CallID         int                           `json:"call_id,omitempty"`
+	CallerName     string                        `json:"caller_name,omitempty"`
+	CallerAvatar   string                        `json:"caller_avatar,omitempty"`
+	SDP            string                        `json:"sdp,omitempty"`
+	Candidate      any                           `json:"candidate,omitempty"`
+	Duration       int                           `json:"duration,omitempty"`
+	Message        *models.Message               `json:"message,omitempty"`
+	Error          string                        `json:"error,omitempty"`
+	Room           *models.GroupCallRoom         `json:"room,omitempty"`
+	Participant    *models.CallParticipantInfo   `json:"participant,omitempty"`
 	Participants   []*models.CallParticipantInfo `json:"participants,omitempty"`
-	IsMuted        bool                         `json:"is_muted,omitempty"`
-	IsCamOff       bool                         `json:"is_cam_off,omitempty"`
-	IsSpeaking     bool                         `json:"is_speaking,omitempty"`
-	SignalType     string                       `json:"signal_type,omitempty"`
+	IsMuted        bool                          `json:"is_muted,omitempty"`
+	IsCamOff       bool                          `json:"is_cam_off,omitempty"`
+	IsSpeaking     bool                          `json:"is_speaking,omitempty"`
+	SignalType     string                        `json:"signal_type,omitempty"`
 }
 
 // WSClient represents a single connected WebSocket client session.
@@ -578,4 +578,3 @@ func ServeWebSocket(ws *websocket.Conn, userID int, username, fullName string) {
 func init() {
 	// Hook function in chat_service.go can call GlobalHub.BroadcastToConversation
 }
-

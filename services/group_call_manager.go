@@ -10,10 +10,14 @@ import (
 	"convention-management-system/repository"
 )
 
+// DefaultMaxGroupCallParticipants defines the default maximum community room capacity (extended above 300 to 500).
+const DefaultMaxGroupCallParticipants = 500
+
 // GroupCallManager maintains concurrent, thread-safe in-memory state for active group calls.
 type GroupCallManager struct {
-	rooms map[int]*models.GroupCallRoom // key: conversation_id
-	mu    sync.RWMutex
+	rooms           map[int]*models.GroupCallRoom // key: conversation_id
+	maxParticipants int
+	mu              sync.RWMutex
 }
 
 // GlobalGroupCallManager is the singleton instance of the group call manager.
@@ -21,8 +25,24 @@ var GlobalGroupCallManager = NewGroupCallManager()
 
 func NewGroupCallManager() *GroupCallManager {
 	return &GroupCallManager{
-		rooms: make(map[int]*models.GroupCallRoom),
+		rooms:           make(map[int]*models.GroupCallRoom),
+		maxParticipants: DefaultMaxGroupCallParticipants,
 	}
+}
+
+// GetMaxParticipants returns the current room capacity limit.
+func (m *GroupCallManager) GetMaxParticipants() int {
+	if m.maxParticipants > 0 {
+		return m.maxParticipants
+	}
+	return DefaultMaxGroupCallParticipants
+}
+
+// SetMaxParticipants sets a custom room capacity limit (useful for testing or specific room quotas).
+func (m *GroupCallManager) SetMaxParticipants(limit int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.maxParticipants = limit
 }
 
 // StartGroupCall initiates a new group audio or video call session.
@@ -162,9 +182,10 @@ func (m *GroupCallManager) JoinGroupCall(convID, userID int) (*models.GroupCallR
 		return room, p, nil
 	}
 
-	// Check maximum capacity limit (16 participants to ensure stability)
-	if len(room.Participants) >= 16 {
-		return nil, nil, errors.New("group call is full (maximum 16 participants reached)")
+	// Check maximum capacity limit (community room capacity extended above 300)
+	limit := m.GetMaxParticipants()
+	if len(room.Participants) >= limit {
+		return nil, nil, fmt.Errorf("group call is full (maximum %d participants reached)", limit)
 	}
 
 	user, err := repository.GetUserByID(userID)

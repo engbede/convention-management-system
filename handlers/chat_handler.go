@@ -102,6 +102,8 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 	var activeGroupMembers []models.ConversationMember
 	var activeUserRole string
 	var canManageMembers bool
+	var pendingRequests []models.GroupMembershipRequest
+	var pendingRequestsCount int
 	canStartCall := true
 
 	if activeRecipient != nil {
@@ -121,6 +123,11 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 			if member != nil {
 				activeUserRole = member.Role
 				canManageMembers = (member.Role == "owner" || member.Role == "admin" || member.Role == "moderator")
+				if member.Role == "owner" || member.Role == "admin" {
+					reqs, _ := services.GetGroupMembershipRequests(currentUserID, activeConv.ID, "pending")
+					pendingRequests = reqs
+					pendingRequestsCount = len(reqs)
+				}
 			}
 			canStartCall, _ = services.CanUserCallInGroup(activeConv.ID, currentUserID)
 		}
@@ -144,6 +151,8 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 		ActiveUserRole:       activeUserRole,
 		CanStartCall:         canStartCall,
 		CanManageMembers:     canManageMembers,
+		PendingRequestsCount: pendingRequestsCount,
+		PendingRequests:      pendingRequests,
 		DiscoverableGroups:   discoverableGroups,
 		Messages:             messages,
 		EligibleFriends:      eligibleFriends,
@@ -162,7 +171,6 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 
 	Render(w, "chat.html", data)
 }
-
 
 // StartDirectChat starts or opens a direct 1-to-1 conversation with a selected member.
 func StartDirectChat(w http.ResponseWriter, r *http.Request) {
@@ -284,7 +292,12 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Respond with JSON if requested or AJAX
-	if strings.Contains(r.Header.Get("Accept"), "application/json") || strings.Contains(contentType, "application/json") || strings.Contains(contentType, "multipart/form-data") {
+	isAJAX := strings.Contains(r.Header.Get("Accept"), "application/json") ||
+		strings.Contains(contentType, "application/json") ||
+		r.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
+		r.URL.Path == "/messages/upload"
+
+	if isAJAX {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"success": true,
@@ -956,11 +969,14 @@ func AddGroupMembersAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var payload struct {
-		GroupID int   `json:"group_id"`
-		UserIDs []int `json:"user_ids"`
+		GroupID      int    `json:"group_id"`
+		UserIDs      []int  `json:"user_ids"`
+		ManualMember string `json:"manual_member"`
+		Username     string `json:"username"`
 	}
 
-	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
 		_ = json.NewDecoder(r.Body).Decode(&payload)
 	} else {
 		_ = r.ParseForm()
@@ -968,30 +984,169 @@ func AddGroupMembersAPI(w http.ResponseWriter, r *http.Request) {
 		if payload.GroupID == 0 {
 			payload.GroupID, _ = strconv.Atoi(r.FormValue("conversation_id"))
 		}
-		if uStr := r.FormValue("user_ids"); uStr != "" {
-			for _, idStr := range strings.Split(uStr, ",") {
+		payload.ManualMember = r.FormValue("manual_member")
+		if payload.ManualMember == "" {
+			payload.ManualMember = r.FormValue("username")
+		}
+		// Handle multiple user_ids parameters from checkboxes or comma-separated lists
+		for _, uVal := range r.Form["user_ids"] {
+			for _, idStr := range strings.Split(uVal, ",") {
 				if id, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil && id > 0 {
 					payload.UserIDs = append(payload.UserIDs, id)
+				}
+			}
+		}
+		if len(payload.UserIDs) == 0 {
+			if uStr := r.FormValue("user_ids"); uStr != "" {
+				for _, idStr := range strings.Split(uStr, ",") {
+					if id, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil && id > 0 {
+						payload.UserIDs = append(payload.UserIDs, id)
+					}
+				}
+			}
+		}
+		if len(payload.UserIDs) == 0 {
+			if uSingle, err := strconv.Atoi(r.FormValue("user_id")); err == nil && uSingle > 0 {
+				payload.UserIDs = append(payload.UserIDs, uSingle)
+			}
+		}
+	}
+
+	isAJAX := strings.Contains(r.Header.Get("Accept"), "application/json") ||
+		isJSON ||
+		r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+
+	// Process manual member input if provided
+	manualInput := strings.TrimSpace(payload.ManualMember)
+	if manualInput == "" {
+		manualInput = strings.TrimSpace(payload.Username)
+	}
+	if manualInput != "" {
+		cleanInput := strings.TrimPrefix(manualInput, "@")
+		cleanInput = strings.TrimSpace(cleanInput)
+		targetUser, uErr := repository.GetUserByUsername(cleanInput)
+		if uErr != nil || targetUser == nil || targetUser.ID <= 0 {
+			targetUser, uErr = repository.GetUserByEmail(cleanInput)
+		}
+
+		if uErr != nil || targetUser == nil || targetUser.ID <= 0 {
+			if len(payload.UserIDs) == 0 {
+				if isAJAX {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					_ = json.NewEncoder(w).Encode(map[string]any{
+						"success": false,
+						"error":   fmt.Sprintf("User '%s' was not found. Please check the username or email.", manualInput),
+						"message": fmt.Sprintf("User '%s' was not found. Please check the username or email.", manualInput),
+					})
+					return
+				}
+				http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", payload.GroupID), http.StatusSeeOther)
+				return
+			}
+		} else {
+			// Check if already a member
+			existingMember, mErr := repository.GetConversationMember(payload.GroupID, targetUser.ID)
+			if mErr == nil && existingMember != nil {
+				if len(payload.UserIDs) == 0 {
+					if isAJAX {
+						w.Header().Set("Content-Type", "application/json")
+						w.WriteHeader(http.StatusBadRequest)
+						_ = json.NewEncoder(w).Encode(map[string]any{
+							"success": false,
+							"error":   fmt.Sprintf("%s (@%s) is already a member of this group.", targetUser.FullName, targetUser.Username),
+							"message": fmt.Sprintf("%s (@%s) is already a member of this group.", targetUser.FullName, targetUser.Username),
+						})
+						return
+					}
+					http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", payload.GroupID), http.StatusSeeOther)
+					return
+				}
+			} else {
+				// Append to UserIDs avoiding duplicates
+				alreadyInList := false
+				for _, id := range payload.UserIDs {
+					if id == targetUser.ID {
+						alreadyInList = true
+						break
+					}
+				}
+				if !alreadyInList {
+					payload.UserIDs = append(payload.UserIDs, targetUser.ID)
 				}
 			}
 		}
 	}
 
 	if payload.GroupID <= 0 || len(payload.UserIDs) == 0 {
-		http.Error(w, "Invalid parameters", http.StatusBadRequest)
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   "Invalid parameters",
+				"message": "Invalid parameters",
+			})
+			return
+		}
+		targetID := payload.GroupID
+		if targetID <= 0 {
+			targetID, _ = strconv.Atoi(r.FormValue("group_id"))
+		}
+		if targetID <= 0 {
+			targetID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+		}
+		if targetID > 0 {
+			http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", targetID), http.StatusSeeOther)
+		} else {
+			http.Redirect(w, r, "/messages", http.StatusSeeOther)
+		}
 		return
 	}
 
 	if err := services.AddGroupMembers(currentUserID, payload.GroupID, payload.UserIDs); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusCode)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   err.Error(),
+				"message": err.Error(),
+			})
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", payload.GroupID), http.StatusSeeOther)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"success": true,
-		"message": "Members added successfully",
-	})
+	if isAJAX {
+		var addedUsersList []map[string]any
+		for _, uid := range payload.UserIDs {
+			if u, err := repository.GetUserByID(uid); err == nil {
+				addedUsersList = append(addedUsersList, map[string]any{
+					"id":            u.ID,
+					"full_name":     u.FullName,
+					"username":      u.Username,
+					"initials":      u.Initials,
+					"profile_photo": u.ProfilePhoto,
+				})
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":     true,
+			"message":     "Members added successfully",
+			"added_users": addedUsersList,
+		})
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", payload.GroupID), http.StatusSeeOther)
 }
 
 // RemoveGroupMemberAPI removes a user from a group.
@@ -1008,7 +1163,8 @@ func RemoveGroupMemberAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var groupID, targetUserID int
-	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
 		var payload struct {
 			GroupID int `json:"group_id"`
 			UserID  int `json:"user_id"`
@@ -1025,21 +1181,58 @@ func RemoveGroupMemberAPI(w http.ResponseWriter, r *http.Request) {
 		targetUserID, _ = strconv.Atoi(r.FormValue("user_id"))
 	}
 
+	isAJAX := strings.Contains(r.Header.Get("Accept"), "application/json") ||
+		isJSON ||
+		r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+
 	if groupID <= 0 || targetUserID <= 0 {
-		http.Error(w, "Invalid parameters", http.StatusBadRequest)
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   "Invalid parameters",
+				"message": "Invalid parameters",
+			})
+			return
+		}
+		if groupID > 0 {
+			http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
+		} else {
+			http.Redirect(w, r, "/messages", http.StatusSeeOther)
+		}
 		return
 	}
 
 	if err := services.RemoveGroupMember(currentUserID, groupID, targetUserID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusCode)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   err.Error(),
+				"message": err.Error(),
+			})
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"success": true,
-		"message": "Member removed successfully",
-	})
+	if isAJAX {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "Member removed successfully",
+		})
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
 }
 
 // UpdateGroupMemberRoleAPI updates a member's role in a group.
@@ -1057,7 +1250,8 @@ func UpdateGroupMemberRoleAPI(w http.ResponseWriter, r *http.Request) {
 
 	var groupID, targetUserID int
 	var role string
-	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
 		var payload struct {
 			GroupID int    `json:"group_id"`
 			UserID  int    `json:"user_id"`
@@ -1077,21 +1271,58 @@ func UpdateGroupMemberRoleAPI(w http.ResponseWriter, r *http.Request) {
 		role = r.FormValue("role")
 	}
 
+	isAJAX := strings.Contains(r.Header.Get("Accept"), "application/json") ||
+		isJSON ||
+		r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+
 	if groupID <= 0 || targetUserID <= 0 || role == "" {
-		http.Error(w, "Invalid parameters", http.StatusBadRequest)
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   "Invalid parameters",
+				"message": "Invalid parameters",
+			})
+			return
+		}
+		if groupID > 0 {
+			http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
+		} else {
+			http.Redirect(w, r, "/messages", http.StatusSeeOther)
+		}
 		return
 	}
 
 	if err := services.UpdateGroupMemberRole(currentUserID, groupID, targetUserID, role); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusCode)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   err.Error(),
+				"message": err.Error(),
+			})
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"success": true,
-		"message": "Member role updated successfully",
-	})
+	if isAJAX {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"message": "Member role updated successfully",
+		})
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
 }
 
 // UpdateGroupSettingsAPI updates group title, category, description, and call permissions.
@@ -1108,14 +1339,16 @@ func UpdateGroupSettingsAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var groupID int
-	var title, category, description, callPermission string
-	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+	var title, category, description, callPermission, joinPolicy string
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
 		var payload struct {
 			GroupID        int    `json:"group_id"`
 			Title          string `json:"title"`
 			Category       string `json:"category"`
 			Description    string `json:"description"`
 			CallPermission string `json:"call_permission"`
+			JoinPolicy     string `json:"join_policy"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&payload)
 		groupID = payload.GroupID
@@ -1123,6 +1356,7 @@ func UpdateGroupSettingsAPI(w http.ResponseWriter, r *http.Request) {
 		category = payload.Category
 		description = payload.Description
 		callPermission = payload.CallPermission
+		joinPolicy = payload.JoinPolicy
 	} else {
 		_ = r.ParseForm()
 		groupID, _ = strconv.Atoi(r.FormValue("group_id"))
@@ -1133,23 +1367,66 @@ func UpdateGroupSettingsAPI(w http.ResponseWriter, r *http.Request) {
 		category = r.FormValue("category")
 		description = r.FormValue("description")
 		callPermission = r.FormValue("call_permission")
+		joinPolicy = r.FormValue("join_policy")
 	}
 
-	if groupID <= 0 || title == "" {
-		http.Error(w, "Invalid parameters", http.StatusBadRequest)
+	isAJAX := strings.Contains(r.Header.Get("Accept"), "application/json") ||
+		isJSON ||
+		r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+
+	if groupID <= 0 || strings.TrimSpace(title) == "" {
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   "Title cannot be empty",
+				"message": "Title cannot be empty",
+			})
+			return
+		}
+		if groupID > 0 {
+			http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
+		} else {
+			http.Redirect(w, r, "/messages", http.StatusSeeOther)
+		}
 		return
 	}
 
-	if err := services.UpdateGroupSettings(currentUserID, groupID, title, category, description, callPermission); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+	if err := services.UpdateGroupSettings(currentUserID, groupID, title, category, description, callPermission, joinPolicy); err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusCode)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   err.Error(),
+				"message": err.Error(),
+			})
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"success": true,
-		"message": "Group settings updated successfully",
-	})
+	if isAJAX {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":         true,
+			"message":         "Group settings updated successfully",
+			"group_id":        groupID,
+			"title":           title,
+			"category":        category,
+			"description":     description,
+			"call_permission": callPermission,
+		})
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", groupID), http.StatusSeeOther)
 }
 
 // DiscoverGroupsAPI returns discoverable public community groups as JSON.
@@ -1411,7 +1688,273 @@ func EndGroupCallAPI(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// SubmitGroupMembershipRequestAPI handles submitting a membership request to an approval-required group.
+func SubmitGroupMembershipRequestAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
 
+	var groupID int
+	var message string
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
+		var payload struct {
+			GroupID        int    `json:"group_id"`
+			ConversationID int    `json:"conversation_id"`
+			Message        string `json:"message"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		groupID = payload.GroupID
+		if groupID == 0 {
+			groupID = payload.ConversationID
+		}
+		message = payload.Message
+	} else {
+		_ = r.ParseForm()
+		groupID, _ = strconv.Atoi(r.FormValue("group_id"))
+		if groupID == 0 {
+			groupID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+		}
+		message = r.FormValue("message")
+	}
 
+	if groupID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid group ID"})
+		return
+	}
 
+	req, err := services.RequestGroupMembership(currentUserID, groupID, message)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error(), "message": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": "Your membership request has been submitted for administrator approval.",
+		"request": req,
+	})
+}
+
+// ReviewGroupMembershipRequestAPI handles approving or rejecting a membership request by group admin.
+func ReviewGroupMembershipRequestAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var requestID int
+	var action string
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
+		var payload struct {
+			RequestID int    `json:"request_id"`
+			Action    string `json:"action"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		requestID = payload.RequestID
+		action = payload.Action
+	} else {
+		_ = r.ParseForm()
+		requestID, _ = strconv.Atoi(r.FormValue("request_id"))
+		action = r.FormValue("action")
+	}
+
+	if requestID <= 0 || (action != "approve" && action != "reject") {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid request ID or action"})
+		return
+	}
+
+	if err := services.ReviewGroupMembershipRequest(currentUserID, requestID, action); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error(), "message": err.Error()})
+		return
+	}
+
+	msgText := "Membership request approved successfully."
+	if action == "reject" {
+		msgText = "Membership request declined."
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"action":  action,
+		"message": msgText,
+	})
+}
+
+// CancelGroupMembershipRequestAPI handles cancelling a pending membership request by the requester.
+func CancelGroupMembershipRequestAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var groupID int
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
+		var payload struct {
+			GroupID        int `json:"group_id"`
+			ConversationID int `json:"conversation_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		groupID = payload.GroupID
+		if groupID == 0 {
+			groupID = payload.ConversationID
+		}
+	} else {
+		_ = r.ParseForm()
+		groupID, _ = strconv.Atoi(r.FormValue("group_id"))
+		if groupID == 0 {
+			groupID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+		}
+	}
+
+	if groupID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid group ID"})
+		return
+	}
+
+	if err := services.CancelGroupMembershipRequest(currentUserID, groupID); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error(), "message": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": "Membership request cancelled.",
+	})
+}
+
+// GetGroupMembershipRequestsAPI returns pending or all requests for a group (group admin only).
+func GetGroupMembershipRequestsAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	groupID, err := strconv.Atoi(r.URL.Query().Get("conversation_id"))
+	if err != nil || groupID <= 0 {
+		groupID, err = strconv.Atoi(r.URL.Query().Get("group_id"))
+	}
+	if err != nil || groupID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid group ID"})
+		return
+	}
+
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "pending"
+	}
+
+	requests, err := services.GetGroupMembershipRequests(currentUserID, groupID, status)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":  true,
+		"requests": requests,
+		"count":    len(requests),
+	})
+}
+
+// DeleteMessageAPI handles soft-deleting a message by its author or group moderator/admin.
+func DeleteMessageAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var messageID int
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
+		var payload struct {
+			MessageID int `json:"message_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		messageID = payload.MessageID
+	} else {
+		_ = r.ParseForm()
+		messageID, _ = strconv.Atoi(r.FormValue("message_id"))
+	}
+
+	if messageID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid message ID"})
+		return
+	}
+
+	if err := services.ModerateDeleteMessage(currentUserID, messageID); err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error(), "message": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":    true,
+		"message_id": messageID,
+		"message":    "Message has been deleted successfully",
+	})
+}

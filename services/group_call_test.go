@@ -263,6 +263,15 @@ func TestGroupCallCapacityLimit(t *testing.T) {
 	cleanup, convID, memberIDs := setupGroupCallTestDB(t)
 	defer cleanup()
 
+	// Verify community room default limit is extended above 300
+	if defaultLimit := GlobalGroupCallManager.GetMaxParticipants(); defaultLimit < 300 {
+		t.Fatalf("Expected default group call capacity to be at least 300, got %d", defaultLimit)
+	}
+
+	// For capacity limit testing, temporarily set limit to 16
+	GlobalGroupCallManager.SetMaxParticipants(16)
+	defer GlobalGroupCallManager.SetMaxParticipants(DefaultMaxGroupCallParticipants)
+
 	// Start call with User 1 (1st participant)
 	room, err := GlobalGroupCallManager.StartGroupCall(convID, 1, "video")
 	if err != nil {
@@ -343,4 +352,3 @@ func TestGroupCallPermissionsAdminsOnly(t *testing.T) {
 	_, _ = GlobalGroupCallManager.EndGroupCall(convID, 2)
 	_ = room
 }
-

@@ -124,3 +124,19 @@ func DownloadBackup(
 		),
 	)
 }
+
+func DeleteBackup(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	file := filepath.Base(r.URL.Query().Get("file"))
+	if file != "" && file != "." && file != "/" && file != ".." {
+		_ = os.Remove(filepath.Join("backups", file))
+	}
+	http.Redirect(
+		w,
+		r,
+		"/backup",
+		http.StatusSeeOther,
+	)
+}

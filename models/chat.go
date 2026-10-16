@@ -1,6 +1,11 @@
 package models
 
-import "time"
+import (
+	"fmt"
+	"path/filepath"
+	"strings"
+	"time"
+)
 
 // Conversation represents a direct or group chat thread.
 type Conversation struct {
@@ -12,6 +17,7 @@ type Conversation struct {
 	AvatarURL      string
 	CallPermission string // "all", "admin_only"
 	IsPublic       bool
+	JoinPolicy     string // "approval", "open"
 	CreatedBy      int
 	LastMessageAt  *time.Time
 	CreatedAt      time.Time
@@ -45,6 +51,8 @@ type Message struct {
 	ReplyToMessageID  *int
 	IsEdited          bool
 	IsDeleted         bool
+	DeletedBy         *int
+	DeletedAt         *time.Time
 	IsReadByRecipient bool // True if recipient has read this message
 	AttachmentURL     string
 	AttachmentName    string
@@ -57,25 +65,104 @@ type Message struct {
 	Sender User
 }
 
+// FormattedAttachmentSize returns a human-readable file size string.
+func (m Message) FormattedAttachmentSize() string {
+	b := m.AttachmentSize
+	if b <= 0 {
+		return "0 B"
+	}
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	units := []string{"KB", "MB", "GB", "TB"}
+	if exp >= len(units) {
+		exp = len(units) - 1
+	}
+	return fmt.Sprintf("%.1f %s", float64(b)/float64(div), units[exp])
+}
+
+// AttachmentExtension returns the lowercase file extension without leading dot.
+func (m Message) AttachmentExtension() string {
+	ext := strings.ToLower(filepath.Ext(m.AttachmentName))
+	return strings.TrimPrefix(ext, ".")
+}
+
+// FileIconClass returns an appropriate Bootstrap icon class for the file type.
+func (m Message) FileIconClass() string {
+	ext := m.AttachmentExtension()
+	switch ext {
+	case "pdf":
+		return "bi bi-file-earmark-pdf-fill text-danger"
+	case "doc", "docx":
+		return "bi bi-file-earmark-word-fill text-primary"
+	case "xls", "xlsx", "csv":
+		return "bi bi-file-earmark-excel-fill text-success"
+	case "ppt", "pptx":
+		return "bi bi-file-earmark-ppt-fill text-warning"
+	case "zip", "rar", "tar", "gz", "7z":
+		return "bi bi-file-earmark-zip-fill text-warning"
+	case "txt", "log", "md", "json", "xml", "html", "js", "go", "py":
+		return "bi bi-file-earmark-code-fill text-secondary"
+	case "mp3", "wav", "ogg", "aac", "m4a":
+		return "bi bi-file-earmark-music-fill text-info"
+	case "mp4", "mov", "avi", "mkv", "webm":
+		return "bi bi-file-earmark-play-fill text-danger"
+	default:
+		return "bi bi-file-earmark-fill text-primary"
+	}
+}
+
+// CanPreview returns true if the attachment can be viewed/previewed directly in the browser.
+func (m Message) CanPreview() bool {
+	ext := m.AttachmentExtension()
+	return ext == "pdf" || ext == "txt"
+}
+
 // ConversationItem represents an inbox list entry with summary info.
 type ConversationItem struct {
-	ID                  int
-	Type                string
-	Title               string
-	Category            string
-	Description         string
-	AvatarURL           string
-	CallPermission      string
-	IsPublic            bool
-	MemberCount         int
-	OtherUser           User
-	LastMessage         string
-	LastMessageSenderID int
-	LastMessageTime     time.Time
-	UnreadCount         int
-	IsActive            bool
-	IsMuted             bool
-	IsArchived          bool
+	ID                      int
+	Type                    string
+	Title                   string
+	Category                string
+	Description             string
+	AvatarURL               string
+	CallPermission          string
+	IsPublic                bool
+	JoinPolicy              string // "approval", "open"
+	MembershipRequestStatus string // "none", "pending", "approved", "rejected", "cancelled"
+	MembershipRequestID     int
+	MemberCount             int
+	OtherUser               User
+	LastMessage             string
+	LastMessageSenderID     int
+	LastMessageTime         time.Time
+	UnreadCount             int
+	IsActive                bool
+	IsMuted                 bool
+	IsArchived              bool
+}
+
+// GroupMembershipRequest represents a user's request to join a community group requiring approval.
+type GroupMembershipRequest struct {
+	ID             int        `json:"id"`
+	ConversationID int        `json:"conversation_id"`
+	UserID         int        `json:"user_id"`
+	Status         string     `json:"status"` // "pending", "approved", "rejected", "cancelled"
+	RequestMessage string     `json:"request_message"`
+	ReviewedBy     *int       `json:"reviewed_by,omitempty"`
+	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+
+	// Hydrated details
+	User     User  `json:"user"`
+	Reviewer *User `json:"reviewer,omitempty"`
 }
 
 // ChatViewData holds template data for the chat interface.
@@ -102,6 +189,8 @@ type ChatViewData struct {
 	SharedMedia          []Message
 	CallLogs             []CallLog
 	ActiveGroupCall      *GroupCallRoom
+	PendingRequestsCount int
+	PendingRequests      []GroupMembershipRequest
 }
 
 // CallParticipant represents a participant who joined a call session.
@@ -183,6 +272,3 @@ type CallLog struct {
 	Receiver     User              `json:"receiver,omitempty"`
 	Participants []CallParticipant `json:"participants,omitempty"`
 }
-
-
-

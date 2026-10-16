@@ -161,6 +161,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 		SELECT id, type, COALESCE(title, ''), COALESCE(category, 'general'),
 		       COALESCE(description, ''), COALESCE(avatar_url, ''),
 		       COALESCE(call_permission, 'all'), COALESCE(is_public, 1),
+		       COALESCE(join_policy, 'approval'),
 		       created_by, last_message_at, created_at, updated_at
 		FROM conversations
 		WHERE id = %s
@@ -168,7 +169,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 
 	var conv models.Conversation
 	var lastMsg, createdAtRaw, updatedAtRaw any
-	var title, category, description, avatarURL, callPermission string
+	var title, category, description, avatarURL, callPermission, joinPolicy string
 	var isPublic int
 
 	err := database.DB.QueryRow(query, conversationID).Scan(
@@ -180,6 +181,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 		&avatarURL,
 		&callPermission,
 		&isPublic,
+		&joinPolicy,
 		&conv.CreatedBy,
 		&lastMsg,
 		&createdAtRaw,
@@ -195,6 +197,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 	conv.AvatarURL = avatarURL
 	conv.CallPermission = callPermission
 	conv.IsPublic = isPublic == 1
+	conv.JoinPolicy = joinPolicy
 	conv.CreatedAt = parseSQLTime(createdAtRaw)
 	conv.UpdatedAt = parseSQLTime(updatedAtRaw)
 	if t := parseSQLTime(lastMsg); !t.IsZero() {
@@ -202,7 +205,6 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 	}
 	return &conv, nil
 }
-
 
 // GetConversationOtherParticipant finds the other member in a direct conversation.
 func GetConversationOtherParticipant(conversationID, currentUserID int) (*models.User, error) {
@@ -540,7 +542,6 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 
 	return items, nil
 }
-
 
 // MarkConversationAsRead advances the user's read marker to the latest message.
 func MarkConversationAsRead(conversationID, userID int) error {
@@ -1083,8 +1084,8 @@ func CreateGroupConversation(title, category, description, avatarURL, callPermis
 	}
 
 	insertQuery := fmt.Sprintf(`
-		INSERT INTO conversations (type, title, category, description, avatar_url, call_permission, is_public, created_by, created_at, updated_at)
-		VALUES ('group', %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		INSERT INTO conversations (type, title, category, description, avatar_url, call_permission, is_public, join_policy, created_by, created_at, updated_at)
+		VALUES ('group', %s, %s, %s, %s, %s, %s, 'approval', %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5), helpers.Placeholder(6), helpers.Placeholder(7))
 
 	res, err := tx.Exec(insertQuery, title, category, description, avatarURL, callPermission, isPublicVal, creatorID)
@@ -1260,22 +1261,25 @@ func UpdateConversationMemberRole(conversationID, userID int, role string) error
 	return err
 }
 
-// UpdateGroupDetails updates the title, category, description, and call permissions for a group.
-func UpdateGroupDetails(conversationID int, title, category, description, callPermission string) error {
+// UpdateGroupDetails updates the title, category, description, call permissions, and join policy for a group.
+func UpdateGroupDetails(conversationID int, title, category, description, callPermission, joinPolicy string) error {
+	if joinPolicy == "" {
+		joinPolicy = "approval"
+	}
 	query := fmt.Sprintf(`
 		UPDATE conversations
-		SET title = %s, category = %s, description = %s, call_permission = %s, updated_at = CURRENT_TIMESTAMP
+		SET title = %s, category = %s, description = %s, call_permission = %s, join_policy = %s, updated_at = CURRENT_TIMESTAMP
 		WHERE id = %s AND type = 'group'
-	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5))
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5), helpers.Placeholder(6))
 
-	_, err := database.DB.Exec(query, title, category, description, callPermission, conversationID)
+	_, err := database.DB.Exec(query, title, category, description, callPermission, joinPolicy, conversationID)
 	return err
 }
 
-// GetDiscoverableGroups retrieves public groups optionally filtered by category.
+// GetDiscoverableGroups retrieves public groups optionally filtered by category with membership and request status.
 func GetDiscoverableGroups(userID int, category string) ([]models.ConversationItem, error) {
 	var args []any
-	args = append(args, userID)
+	args = append(args, userID, userID, userID)
 
 	whereClause := "WHERE c.type = 'group' AND c.is_public = 1"
 	if category != "" && category != "all" {
@@ -1286,13 +1290,16 @@ func GetDiscoverableGroups(userID int, category string) ([]models.ConversationIt
 	query := fmt.Sprintf(`
 		SELECT c.id, c.type, COALESCE(c.title, ''), COALESCE(c.category, 'general'),
 		       COALESCE(c.description, ''), COALESCE(c.avatar_url, ''), COALESCE(c.call_permission, 'all'),
+		       COALESCE(c.join_policy, 'approval'),
 		       (SELECT COUNT(*) FROM conversation_members WHERE conversation_id = c.id) as member_count,
 		       (SELECT COUNT(*) FROM conversation_members WHERE conversation_id = c.id AND user_id = %s) as is_member,
+		       COALESCE((SELECT status FROM group_membership_requests WHERE conversation_id = c.id AND user_id = %s AND status = 'pending' ORDER BY id DESC LIMIT 1), 'none') as req_status,
+		       COALESCE((SELECT id FROM group_membership_requests WHERE conversation_id = c.id AND user_id = %s AND status = 'pending' ORDER BY id DESC LIMIT 1), 0) as req_id,
 		       c.created_at
 		FROM conversations c
 		%s
 		ORDER BY c.created_at DESC
-	`, helpers.Placeholder(1), whereClause)
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), whereClause)
 
 	rows, err := database.DB.Query(query, args...)
 	if err != nil {
@@ -1309,7 +1316,10 @@ func GetDiscoverableGroups(userID int, category string) ([]models.ConversationIt
 		err := rows.Scan(
 			&g.ID, &g.Type, &g.Title, &g.Category,
 			&g.Description, &g.AvatarURL, &g.CallPermission,
-			&g.MemberCount, &isMember, &createdAtRaw,
+			&g.JoinPolicy,
+			&g.MemberCount, &isMember,
+			&g.MembershipRequestStatus, &g.MembershipRequestID,
+			&createdAtRaw,
 		)
 		if err != nil {
 			return nil, err
@@ -1320,4 +1330,341 @@ func GetDiscoverableGroups(userID int, category string) ([]models.ConversationIt
 	}
 
 	return groups, nil
+}
+
+// GetMessageByID retrieves a message by its primary key ID.
+func GetMessageByID(messageID int) (*models.Message, error) {
+	query := fmt.Sprintf(`
+		SELECT
+			m.id, m.conversation_id, m.sender_id, m.message_type, m.body,
+			COALESCE(m.client_message_id, ''), m.reply_to_message_id,
+			m.is_edited, m.is_deleted, m.deleted_by, m.deleted_at,
+			COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''),
+			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
+			m.created_at, m.updated_at,
+			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
+		FROM messages m
+		JOIN users u ON m.sender_id = u.id
+		WHERE m.id = %s
+	`, helpers.Placeholder(1))
+
+	var m models.Message
+	var replyTo sql.NullInt64
+	var deletedBy sql.NullInt64
+	var deletedAtRaw, createdAtRaw, updatedAtRaw any
+	var photo string
+
+	err := database.DB.QueryRow(query, messageID).Scan(
+		&m.ID, &m.ConversationID, &m.SenderID, &m.MessageType, &m.Body,
+		&m.ClientMessageID, &replyTo,
+		&m.IsEdited, &m.IsDeleted, &deletedBy, &deletedAtRaw,
+		&m.AttachmentURL, &m.AttachmentName, &m.AttachmentSize, &m.AttachmentType,
+		&createdAtRaw, &updatedAtRaw,
+		&m.Sender.ID, &m.Sender.FullName, &m.Sender.Username, &photo,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if replyTo.Valid {
+		id := int(replyTo.Int64)
+		m.ReplyToMessageID = &id
+	}
+	if deletedBy.Valid {
+		id := int(deletedBy.Int64)
+		m.DeletedBy = &id
+	}
+	if t := parseSQLTime(deletedAtRaw); !t.IsZero() {
+		m.DeletedAt = &t
+	}
+	m.CreatedAt = parseSQLTime(createdAtRaw)
+	m.UpdatedAt = parseSQLTime(updatedAtRaw)
+	m.Sender.ProfilePhoto = photo
+	m.Sender.Initials = utils.Initials(m.Sender.FullName)
+	return &m, nil
+}
+
+// SoftDeleteMessage marks a message as deleted by a moderator or sender.
+func SoftDeleteMessage(messageID, deletedByID int) error {
+	query := fmt.Sprintf(`
+		UPDATE messages
+		SET is_deleted = 1,
+		    deleted_by = %s,
+		    deleted_at = CURRENT_TIMESTAMP,
+		    body = 'This message was removed by a moderator.',
+		    attachment_url = '',
+		    attachment_name = '',
+		    attachment_size = 0,
+		    attachment_type = '',
+		    updated_at = CURRENT_TIMESTAMP
+		WHERE id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+
+	_, err := database.DB.Exec(query, deletedByID, messageID)
+	return err
+}
+
+// CountGroupAdministrators counts how many members in a group have role 'owner' or 'admin'.
+func CountGroupAdministrators(convID int) (int, error) {
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM conversation_members
+		WHERE conversation_id = %s AND role IN ('owner', 'admin')
+	`, helpers.Placeholder(1))
+
+	var count int
+	err := database.DB.QueryRow(query, convID).Scan(&count)
+	return count, err
+}
+
+// GetGroupAdministrators returns all administrators (owner and admin) of a group.
+func GetGroupAdministrators(convID int) ([]models.ConversationMember, error) {
+	query := fmt.Sprintf(`
+		SELECT cm.id, cm.conversation_id, cm.user_id, cm.role, cm.joined_at,
+		       u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
+		FROM conversation_members cm
+		JOIN users u ON cm.user_id = u.id
+		WHERE cm.conversation_id = %s AND cm.role IN ('owner', 'admin')
+		ORDER BY CASE cm.role WHEN 'owner' THEN 1 ELSE 2 END, u.full_name ASC
+	`, helpers.Placeholder(1))
+
+	rows, err := database.DB.Query(query, convID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var admins []models.ConversationMember
+	for rows.Next() {
+		var m models.ConversationMember
+		var joinedRaw any
+		var photo string
+		if err := rows.Scan(&m.ID, &m.ConversationID, &m.UserID, &m.Role, &joinedRaw, &m.User.ID, &m.User.FullName, &m.User.Username, &photo); err == nil {
+			m.JoinedAt = parseSQLTime(joinedRaw)
+			m.User.ProfilePhoto = photo
+			m.User.Initials = utils.Initials(m.User.FullName)
+			admins = append(admins, m)
+		}
+	}
+	return admins, nil
+}
+
+// CreateGroupMembershipRequest creates a pending membership request for an approval-based group.
+func CreateGroupMembershipRequest(convID, userID int, message string) (*models.GroupMembershipRequest, error) {
+	existing, err := GetPendingMembershipRequest(convID, userID)
+	if err == nil && existing != nil {
+		return nil, errors.New("a membership request is already pending for this group")
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO group_membership_requests (conversation_id, user_id, status, request_message, created_at, updated_at)
+		VALUES (%s, %s, 'pending', %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
+
+	res, err := database.DB.Exec(query, convID, userID, message)
+	if err != nil {
+		return nil, err
+	}
+
+	id, err := res.LastInsertId()
+	if err != nil || id == 0 {
+		err = database.DB.QueryRow("SELECT id FROM group_membership_requests WHERE conversation_id = ? AND user_id = ? ORDER BY id DESC LIMIT 1", convID, userID).Scan(&id)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return GetGroupMembershipRequestByID(int(id))
+}
+
+// GetPendingMembershipRequest retrieves a pending request for a user in a group.
+func GetPendingMembershipRequest(convID, userID int) (*models.GroupMembershipRequest, error) {
+	query := fmt.Sprintf(`
+		SELECT id, conversation_id, user_id, status, request_message, created_at, updated_at
+		FROM group_membership_requests
+		WHERE conversation_id = %s AND user_id = %s AND status = 'pending'
+		ORDER BY id DESC LIMIT 1
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+
+	var req models.GroupMembershipRequest
+	var createdRaw, updatedRaw any
+
+	err := database.DB.QueryRow(query, convID, userID).Scan(
+		&req.ID, &req.ConversationID, &req.UserID, &req.Status, &req.RequestMessage, &createdRaw, &updatedRaw,
+	)
+	if err != nil {
+		return nil, err
+	}
+	req.CreatedAt = parseSQLTime(createdRaw)
+	req.UpdatedAt = parseSQLTime(updatedRaw)
+	return &req, nil
+}
+
+// GetGroupMembershipRequestByID retrieves a single request by its ID.
+func GetGroupMembershipRequestByID(requestID int) (*models.GroupMembershipRequest, error) {
+	query := fmt.Sprintf(`
+		SELECT r.id, r.conversation_id, r.user_id, r.status, r.request_message,
+		       r.reviewed_by, r.reviewed_at, r.created_at, r.updated_at,
+		       u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''),
+		       rev.id, rev.full_name, rev.username
+		FROM group_membership_requests r
+		JOIN users u ON r.user_id = u.id
+		LEFT JOIN users rev ON r.reviewed_by = rev.id
+		WHERE r.id = %s
+	`, helpers.Placeholder(1))
+
+	var req models.GroupMembershipRequest
+	var reviewedBy, reviewerID sql.NullInt64
+	var reviewerName, reviewerUsername sql.NullString
+	var reviewedAtRaw, createdRaw, updatedRaw any
+	var userPhoto string
+
+	err := database.DB.QueryRow(query, requestID).Scan(
+		&req.ID, &req.ConversationID, &req.UserID, &req.Status, &req.RequestMessage,
+		&reviewedBy, &reviewedAtRaw, &createdRaw, &updatedRaw,
+		&req.User.ID, &req.User.FullName, &req.User.Username, &userPhoto,
+		&reviewerID, &reviewerName, &reviewerUsername,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	req.User.ProfilePhoto = userPhoto
+	req.User.Initials = utils.Initials(req.User.FullName)
+	req.CreatedAt = parseSQLTime(createdRaw)
+	req.UpdatedAt = parseSQLTime(updatedRaw)
+
+	if reviewedBy.Valid {
+		id := int(reviewedBy.Int64)
+		req.ReviewedBy = &id
+	}
+	if t := parseSQLTime(reviewedAtRaw); !t.IsZero() {
+		req.ReviewedAt = &t
+	}
+	if reviewerID.Valid {
+		req.Reviewer = &models.User{
+			ID:       int(reviewerID.Int64),
+			FullName: reviewerName.String,
+			Username: reviewerUsername.String,
+		}
+	}
+	return &req, nil
+}
+
+// GetGroupMembershipRequests retrieves membership requests for a group, optionally filtered by status.
+func GetGroupMembershipRequests(convID int, status string) ([]models.GroupMembershipRequest, error) {
+	var args []any
+	args = append(args, convID)
+
+	whereClause := fmt.Sprintf("WHERE r.conversation_id = %s", helpers.Placeholder(1))
+	if status != "" && status != "all" {
+		whereClause += fmt.Sprintf(" AND r.status = %s", helpers.Placeholder(len(args)+1))
+		args = append(args, status)
+	}
+
+	query := fmt.Sprintf(`
+		SELECT r.id, r.conversation_id, r.user_id, r.status, r.request_message,
+		       r.reviewed_by, r.reviewed_at, r.created_at, r.updated_at,
+		       u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''),
+		       rev.id, rev.full_name, rev.username
+		FROM group_membership_requests r
+		JOIN users u ON r.user_id = u.id
+		LEFT JOIN users rev ON r.reviewed_by = rev.id
+		%s
+		ORDER BY
+			CASE r.status WHEN 'pending' THEN 1 ELSE 2 END,
+			r.created_at DESC
+	`, whereClause)
+
+	rows, err := database.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []models.GroupMembershipRequest
+	for rows.Next() {
+		var req models.GroupMembershipRequest
+		var reviewedBy, reviewerID sql.NullInt64
+		var reviewerName, reviewerUsername sql.NullString
+		var reviewedAtRaw, createdRaw, updatedRaw any
+		var userPhoto string
+
+		err := rows.Scan(
+			&req.ID, &req.ConversationID, &req.UserID, &req.Status, &req.RequestMessage,
+			&reviewedBy, &reviewedAtRaw, &createdRaw, &updatedRaw,
+			&req.User.ID, &req.User.FullName, &req.User.Username, &userPhoto,
+			&reviewerID, &reviewerName, &reviewerUsername,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		req.User.ProfilePhoto = userPhoto
+		req.User.Initials = utils.Initials(req.User.FullName)
+		req.CreatedAt = parseSQLTime(createdRaw)
+		req.UpdatedAt = parseSQLTime(updatedRaw)
+
+		if reviewedBy.Valid {
+			id := int(reviewedBy.Int64)
+			req.ReviewedBy = &id
+		}
+		if t := parseSQLTime(reviewedAtRaw); !t.IsZero() {
+			req.ReviewedAt = &t
+		}
+		if reviewerID.Valid {
+			req.Reviewer = &models.User{
+				ID:       int(reviewerID.Int64),
+				FullName: reviewerName.String,
+				Username: reviewerUsername.String,
+			}
+		}
+
+		list = append(list, req)
+	}
+	return list, nil
+}
+
+// UpdateGroupMembershipRequestStatus updates the status of a request and records the reviewer.
+func UpdateGroupMembershipRequestStatus(requestID, reviewerID int, newStatus string) error {
+	query := fmt.Sprintf(`
+		UPDATE group_membership_requests
+		SET status = %s, reviewed_by = %s, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+		WHERE id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
+
+	_, err := database.DB.Exec(query, newStatus, reviewerID, requestID)
+	return err
+}
+
+// CancelGroupMembershipRequest cancels a pending request by the requester.
+func CancelGroupMembershipRequest(requestID, userID int) error {
+	query := fmt.Sprintf(`
+		UPDATE group_membership_requests
+		SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+		WHERE id = %s AND user_id = %s AND status = 'pending'
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+
+	res, err := database.DB.Exec(query, requestID, userID)
+	if err != nil {
+		return err
+	}
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return errors.New("no pending request found to cancel")
+	}
+	return nil
+}
+
+// CountPendingGroupMembershipRequests returns the count of pending requests for a group.
+func CountPendingGroupMembershipRequests(convID int) (int, error) {
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM group_membership_requests
+		WHERE conversation_id = %s AND status = 'pending'
+	`, helpers.Placeholder(1))
+
+	var count int
+	err := database.DB.QueryRow(query, convID).Scan(&count)
+	return count, err
 }

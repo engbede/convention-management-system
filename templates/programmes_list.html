@@ -1,0 +1,385 @@
+{{template "header" .}}
+{{template "navbar" .}}
+
+<style>
+.badge-live-pulse {
+    background-color: #dc3545;
+    animation: pulse-live 1.5s infinite;
+}
+@keyframes pulse-live {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+.programme-card {
+    transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    border: none;
+    border-radius: 12px;
+}
+.programme-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1) !important;
+}
+.hero-banner {
+    background: linear-gradient(135deg, #0f5132 0%, #198754 100%);
+    color: white;
+    border-radius: 16px;
+}
+.nav-pills .nav-link.active {
+    background-color: #198754;
+}
+</style>
+
+<div class="container py-4">
+
+    <!-- Hero Header -->
+    <div class="hero-banner p-4 p-md-5 mb-4 shadow-sm position-relative overflow-hidden">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <span class="badge bg-light text-success fw-semibold mb-2 px-3 py-2 rounded-pill">
+                    <i class="bi bi-broadcast"></i> Youth & Church Online
+                </span>
+                <h1 class="display-6 fw-bold mb-2">Live Streaming & Online Programmes</h1>
+                <p class="lead mb-3 text-light opacity-90">
+                    Connect and fellowship together in church services, prayer meetings, Bible studies, and youth conventions from anywhere in the world.
+                </p>
+                <div class="d-flex flex-wrap gap-2">
+                    {{if or .IsLoggedIn .IsAdmin}}
+                    <a href="/programmes/new" class="btn btn-warning fw-semibold px-4 py-2 rounded-pill shadow-sm">
+                        <i class="bi bi-plus-circle me-1"></i> Schedule New Programme
+                    </a>
+                    {{else}}
+                    <a href="/community/login?next=/programmes" class="btn btn-light fw-semibold px-4 py-2 rounded-pill shadow-sm text-success">
+                        <i class="bi bi-box-arrow-in-right me-1"></i> Member Login
+                    </a>
+                    {{end}}
+                    <a href="#programmesSection" class="btn btn-outline-light fw-semibold px-4 py-2 rounded-pill">
+                        <i class="bi bi-play-circle me-1"></i> Browse Sessions
+                    </a>
+                </div>
+            </div>
+            <div class="col-lg-4 text-center d-none d-lg-block">
+                <i class="bi bi-camera-video display-1 opacity-75"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter & Navigation Section -->
+    <div id="programmesSection" class="mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 pb-3 border-bottom">
+            <!-- Navigation Tabs -->
+            <ul class="nav nav-pills gap-2">
+                <li class="nav-item">
+                    <a class="nav-link rounded-pill fw-semibold {{if eq .CurrentTab "live"}}active{{end}}" href="/programmes?tab=live&category={{.CurrentCategory}}">
+                        <i class="bi bi-broadcast text-danger me-1"></i> Live Now
+                        {{if .LiveProgrammes}}
+                        <span class="badge bg-danger rounded-pill ms-1 badge-live-pulse">{{len .LiveProgrammes}}</span>
+                        {{end}}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link rounded-pill fw-semibold {{if eq .CurrentTab "upcoming"}}active{{end}}" href="/programmes?tab=upcoming&category={{.CurrentCategory}}">
+                        <i class="bi bi-calendar-event me-1"></i> Upcoming
+                        {{if .UpcomingProgrammes}}
+                        <span class="badge bg-secondary rounded-pill ms-1">{{len .UpcomingProgrammes}}</span>
+                        {{end}}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link rounded-pill fw-semibold {{if eq .CurrentTab "past"}}active{{end}}" href="/programmes?tab=past&category={{.CurrentCategory}}">
+                        <i class="bi bi-collection-play me-1"></i> Recordings & Archive
+                        {{if .PastProgrammes}}
+                        <span class="badge bg-secondary rounded-pill ms-1">{{len .PastProgrammes}}</span>
+                        {{end}}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link rounded-pill fw-semibold {{if eq .CurrentTab "all"}}active{{end}}" href="/programmes?tab=all&category={{.CurrentCategory}}">
+                        <i class="bi bi-grid me-1"></i> All Programmes
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Category Filter Dropdown -->
+            <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small fw-semibold"><i class="bi bi-funnel"></i> Category:</span>
+                <select class="form-select form-select-sm rounded-pill" style="min-width: 170px;" onchange="location.href='/programmes?tab={{.CurrentTab}}&category=' + this.value">
+                    <option value="all" {{if eq .CurrentCategory "all"}}selected{{end}}>All Categories</option>
+                    <option value="service" {{if eq .CurrentCategory "service"}}selected{{end}}>Church Service</option>
+                    <option value="prayer" {{if eq .CurrentCategory "prayer"}}selected{{end}}>Prayer Meeting</option>
+                    <option value="bible_study" {{if eq .CurrentCategory "bible_study"}}selected{{end}}>Bible Study</option>
+                    <option value="youth_fellowship" {{if eq .CurrentCategory "youth_fellowship"}}selected{{end}}>Youth Fellowship</option>
+                    <option value="convention" {{if eq .CurrentCategory "convention"}}selected{{end}}>Convention</option>
+                    <option value="special" {{if eq .CurrentCategory "special"}}selected{{end}}>Special Event</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Programme Cards Container -->
+    {{if eq .CurrentTab "live"}}
+        {{if .LiveProgrammes}}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {{range .LiveProgrammes}}
+            <div class="col">
+                <div class="card h-100 shadow-sm programme-card border-danger border-2">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge badge-live-pulse text-white px-2 py-1 rounded-pill fw-bold">
+                                <i class="bi bi-circle-fill me-1 small"></i> LIVE NOW
+                            </span>
+                            {{if .IsMembersOnly}}
+                            <span class="badge bg-warning text-dark rounded-pill">
+                                <i class="bi bi-lock-fill"></i> Members Only
+                            </span>
+                            {{else}}
+                            <span class="badge bg-light text-muted border rounded-pill">
+                                <i class="bi bi-globe"></i> Public
+                            </span>
+                            {{end}}
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-1">{{.Title}}</h5>
+                        <div class="text-success fw-semibold small mb-2">
+                            <i class="bi bi-tag-fill me-1"></i> {{.CategoryDisplay}}
+                        </div>
+                        <p class="card-text text-muted small flex-grow-1">
+                            {{if .Description}}{{.Description}}{{else}}No description provided.{{end}}
+                        </p>
+                        <div class="bg-light p-2 rounded-3 small mb-3 text-secondary">
+                            <div><i class="bi bi-clock me-1 text-danger"></i> Started: {{.ScheduleStartTime.Format "Jan 02, 2006 at 15:04"}} {{.Timezone}}</div>
+                            {{if .Organizer}}
+                            <div class="mt-1"><i class="bi bi-person me-1"></i> Organizer: {{.Organizer.FullName}}</div>
+                            {{end}}
+                        </div>
+                        <div class="d-grid gap-2">
+                            <a href="/programmes/view?id={{.ID}}" class="btn btn-danger fw-bold rounded-pill">
+                                <i class="bi bi-play-fill"></i> Watch Live Stream
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <div class="card shadow-sm border-0 text-center py-5 my-3">
+            <div class="card-body">
+                <div class="text-danger mb-3">
+                    <i class="bi bi-broadcast display-4"></i>
+                </div>
+                <h4 class="fw-bold">No Live Streams Currently Broadcasting</h4>
+                <p class="text-muted mx-auto" style="max-width: 500px;">
+                    There are no online services broadcasting at this exact moment. Please check the upcoming schedule or watch past recorded sessions.
+                </p>
+                <div class="d-flex justify-content-center gap-2">
+                    <a href="/programmes?tab=upcoming" class="btn btn-outline-success rounded-pill fw-semibold">
+                        <i class="bi bi-calendar-check me-1"></i> View Upcoming Schedule
+                    </a>
+                    {{if or .IsLoggedIn .IsAdmin}}
+                    <a href="/programmes/new" class="btn btn-success rounded-pill fw-semibold">
+                        <i class="bi bi-plus-circle me-1"></i> Schedule a Programme
+                    </a>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+    {{else if eq .CurrentTab "upcoming"}}
+        {{if .UpcomingProgrammes}}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {{range .UpcomingProgrammes}}
+            <div class="col">
+                <div class="card h-100 shadow-sm programme-card">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-primary text-white px-2 py-1 rounded-pill">
+                                <i class="bi bi-calendar-event me-1"></i> Upcoming
+                            </span>
+                            {{if .IsMembersOnly}}
+                            <span class="badge bg-warning text-dark rounded-pill">
+                                <i class="bi bi-lock-fill"></i> Members Only
+                            </span>
+                            {{else}}
+                            <span class="badge bg-light text-muted border rounded-pill">
+                                <i class="bi bi-globe"></i> Public
+                            </span>
+                            {{end}}
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-1">{{.Title}}</h5>
+                        <div class="text-success fw-semibold small mb-2">
+                            <i class="bi bi-tag-fill me-1"></i> {{.CategoryDisplay}}
+                        </div>
+                        <p class="card-text text-muted small flex-grow-1">
+                            {{if .Description}}{{.Description}}{{else}}No description provided.{{end}}
+                        </p>
+                        <div class="bg-light p-2 rounded-3 small mb-3 text-secondary">
+                            <div><i class="bi bi-clock me-1 text-primary"></i> Date: {{.ScheduleStartTime.Format "Mon, Jan 02, 2006 at 15:04"}} {{.Timezone}}</div>
+                            {{if .Organizer}}
+                            <div class="mt-1"><i class="bi bi-person me-1"></i> Organizer: {{.Organizer.FullName}}</div>
+                            {{end}}
+                        </div>
+                        <div class="d-grid gap-2">
+                            <a href="/programmes/view?id={{.ID}}" class="btn btn-outline-primary fw-semibold rounded-pill">
+                                <i class="bi bi-info-circle me-1"></i> View Details & Prayer Requests
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <div class="card shadow-sm border-0 text-center py-5 my-3">
+            <div class="card-body">
+                <div class="text-primary mb-3">
+                    <i class="bi bi-calendar-x display-4"></i>
+                </div>
+                <h4 class="fw-bold">No Upcoming Programmes Scheduled</h4>
+                <p class="text-muted mx-auto" style="max-width: 500px;">
+                    Stay tuned! New youth fellowship meetings, Bible study sessions, and convention services will be posted soon.
+                </p>
+                {{if or .IsLoggedIn .IsAdmin}}
+                <a href="/programmes/new" class="btn btn-success rounded-pill fw-semibold">
+                    <i class="bi bi-plus-circle me-1"></i> Schedule a Programme
+                </a>
+                {{end}}
+            </div>
+        </div>
+        {{end}}
+
+    {{else if eq .CurrentTab "past"}}
+        {{if .PastProgrammes}}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {{range .PastProgrammes}}
+            <div class="col">
+                <div class="card h-100 shadow-sm programme-card">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge bg-secondary text-white px-2 py-1 rounded-pill">
+                                <i class="bi bi-check-circle me-1"></i> Ended
+                            </span>
+                            {{if .RecordingAvailable}}
+                            <span class="badge bg-success text-white rounded-pill">
+                                <i class="bi bi-film"></i> Recording Available
+                            </span>
+                            {{else}}
+                            <span class="badge bg-light text-muted border rounded-pill">
+                                <i class="bi bi-camera-video-off"></i> No Recording
+                            </span>
+                            {{end}}
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-1">{{.Title}}</h5>
+                        <div class="text-success fw-semibold small mb-2">
+                            <i class="bi bi-tag-fill me-1"></i> {{.CategoryDisplay}}
+                        </div>
+                        <p class="card-text text-muted small flex-grow-1">
+                            {{if .Description}}{{.Description}}{{else}}No description provided.{{end}}
+                        </p>
+                        <div class="bg-light p-2 rounded-3 small mb-3 text-secondary">
+                            <div><i class="bi bi-calendar me-1"></i> Held on: {{.ScheduleStartTime.Format "Jan 02, 2006"}}</div>
+                            {{if .Organizer}}
+                            <div class="mt-1"><i class="bi bi-person me-1"></i> Organizer: {{.Organizer.FullName}}</div>
+                            {{end}}
+                        </div>
+                        <div class="d-grid gap-2">
+                            {{if .RecordingAvailable}}
+                            <a href="/programmes/view?id={{.ID}}" class="btn btn-success fw-semibold rounded-pill">
+                                <i class="bi bi-play-circle-fill me-1"></i> Watch Recording
+                            </a>
+                            {{else}}
+                            <a href="/programmes/view?id={{.ID}}" class="btn btn-outline-secondary fw-semibold rounded-pill">
+                                <i class="bi bi-info-circle me-1"></i> View Summary & Requests
+                            </a>
+                            {{end}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <div class="card shadow-sm border-0 text-center py-5 my-3">
+            <div class="card-body">
+                <div class="text-secondary mb-3">
+                    <i class="bi bi-collection-play display-4"></i>
+                </div>
+                <h4 class="fw-bold">No Past Recordings Available</h4>
+                <p class="text-muted mx-auto" style="max-width: 500px;">
+                    Recorded services and broadcasts will appear here once sessions have completed and recordings are published.
+                </p>
+            </div>
+        </div>
+        {{end}}
+
+    {{else}}
+        <!-- All Programmes Tab -->
+        {{if .AllProgrammes}}
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+            {{range .AllProgrammes}}
+            <div class="col">
+                <div class="card h-100 shadow-sm programme-card {{if .IsLive}}border-danger border-2{{end}}">
+                    <div class="card-body d-flex flex-column">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge {{.StatusBadgeClass}} px-2 py-1 rounded-pill">
+                                {{if .IsLive}}<i class="bi bi-circle-fill me-1 small"></i> LIVE NOW
+                                {{else if .IsScheduled}}<i class="bi bi-calendar-event me-1"></i> Upcoming
+                                {{else if .IsEnded}}<i class="bi bi-check-circle me-1"></i> Ended
+                                {{else if .IsCancelled}}<i class="bi bi-x-circle me-1"></i> Cancelled
+                                {{else}}{{.Status}}{{end}}
+                            </span>
+                            {{if .IsMembersOnly}}
+                            <span class="badge bg-warning text-dark rounded-pill">
+                                <i class="bi bi-lock-fill"></i> Members Only
+                            </span>
+                            {{else}}
+                            <span class="badge bg-light text-muted border rounded-pill">
+                                <i class="bi bi-globe"></i> Public
+                            </span>
+                            {{end}}
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-1">{{.Title}}</h5>
+                        <div class="text-success fw-semibold small mb-2">
+                            <i class="bi bi-tag-fill me-1"></i> {{.CategoryDisplay}}
+                        </div>
+                        <p class="card-text text-muted small flex-grow-1">
+                            {{if .Description}}{{.Description}}{{else}}No description provided.{{end}}
+                        </p>
+                        <div class="bg-light p-2 rounded-3 small mb-3 text-secondary">
+                            <div><i class="bi bi-clock me-1"></i> {{.ScheduleStartTime.Format "Jan 02, 2006 at 15:04"}} {{.Timezone}}</div>
+                            {{if .Organizer}}
+                            <div class="mt-1"><i class="bi bi-person me-1"></i> {{.Organizer.FullName}}</div>
+                            {{end}}
+                        </div>
+                        <div class="d-grid gap-2">
+                            <a href="/programmes/view?id={{.ID}}" class="btn {{if .IsLive}}btn-danger fw-bold{{else}}btn-outline-primary fw-semibold{{end}} rounded-pill">
+                                {{if .IsLive}}<i class="bi bi-play-fill me-1"></i> Join Live Stream
+                                {{else if and .IsEnded .RecordingAvailable}}<i class="bi bi-play-circle-fill me-1"></i> Watch Recording
+                                {{else}}<i class="bi bi-eye me-1"></i> View Session
+                                {{end}}
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {{end}}
+        </div>
+        {{else}}
+        <div class="card shadow-sm border-0 text-center py-5 my-3">
+            <div class="card-body">
+                <div class="text-muted mb-3">
+                    <i class="bi bi-journal-x display-4"></i>
+                </div>
+                <h4 class="fw-bold">No Programmes Found</h4>
+                <p class="text-muted mx-auto" style="max-width: 500px;">
+                    No programmes matched your current filters. Try selecting "All Categories".
+                </p>
+            </div>
+        </div>
+        {{end}}
+    {{end}}
+
+</div>
+
+{{template "footer" .}}
+

@@ -11,7 +11,6 @@ import (
 	"convention-management-system/utils"
 )
 
-
 // StartDirectConversation validates and returns or creates a 1-to-1 conversation.
 func StartDirectConversation(currentUserID, targetUserID int) (*models.Conversation, error) {
 	if currentUserID <= 0 || targetUserID <= 0 {
@@ -563,7 +562,7 @@ func CreateGroup(creatorID int, title, category, description, callPermission str
 	return conv, nil
 }
 
-// JoinGroup adds an authenticated user to a public community group.
+// JoinGroup adds an authenticated user to a public community group if join_policy is open.
 func JoinGroup(userID, groupID int) error {
 	conv, err := repository.GetConversationByID(groupID)
 	if err != nil {
@@ -574,6 +573,9 @@ func JoinGroup(userID, groupID int) error {
 	}
 	if !conv.IsPublic {
 		return errors.New("this group is private and requires an invitation")
+	}
+	if conv.JoinPolicy != "open" {
+		return errors.New("this group requires admin approval; please submit a membership request")
 	}
 
 	isMember, _ := repository.IsConversationMember(groupID, userID)
@@ -606,6 +608,154 @@ func JoinGroup(userID, groupID int) error {
 	})
 
 	return nil
+}
+
+// RequestGroupMembership creates a membership request for a group requiring approval.
+func RequestGroupMembership(userID, groupID int, message string) (*models.GroupMembershipRequest, error) {
+	conv, err := repository.GetConversationByID(groupID)
+	if err != nil {
+		return nil, err
+	}
+	if conv.Type != "group" {
+		return nil, errors.New("cannot request membership for a direct conversation")
+	}
+	if !conv.IsPublic {
+		return nil, errors.New("this group is private and requires an invitation")
+	}
+
+	isMember, _ := repository.IsConversationMember(groupID, userID)
+	if isMember {
+		return nil, errors.New("you are already a member of this group")
+	}
+
+	existing, _ := repository.GetPendingMembershipRequest(groupID, userID)
+	if existing != nil {
+		return nil, errors.New("a membership request is already pending for this group")
+	}
+
+	req, err := repository.CreateGroupMembershipRequest(groupID, userID, message)
+	if err != nil {
+		return nil, err
+	}
+
+	// Notify group administrators
+	user, _ := repository.GetUserByID(userID)
+	userName := "A user"
+	if user.FullName != "" {
+		userName = user.FullName
+	}
+	admins, _ := repository.GetGroupAdministrators(groupID)
+	for _, admin := range admins {
+		_ = CreateNotification(models.Notification{
+			SenderID:   userID,
+			ReceiverID: admin.UserID,
+			Type:       "group_request",
+			Message:    fmt.Sprintf("%s requested to join %s.", userName, conv.Title),
+		})
+	}
+
+	return req, nil
+}
+
+// ReviewGroupMembershipRequest allows an authorized group administrator to approve or reject a membership request.
+func ReviewGroupMembershipRequest(actingUserID, requestID int, action string) error {
+	action = strings.ToLower(strings.TrimSpace(action))
+	if action != "approve" && action != "reject" {
+		return errors.New("invalid review action: must be 'approve' or 'reject'")
+	}
+
+	req, err := repository.GetGroupMembershipRequestByID(requestID)
+	if err != nil || req == nil {
+		return errors.New("membership request not found")
+	}
+
+	if req.Status != "pending" {
+		return fmt.Errorf("this request has already been %s", req.Status)
+	}
+
+	// Permission check: acting user must be owner or admin of the group
+	actingMember, err := repository.GetConversationMember(req.ConversationID, actingUserID)
+	if err != nil || (actingMember.Role != "owner" && actingMember.Role != "admin") {
+		return errors.New("access denied: only group administrators can review membership requests")
+	}
+
+	// Prevent self-approval
+	if req.UserID == actingUserID {
+		return errors.New("cannot approve or reject your own membership request")
+	}
+
+	conv, err := repository.GetConversationByID(req.ConversationID)
+	if err != nil || conv == nil {
+		return errors.New("group not found")
+	}
+
+	if action == "approve" {
+		if err := repository.UpdateGroupMembershipRequestStatus(requestID, actingUserID, "approved"); err != nil {
+			return err
+		}
+
+		if err := repository.AddConversationMember(req.ConversationID, req.UserID, "member"); err != nil {
+			return err
+		}
+
+		user, _ := repository.GetUserByID(req.UserID)
+		userName := "A new member"
+		if user.FullName != "" {
+			userName = user.FullName
+		}
+
+		sysMsg := &models.Message{
+			ConversationID: req.ConversationID,
+			SenderID:       actingUserID,
+			MessageType:    "system",
+			Body:           fmt.Sprintf("%s was approved to join the group.", userName),
+		}
+		_ = repository.SaveMessage(sysMsg)
+
+		GlobalHub.BroadcastToConversation(req.ConversationID, WSEvent{
+			Type:           "new_message",
+			ConversationID: req.ConversationID,
+			Message:        sysMsg,
+		})
+
+		_ = CreateNotification(models.Notification{
+			SenderID:   actingUserID,
+			ReceiverID: req.UserID,
+			Type:       "group_request",
+			Message:    fmt.Sprintf("Your request to join %s was approved!", conv.Title),
+		})
+	} else {
+		if err := repository.UpdateGroupMembershipRequestStatus(requestID, actingUserID, "rejected"); err != nil {
+			return err
+		}
+
+		_ = CreateNotification(models.Notification{
+			SenderID:   actingUserID,
+			ReceiverID: req.UserID,
+			Type:       "group_request",
+			Message:    fmt.Sprintf("Your request to join %s was declined.", conv.Title),
+		})
+	}
+
+	return nil
+}
+
+// CancelGroupMembershipRequest cancels a pending request by the requester.
+func CancelGroupMembershipRequest(actingUserID, groupID int) error {
+	req, err := repository.GetPendingMembershipRequest(groupID, actingUserID)
+	if err != nil || req == nil {
+		return errors.New("no pending request found for this group")
+	}
+	return repository.CancelGroupMembershipRequest(req.ID, actingUserID)
+}
+
+// GetGroupMembershipRequests retrieves pending or all requests for a group if acting user is admin.
+func GetGroupMembershipRequests(actingUserID, groupID int, status string) ([]models.GroupMembershipRequest, error) {
+	actingMember, err := repository.GetConversationMember(groupID, actingUserID)
+	if err != nil || (actingMember.Role != "owner" && actingMember.Role != "admin") {
+		return nil, errors.New("access denied: only group administrators can view membership requests")
+	}
+	return repository.GetGroupMembershipRequests(groupID, status)
 }
 
 // LeaveGroup removes the user from the group.
@@ -712,7 +862,7 @@ func AddGroupMembers(actingUserID, groupID int, userIDs []int) error {
 	return nil
 }
 
-// RemoveGroupMember removes a participant from a group (moderator or admin privilege required).
+// RemoveGroupMember removes a participant from a group (admin or owner privilege required).
 func RemoveGroupMember(actingUserID, groupID, targetUserID int) error {
 	if actingUserID == targetUserID {
 		return LeaveGroup(actingUserID, groupID)
@@ -728,6 +878,19 @@ func RemoveGroupMember(actingUserID, groupID, targetUserID int) error {
 		return errors.New("target is not a member of this group")
 	}
 
+	// Cannot remove owner
+	if targetMember.Role == "owner" {
+		return errors.New("cannot remove the group owner; transfer ownership first")
+	}
+
+	// If target is admin, check if they are the last administrator
+	if targetMember.Role == "admin" {
+		adminCount, err := repository.CountGroupAdministrators(groupID)
+		if err == nil && adminCount <= 1 {
+			return errors.New("cannot remove the last administrator of the group")
+		}
+	}
+
 	// Owner can remove anyone; Admin can remove moderators and members
 	if actingMember.Role == "owner" {
 		// allowed
@@ -739,6 +902,12 @@ func RemoveGroupMember(actingUserID, groupID, targetUserID int) error {
 
 	if err := repository.RemoveConversationMember(groupID, targetUserID); err != nil {
 		return err
+	}
+
+	conv, _ := repository.GetConversationByID(groupID)
+	groupTitle := "the group"
+	if conv != nil && conv.Title != "" {
+		groupTitle = conv.Title
 	}
 
 	sysMsg := &models.Message{
@@ -755,34 +924,112 @@ func RemoveGroupMember(actingUserID, groupID, targetUserID int) error {
 		Message:        sysMsg,
 	})
 
+	_ = CreateNotification(models.Notification{
+		SenderID:   actingUserID,
+		ReceiverID: targetUserID,
+		Type:       "group_removal",
+		Message:    fmt.Sprintf("You were removed from %s by an administrator.", groupTitle),
+	})
+
 	return nil
 }
 
-// UpdateGroupMemberRole modifies a participant's role (owner privileges required).
+// UpdateGroupMemberRole modifies a participant's role (owner or admin privileges required).
 func UpdateGroupMemberRole(actingUserID, groupID, targetUserID int, newRole string) error {
-	if newRole != "admin" && newRole != "moderator" && newRole != "member" {
-		return errors.New("invalid role")
+	newRole = strings.ToLower(strings.TrimSpace(newRole))
+	if newRole != "owner" && newRole != "admin" && newRole != "moderator" && newRole != "member" {
+		return errors.New("invalid role: must be owner, admin, moderator, or member")
 	}
 
 	actingMember, err := repository.GetConversationMember(groupID, actingUserID)
-	if err != nil || actingMember.Role != "owner" {
-		return errors.New("access denied: only the group owner can change member roles")
+	if err != nil || (actingMember.Role != "owner" && actingMember.Role != "admin") {
+		return errors.New("access denied: only group administrators can change member roles")
+	}
+
+	targetMember, err := repository.GetConversationMember(groupID, targetUserID)
+	if err != nil {
+		return errors.New("target is not a member of this group")
 	}
 
 	if targetUserID == actingUserID {
-		return errors.New("cannot change owner's own role")
+		return errors.New("cannot change your own role directly")
+	}
+
+	conv, _ := repository.GetConversationByID(groupID)
+	groupTitle := "the group"
+	if conv != nil && conv.Title != "" {
+		groupTitle = conv.Title
+	}
+
+	// Handling ownership transfer
+	if newRole == "owner" {
+		if actingMember.Role != "owner" {
+			return errors.New("access denied: only the group owner can transfer ownership")
+		}
+		// Transfer ownership: target becomes owner, acting user becomes admin
+		if err := repository.UpdateConversationMemberRole(groupID, targetUserID, "owner"); err != nil {
+			return err
+		}
+		if err := repository.UpdateConversationMemberRole(groupID, actingUserID, "admin"); err != nil {
+			return err
+		}
+
+		sysMsg := &models.Message{
+			ConversationID: groupID,
+			SenderID:       actingUserID,
+			MessageType:    "system",
+			Body:           fmt.Sprintf("%s transferred group ownership to %s.", actingMember.User.FullName, targetMember.User.FullName),
+		}
+		_ = repository.SaveMessage(sysMsg)
+
+		GlobalHub.BroadcastToConversation(groupID, WSEvent{
+			Type:           "new_message",
+			ConversationID: groupID,
+			Message:        sysMsg,
+		})
+
+		_ = CreateNotification(models.Notification{
+			SenderID:   actingUserID,
+			ReceiverID: targetUserID,
+			Type:       "role_update",
+			Message:    fmt.Sprintf("You are now the owner of %s.", groupTitle),
+		})
+		return nil
+	}
+
+	// If target is currently owner, cannot change their role unless transferring ownership
+	if targetMember.Role == "owner" {
+		return errors.New("cannot change role of the group owner; transfer ownership instead")
+	}
+
+	// Admins cannot change role of other admins (only owner can)
+	if actingMember.Role != "owner" && targetMember.Role == "admin" {
+		return errors.New("access denied: only the owner can modify administrator roles")
+	}
+
+	// If demoting an admin to moderator/member, verify not the last administrator
+	if (targetMember.Role == "admin" || targetMember.Role == "owner") && (newRole == "moderator" || newRole == "member") {
+		adminCount, err := repository.CountGroupAdministrators(groupID)
+		if err == nil && adminCount <= 1 {
+			return errors.New("cannot demote the last administrator of the group")
+		}
 	}
 
 	if err := repository.UpdateConversationMemberRole(groupID, targetUserID, newRole); err != nil {
 		return err
 	}
 
-	targetUser, _ := repository.GetUserByID(targetUserID)
+	targetUser, err := repository.GetUserByID(targetUserID)
+	targetName := targetMember.User.FullName
+	if err == nil && targetUser.FullName != "" {
+		targetName = targetUser.FullName
+	}
+
 	sysMsg := &models.Message{
 		ConversationID: groupID,
 		SenderID:       actingUserID,
 		MessageType:    "system",
-		Body:           fmt.Sprintf("%s is now a %s.", targetUser.FullName, newRole),
+		Body:           fmt.Sprintf("%s is now a %s.", targetName, newRole),
 	}
 	_ = repository.SaveMessage(sysMsg)
 
@@ -792,11 +1039,18 @@ func UpdateGroupMemberRole(actingUserID, groupID, targetUserID int, newRole stri
 		Message:        sysMsg,
 	})
 
+	_ = CreateNotification(models.Notification{
+		SenderID:   actingUserID,
+		ReceiverID: targetUserID,
+		Type:       "role_update",
+		Message:    fmt.Sprintf("Your role in %s was updated to %s.", groupTitle, newRole),
+	})
+
 	return nil
 }
 
-// UpdateGroupSettings updates group title, category, description, and call permissions.
-func UpdateGroupSettings(actingUserID, groupID int, title, category, description, callPermission string) error {
+// UpdateGroupSettings updates group title, category, description, call permissions, and join policy.
+func UpdateGroupSettings(actingUserID, groupID int, title, category, description, callPermission string, optionalJoinPolicy ...string) error {
 	title = strings.TrimSpace(title)
 	if len(title) < 2 || len(title) > 100 {
 		return errors.New("title must be between 2 and 100 characters")
@@ -822,7 +1076,79 @@ func UpdateGroupSettings(actingUserID, groupID int, title, category, description
 		callPermission = "all"
 	}
 
-	return repository.UpdateGroupDetails(groupID, title, category, description, callPermission)
+	joinPolicy := "approval"
+	if len(optionalJoinPolicy) > 0 && optionalJoinPolicy[0] != "" {
+		if optionalJoinPolicy[0] == "open" {
+			joinPolicy = "open"
+		}
+	} else {
+		// Preserve existing join policy if not provided
+		conv, cErr := repository.GetConversationByID(groupID)
+		if cErr == nil && conv != nil && conv.JoinPolicy != "" {
+			joinPolicy = conv.JoinPolicy
+		}
+	}
+
+	return repository.UpdateGroupDetails(groupID, title, category, description, callPermission, joinPolicy)
+}
+
+// ModerateDeleteMessage soft-deletes a message if the user is the author or an authorized group moderator/admin.
+func ModerateDeleteMessage(actingUserID, messageID int) error {
+	msg, err := repository.GetMessageByID(messageID)
+	if err != nil || msg == nil {
+		return errors.New("message not found")
+	}
+
+	if msg.IsDeleted {
+		return nil // already deleted
+	}
+
+	conv, err := repository.GetConversationByID(msg.ConversationID)
+	if err != nil || conv == nil {
+		return errors.New("conversation not found")
+	}
+
+	isAuthor := (msg.SenderID == actingUserID)
+	isGroupAdminOrMod := false
+
+	if conv.Type == "group" {
+		member, mErr := repository.GetConversationMember(msg.ConversationID, actingUserID)
+		if mErr == nil && (member.Role == "owner" || member.Role == "admin" || member.Role == "moderator") {
+			isGroupAdminOrMod = true
+		}
+	}
+
+	if !isAuthor && !isGroupAdminOrMod {
+		return errors.New("access denied: insufficient permissions to delete this message")
+	}
+
+	if err := repository.SoftDeleteMessage(messageID, actingUserID); err != nil {
+		return err
+	}
+
+	// Broadcast message deletion event to conversation
+	GlobalHub.BroadcastToConversation(msg.ConversationID, WSEvent{
+		Type:           "message_deleted",
+		ConversationID: msg.ConversationID,
+		Message: &models.Message{
+			ID:             msg.ID,
+			ConversationID: msg.ConversationID,
+			IsDeleted:      true,
+			Body:           "This message was removed by a moderator.",
+		},
+	})
+
+	// If removed by moderator/admin and not the author, notify the author
+	if !isAuthor && isGroupAdminOrMod {
+		_ = CreateNotification(models.Notification{
+			SenderID:   actingUserID,
+			ReceiverID: msg.SenderID,
+			Type:       "message_deleted",
+			Message:    fmt.Sprintf("Your message in %s was removed by a moderator.", conv.Title),
+		})
+	}
+
+	return nil
 }
 
 // GetGroupMembers retrieves members for a conversation if acting user is a participant.
@@ -863,6 +1189,3 @@ func CanUserCallInGroup(convID, userID int) (bool, error) {
 
 	return true, nil
 }
-
-
-

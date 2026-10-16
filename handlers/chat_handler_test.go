@@ -535,8 +535,8 @@ func TestGroupAPIs(t *testing.T) {
 		t.Fatalf("UpdateGroupMemberRoleAPI failed: %d (body: %s)", roleRR.Code, roleRR.Body.String())
 	}
 
-	// 4. UpdateGroupSettingsAPI (Owner updates group)
-	updateJSON := fmt.Sprintf(`{"group_id": %d, "title": "Youth Prayer Ministry", "category": "prayer", "description": "Updated description", "call_permission": "admin_only"}`, groupID)
+	// 4. UpdateGroupSettingsAPI (Owner updates group and sets join_policy to open)
+	updateJSON := fmt.Sprintf(`{"group_id": %d, "title": "Youth Prayer Ministry", "category": "prayer", "description": "Updated description", "call_permission": "admin_only", "join_policy": "open"}`, groupID)
 	updateReq, updateRR := makeAuthReq(http.MethodPost, "/messages/group/update", updateJSON, "application/json", 1)
 	UpdateGroupSettingsAPI(updateRR, updateReq)
 
@@ -695,8 +695,630 @@ func TestGroupCallAPIs(t *testing.T) {
 	}
 }
 
+func TestSendMessageAPIWorkflow(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
 
+	// Seed conversations: conv 1 (direct: user 1 & user 2), conv 2 (group: user 1 owner, user 2 member)
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, created_by) VALUES (1, 'direct', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (1, 1, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (1, 2, 'member');
 
+		INSERT INTO conversations (id, type, title, created_by) VALUES (2, 'group', 'Youth General Meeting', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (2, 1, 'owner');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (2, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed conversations: %v", err)
+	}
 
+	// 1. Unauthenticated request should return 401
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/send", strings.NewReader(`{"conversation_id": 1, "body": "hello"}`))
+	unauthReq.Header.Set("Content-Type", "application/json")
+	unauthRR := httptest.NewRecorder()
+	SendMessageAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 Unauthorized for unauthenticated SendMessageAPI, got %d", unauthRR.Code)
+	}
 
+	// 2. JSON request to direct conversation (conv 1) from User 1
+	jsonPayload := `{"conversation_id": 1, "body": "Hello direct friend", "client_message_id": "client-direct-1"}`
+	req1, rr1 := makeAuthReq(http.MethodPost, "/messages/send", jsonPayload, "application/json", 1)
+	SendMessageAPI(rr1, req1)
 
+	if rr1.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for valid JSON SendMessageAPI, got %d (body: %s)", rr1.Code, rr1.Body.String())
+	}
+	var resp1 struct {
+		Success bool `json:"success"`
+		Message struct {
+			ID              int    `json:"ID"`
+			ConversationID  int    `json:"ConversationID"`
+			SenderID        int    `json:"SenderID"`
+			Body            string `json:"Body"`
+			ClientMessageID string `json:"ClientMessageID"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(rr1.Body.Bytes(), &resp1); err != nil {
+		t.Fatalf("Failed to decode JSON response: %v", err)
+	}
+	if !resp1.Success {
+		t.Errorf("Expected success: true, got %v", resp1.Success)
+	}
+	if resp1.Message.ID <= 0 || resp1.Message.ConversationID != 1 || resp1.Message.SenderID != 1 || resp1.Message.Body != "Hello direct friend" || resp1.Message.ClientMessageID != "client-direct-1" {
+		t.Errorf("Unexpected message in response: %+v", resp1.Message)
+	}
+
+	// 3. JSON request to group conversation (conv 2: Youth General Meeting) from User 1
+	groupPayload := `{"conversation_id": 2, "body": "Hello everyone in youth group", "client_message_id": "client-group-1"}`
+	req2, rr2 := makeAuthReq(http.MethodPost, "/messages/send", groupPayload, "application/json", 1)
+	SendMessageAPI(rr2, req2)
+
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for group message SendMessageAPI, got %d (body: %s)", rr2.Code, rr2.Body.String())
+	}
+	var resp2 struct {
+		Success bool `json:"success"`
+		Message struct {
+			ID              int    `json:"ID"`
+			ConversationID  int    `json:"ConversationID"`
+			SenderID        int    `json:"SenderID"`
+			Body            string `json:"Body"`
+			ClientMessageID string `json:"ClientMessageID"`
+		} `json:"message"`
+	}
+	if err := json.Unmarshal(rr2.Body.Bytes(), &resp2); err != nil {
+		t.Fatalf("Failed to decode group JSON response: %v", err)
+	}
+	if !resp2.Success {
+		t.Errorf("Expected success: true for group message, got %v", resp2.Success)
+	}
+	if resp2.Message.ConversationID != 2 || resp2.Message.Body != "Hello everyone in youth group" {
+		t.Errorf("Unexpected group message response: %+v", resp2.Message)
+	}
+
+	// 4. User 3 (not a member of conv 1 or conv 2) attempts to send a message -> should return 403 Forbidden
+	req3, rr3 := makeAuthReq(http.MethodPost, "/messages/send", jsonPayload, "application/json", 3)
+	SendMessageAPI(rr3, req3)
+	if rr3.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-member SendMessageAPI, got %d (body: %s)", rr3.Code, rr3.Body.String())
+	}
+
+	// 5. Empty body -> should return 400 Bad Request
+	emptyPayload := `{"conversation_id": 1, "body": "   "}`
+	req4, rr4 := makeAuthReq(http.MethodPost, "/messages/send", emptyPayload, "application/json", 1)
+	SendMessageAPI(rr4, req4)
+	if rr4.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for empty body, got %d", rr4.Code)
+	}
+
+	// 6. Standard browser form POST (Accept: text/html) -> should redirect (303 See Other) to /messages?c=1
+	formBody := "conversation_id=1&body=Standard+Form+Post+Message&client_message_id=form-msg-1"
+	formReq := httptest.NewRequest(http.MethodPost, "/messages/send", strings.NewReader(formBody))
+	formReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	formReq.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+
+	initReq := httptest.NewRequest(http.MethodPost, "/messages/send", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		formReq.AddCookie(cookie)
+	}
+
+	formRR := httptest.NewRecorder()
+	SendMessageAPI(formRR, formReq)
+
+	if formRR.Code != http.StatusSeeOther {
+		t.Errorf("Expected 303 See Other for standard HTML form submission, got %d (body: %s)", formRR.Code, formRR.Body.String())
+	}
+	if loc := formRR.Header().Get("Location"); loc != "/messages?c=1" {
+		t.Errorf("Expected redirect to /messages?c=1, got %q", loc)
+	}
+}
+
+func TestAddGroupMembersAPI_Comprehensive(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Setup a group owned by user 1 with member user 2
+	createJSON := `{"title": "Youth Bible Study", "category": "bible_study", "is_public": true, "member_ids": [2]}`
+	createReq, createRR := makeAuthReq(http.MethodPost, "/messages/group/create", createJSON, "application/json", 1)
+	CreateGroupAPI(createRR, createReq)
+	if createRR.Code != http.StatusOK {
+		t.Fatalf("CreateGroupAPI failed: %d", createRR.Code)
+	}
+	var createResp struct {
+		ConversationID int `json:"conversation_id"`
+	}
+	_ = json.Unmarshal(createRR.Body.Bytes(), &createResp)
+	groupID := createResp.ConversationID
+
+	// 2. Unauthenticated request to AddGroupMembersAPI
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/group/members/add", strings.NewReader(`{"group_id": 1, "user_ids": [3]}`))
+	unauthReq.Header.Set("Content-Type", "application/json")
+	unauthRR := httptest.NewRecorder()
+	AddGroupMembersAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated request, got %d", unauthRR.Code)
+	}
+
+	// 3. User 3 (not in group) attempts to add user 1 -> should fail with 403 Forbidden
+	nonMemberJSON := fmt.Sprintf(`{"group_id": %d, "user_ids": [1]}`, groupID)
+	nonMemberReq, nonMemberRR := makeAuthReq(http.MethodPost, "/messages/group/members/add", nonMemberJSON, "application/json", 3)
+	AddGroupMembersAPI(nonMemberRR, nonMemberReq)
+	if nonMemberRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-admin, got %d (body: %s)", nonMemberRR.Code, nonMemberRR.Body.String())
+	}
+
+	// 4. Invalid parameters (empty user_ids) with AJAX headers -> 400 Bad Request with JSON error
+	invalidJSON := fmt.Sprintf(`{"group_id": %d, "user_ids": []}`, groupID)
+	invReq, invRR := makeAuthReq(http.MethodPost, "/messages/group/members/add", invalidJSON, "application/json", 1)
+	AddGroupMembersAPI(invRR, invReq)
+	if invRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for empty user_ids, got %d", invRR.Code)
+	}
+	var errResp map[string]any
+	if err := json.Unmarshal(invRR.Body.Bytes(), &errResp); err != nil || errResp["success"] != false {
+		t.Errorf("Expected JSON error response for invalid parameters, got %s", invRR.Body.String())
+	}
+
+	// 5. Successful AJAX JSON submission (Owner user 1 adds user 3)
+	addJSON := fmt.Sprintf(`{"group_id": %d, "user_ids": [3]}`, groupID)
+	addReq, addRR := makeAuthReq(http.MethodPost, "/messages/group/members/add", addJSON, "application/json", 1)
+	AddGroupMembersAPI(addRR, addReq)
+	if addRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for AJAX add members, got %d (body: %s)", addRR.Code, addRR.Body.String())
+	}
+	var successResp map[string]any
+	if err := json.Unmarshal(addRR.Body.Bytes(), &successResp); err != nil || successResp["success"] != true {
+		t.Errorf("Expected success JSON response, got %s", addRR.Body.String())
+	}
+
+	// 6. Multiple checkboxes form submission with AJAX (X-Requested-With)
+	_, _ = database.DB.Exec("INSERT INTO users (id, full_name, username, password_hash) VALUES (4, 'User Four', 'user4', 'hash4')")
+	formData := fmt.Sprintf("group_id=%d&user_ids=4", groupID)
+	formAjaxReq := httptest.NewRequest(http.MethodPost, "/messages/group/members/add", strings.NewReader(formData))
+	formAjaxReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	formAjaxReq.Header.Set("X-Requested-With", "XMLHttpRequest")
+	initReq := httptest.NewRequest(http.MethodPost, "/messages/group/members/add", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		formAjaxReq.AddCookie(cookie)
+	}
+	formAjaxRR := httptest.NewRecorder()
+	AddGroupMembersAPI(formAjaxRR, formAjaxReq)
+	if formAjaxRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for form AJAX add members, got %d (body: %s)", formAjaxRR.Code, formAjaxRR.Body.String())
+	}
+	var formSuccessResp map[string]any
+	if err := json.Unmarshal(formAjaxRR.Body.Bytes(), &formSuccessResp); err != nil || formSuccessResp["success"] != true {
+		t.Errorf("Expected success JSON for form AJAX, got %s", formAjaxRR.Body.String())
+	}
+
+	// 7. Standard browser form POST (Accept: text/html, no AJAX) -> redirect 303 See Other back to /messages?c=%d
+	_, _ = database.DB.Exec("INSERT INTO users (id, full_name, username, password_hash) VALUES (5, 'User Five', 'user5', 'hash5')")
+	normFormData := fmt.Sprintf("group_id=%d&user_ids=5", groupID)
+	normReq := httptest.NewRequest(http.MethodPost, "/messages/group/members/add", strings.NewReader(normFormData))
+	normReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	normReq.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	for _, cookie := range saveRec.Result().Cookies() {
+		normReq.AddCookie(cookie)
+	}
+	normRR := httptest.NewRecorder()
+	AddGroupMembersAPI(normRR, normReq)
+	if normRR.Code != http.StatusSeeOther {
+		t.Errorf("Expected 303 See Other for standard form POST, got %d (body: %s)", normRR.Code, normRR.Body.String())
+	}
+	expectedLoc := fmt.Sprintf("/messages?c=%d", groupID)
+	if loc := normRR.Header().Get("Location"); loc != expectedLoc {
+		t.Errorf("Expected redirect to %s, got %s", expectedLoc, loc)
+	}
+}
+
+func TestAddGroupMembersAPI_ManualMember(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Setup a group owned by user 1 with member user 2
+	createJSON := `{"title": "Youth Manual Group", "category": "fellowship", "is_public": true, "member_ids": [2]}`
+	createReq, createRR := makeAuthReq(http.MethodPost, "/messages/group/create", createJSON, "application/json", 1)
+	CreateGroupAPI(createRR, createReq)
+	if createRR.Code != http.StatusOK {
+		t.Fatalf("CreateGroupAPI failed: %d", createRR.Code)
+	}
+	var createResp struct {
+		Success        bool `json:"success"`
+		ConversationID int  `json:"conversation_id"`
+	}
+	_ = json.Unmarshal(createRR.Body.Bytes(), &createResp)
+	groupID := createResp.ConversationID
+
+	// 2. Add member manually by username with '@' prefix (Owner user 1 adds @user3)
+	manualJSON := fmt.Sprintf(`{"group_id": %d, "manual_member": "@user3"}`, groupID)
+	addReq, addRR := makeAuthReq(http.MethodPost, "/messages/group/members/add", manualJSON, "application/json", 1)
+	AddGroupMembersAPI(addRR, addReq)
+	if addRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for manual member add by username, got %d (body: %s)", addRR.Code, addRR.Body.String())
+	}
+	var successResp struct {
+		Success    bool             `json:"success"`
+		AddedUsers []map[string]any `json:"added_users"`
+	}
+	if err := json.Unmarshal(addRR.Body.Bytes(), &successResp); err != nil || !successResp.Success {
+		t.Fatalf("Unexpected JSON response for manual member addition: %s", addRR.Body.String())
+	}
+	if len(successResp.AddedUsers) == 0 {
+		t.Fatalf("Expected AddedUsers to contain user3, got empty")
+	}
+
+	// 3. Attempting to add an already-existing member manually should return a 400 error
+	alreadyMemberJSON := fmt.Sprintf(`{"group_id": %d, "manual_member": "user2"}`, groupID)
+	alreadyReq, alreadyRR := makeAuthReq(http.MethodPost, "/messages/group/members/add", alreadyMemberJSON, "application/json", 1)
+	AddGroupMembersAPI(alreadyRR, alreadyReq)
+	if alreadyRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request when adding existing member manually, got %d", alreadyRR.Code)
+	}
+
+	// 4. Attempting to add a nonexistent user manually should return a 400 error
+	notFoundJSON := fmt.Sprintf(`{"group_id": %d, "manual_member": "unknown_user_999"}`, groupID)
+	notFoundReq, notFoundRR := makeAuthReq(http.MethodPost, "/messages/group/members/add", notFoundJSON, "application/json", 1)
+	AddGroupMembersAPI(notFoundRR, notFoundReq)
+	if notFoundRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for nonexistent user, got %d", notFoundRR.Code)
+	}
+}
+
+func TestUpdateGroupSettingsAPI_Comprehensive(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Setup a group owned by user 1 with member user 2
+	createJSON := `{"title": "Original Fellowship", "category": "general", "is_public": true, "member_ids": [2]}`
+	createReq, createRR := makeAuthReq(http.MethodPost, "/messages/group/create", createJSON, "application/json", 1)
+	CreateGroupAPI(createRR, createReq)
+	if createRR.Code != http.StatusOK {
+		t.Fatalf("CreateGroupAPI failed: %d", createRR.Code)
+	}
+	var createResp struct {
+		ConversationID int `json:"conversation_id"`
+	}
+	_ = json.Unmarshal(createRR.Body.Bytes(), &createResp)
+	groupID := createResp.ConversationID
+
+	// 2. Unauthenticated request -> 401 Unauthorized
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/group/update", strings.NewReader(`{"group_id": 1, "title": "New"}`))
+	unauthReq.Header.Set("Content-Type", "application/json")
+	unauthRR := httptest.NewRecorder()
+	UpdateGroupSettingsAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated update, got %d", unauthRR.Code)
+	}
+
+	// 3. Normal member (user 2) attempts to update settings -> 403 Forbidden
+	memberJSON := fmt.Sprintf(`{"group_id": %d, "title": "Hacked Title", "category": "prayer"}`, groupID)
+	memberReq, memberRR := makeAuthReq(http.MethodPost, "/messages/group/update", memberJSON, "application/json", 2)
+	UpdateGroupSettingsAPI(memberRR, memberReq)
+	if memberRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-admin update, got %d (body: %s)", memberRR.Code, memberRR.Body.String())
+	}
+
+	// 4. Invalid parameters (empty or short title) with AJAX -> 400 Bad Request
+	invJSON := fmt.Sprintf(`{"group_id": %d, "title": "A"}`, groupID)
+	invReq, invRR := makeAuthReq(http.MethodPost, "/messages/group/update", invJSON, "application/json", 1)
+	UpdateGroupSettingsAPI(invRR, invReq)
+	if invRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for short title, got %d", invRR.Code)
+	}
+	var errResp map[string]any
+	if err := json.Unmarshal(invRR.Body.Bytes(), &errResp); err != nil || errResp["success"] != false {
+		t.Errorf("Expected JSON error response for invalid title, got %s", invRR.Body.String())
+	}
+
+	// 5. Successful AJAX JSON update (Owner user 1 updates settings)
+	updateJSON := fmt.Sprintf(`{"group_id": %d, "title": "Youth Bible Study Fellowship", "category": "bible_study", "description": "Weekly group study", "call_permission": "admin_only"}`, groupID)
+	updateReq, updateRR := makeAuthReq(http.MethodPost, "/messages/group/update", updateJSON, "application/json", 1)
+	UpdateGroupSettingsAPI(updateRR, updateReq)
+	if updateRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for AJAX group update, got %d (body: %s)", updateRR.Code, updateRR.Body.String())
+	}
+	var successResp map[string]any
+	if err := json.Unmarshal(updateRR.Body.Bytes(), &successResp); err != nil || successResp["success"] != true {
+		t.Fatalf("Expected success JSON response, got %s", updateRR.Body.String())
+	}
+	if successResp["title"] != "Youth Bible Study Fellowship" || successResp["category"] != "bible_study" {
+		t.Errorf("Unexpected returned fields in success response: %v", successResp)
+	}
+
+	// 6. Standard browser form POST (Accept: text/html, non-AJAX) -> redirect 303 See Other back to /messages?c=%d
+	formBody := fmt.Sprintf("group_id=%d&title=Updated+Via+Form&category=prayer&description=Desc&call_permission=all", groupID)
+	normReq := httptest.NewRequest(http.MethodPost, "/messages/group/update", strings.NewReader(formBody))
+	normReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	normReq.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+
+	initReq := httptest.NewRequest(http.MethodPost, "/messages/group/update", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		normReq.AddCookie(cookie)
+	}
+	normRR := httptest.NewRecorder()
+	UpdateGroupSettingsAPI(normRR, normReq)
+	if normRR.Code != http.StatusSeeOther {
+		t.Errorf("Expected 303 See Other for standard form POST, got %d (body: %s)", normRR.Code, normRR.Body.String())
+	}
+	expectedLoc := fmt.Sprintf("/messages?c=%d", groupID)
+	if loc := normRR.Header().Get("Location"); loc != expectedLoc {
+		t.Errorf("Expected redirect to %s, got %s", expectedLoc, loc)
+	}
+}
+
+func TestChatTemplate_RenderWithAttachments(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Create a group conversation
+	res, err := database.DB.Exec(`
+		INSERT INTO conversations (type, title, category, description, call_permission, is_public, created_by)
+		VALUES ('group', 'Bible Study Fellowship', 'bible_study', 'Study group', 'all', 1, 1)
+	`)
+	if err != nil {
+		t.Fatalf("Failed to create conversation: %v", err)
+	}
+	convID, _ := res.LastInsertId()
+
+	_, err = database.DB.Exec(`
+		INSERT INTO conversation_members (conversation_id, user_id, role)
+		VALUES (?, 1, 'owner'), (?, 2, 'member')
+	`, convID, convID)
+	if err != nil {
+		t.Fatalf("Failed to add members: %v", err)
+	}
+
+	// Insert messages with various attachment types
+	_, err = database.DB.Exec(`
+		INSERT INTO messages (conversation_id, sender_id, message_type, body, attachment_url, attachment_name, attachment_size, attachment_type)
+		VALUES
+			(?, 1, 'image', 'Here is the event banner', '/uploads/chat/banner.png', 'banner.png', 1572864, 'image/png'),
+			(?, 2, 'voice', '', '/uploads/chat/voice_note.webm', 'voice_note.webm', 24576, 'audio/webm'),
+			(?, 1, 'file', 'Review this study guide', '/uploads/chat/study_guide.pdf', 'study_guide.pdf', 3145728, 'application/pdf'),
+			(?, 2, 'file', 'Meeting notes', '/uploads/chat/notes.docx', 'notes.docx', 512000, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+	`, convID, convID, convID, convID)
+	if err != nil {
+		t.Fatalf("Failed to insert messages: %v", err)
+	}
+
+	// Request /messages?c={convID} as User 1 (Owner)
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages?c=%d", convID), nil)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	ChatInbox(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+
+	// 1. Check spacious message input
+	if !strings.Contains(body, "chat-composer-input") {
+		t.Errorf("Expected chat-composer-input class in rendered HTML")
+	}
+	if !strings.Contains(body, "Type a message or attach a file...") {
+		t.Errorf("Expected enlarged message placeholder in rendered HTML")
+	}
+
+	// 2. Check three-dots dropdown action links
+	expectedDropdownActions := []string{
+		"View Group Details",
+		"Search Messages",
+		"Shared Media & Files",
+		"Add Members",
+		"Edit Group Settings",
+		"Start Audio Call",
+		"Start Video Call",
+		"Mute Notifications",
+		"Archive Conversation",
+		"Leave Group",
+	}
+	for _, action := range expectedDropdownActions {
+		if !strings.Contains(body, action) {
+			t.Errorf("Expected dropdown action link %q in rendered HTML", action)
+		}
+	}
+
+	// 3. Check attachment cards and human-readable sizes
+	if !strings.Contains(body, "1.5 MB") {
+		t.Errorf("Expected 1.5 MB formatted size for image attachment")
+	}
+	if !strings.Contains(body, "24.0 KB") {
+		t.Errorf("Expected 24.0 KB formatted size for voice note")
+	}
+	if !strings.Contains(body, "3.0 MB") {
+		t.Errorf("Expected 3.0 MB formatted size for PDF attachment")
+	}
+	if !strings.Contains(body, "500.0 KB") {
+		t.Errorf("Expected 500.0 KB formatted size for docx attachment")
+	}
+	if !strings.Contains(body, "bi-file-earmark-pdf-fill") {
+		t.Errorf("Expected PDF icon class in rendered HTML")
+	}
+	if !strings.Contains(body, "bi-file-earmark-word-fill") {
+		t.Errorf("Expected Word icon class in rendered HTML")
+	}
+}
+
+func TestChatTemplate_RenderDirectChatWithDropdownActions(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Create direct conversation between user 1 and user 2
+	res, err := database.DB.Exec(`
+		INSERT INTO conversations (type, title, category, call_permission, is_public, created_by)
+		VALUES ('direct', '', 'general', 'all', 0, 1)
+	`)
+	if err != nil {
+		t.Fatalf("Failed to create direct conv: %v", err)
+	}
+	convID, _ := res.LastInsertId()
+
+	_, err = database.DB.Exec(`
+		INSERT INTO conversation_members (conversation_id, user_id, role)
+		VALUES (?, 1, 'member'), (?, 2, 'member')
+	`, convID, convID)
+	if err != nil {
+		t.Fatalf("Failed to add members: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages?c=%d", convID), nil)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	ChatInbox(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox for direct chat, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	expectedActions := []string{
+		"View Contact Details",
+		"View Full Profile",
+		"Search Messages",
+		"Shared Media & Files",
+		"Voice Call",
+		"Video Call",
+		"Mute Notifications",
+		"Archive Conversation",
+		"Block Contact",
+		"Report Abuse",
+	}
+	for _, action := range expectedActions {
+		if !strings.Contains(body, action) {
+			t.Errorf("Expected direct chat dropdown action %q in rendered HTML", action)
+		}
+	}
+}
+
+func TestMembershipRequestsAndModerationAPIs(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Create a group (User 1 is owner, approval required by default)
+	createJSON := `{"title": "Leadership Group", "category": "general", "description": "Leaders only", "call_permission": "admin_only", "is_public": true}`
+	createReq, createRR := makeAuthReq(http.MethodPost, "/messages/groups/create", createJSON, "application/json", 1)
+	CreateGroupAPI(createRR, createReq)
+	if createRR.Code != http.StatusOK {
+		t.Fatalf("CreateGroupAPI failed: %d", createRR.Code)
+	}
+
+	var createResp struct {
+		ConversationID int `json:"conversation_id"`
+	}
+	_ = json.Unmarshal(createRR.Body.Bytes(), &createResp)
+	groupID := createResp.ConversationID
+
+	// 2. User 2 submits membership request
+	reqJSON := fmt.Sprintf(`{"group_id": %d, "message": "I would like to join"}`, groupID)
+	reqReq, reqRR := makeAuthReq(http.MethodPost, "/messages/groups/requests/submit", reqJSON, "application/json", 2)
+	SubmitGroupMembershipRequestAPI(reqRR, reqReq)
+	if reqRR.Code != http.StatusOK {
+		t.Fatalf("SubmitGroupMembershipRequestAPI failed: %d (body: %s)", reqRR.Code, reqRR.Body.String())
+	}
+
+	// 3. User 1 (owner) views pending requests
+	getReq, getRR := makeAuthReq(http.MethodGet, fmt.Sprintf("/messages/groups/requests?group_id=%d", groupID), "", "", 1)
+	GetGroupMembershipRequestsAPI(getRR, getReq)
+	if getRR.Code != http.StatusOK {
+		t.Fatalf("GetGroupMembershipRequestsAPI failed: %d (body: %s)", getRR.Code, getRR.Body.String())
+	}
+
+	var getResp struct {
+		Success  bool `json:"success"`
+		Requests []struct {
+			ID int `json:"id"`
+		} `json:"requests"`
+	}
+	_ = json.Unmarshal(getRR.Body.Bytes(), &getResp)
+	if len(getResp.Requests) == 0 {
+		t.Fatalf("Expected at least 1 pending request, got 0")
+	}
+	requestID := getResp.Requests[0].ID
+
+	// 4. User 1 approves User 2's request
+	revJSON := fmt.Sprintf(`{"request_id": %d, "action": "approve"}`, requestID)
+	revReq, revRR := makeAuthReq(http.MethodPost, "/messages/groups/requests/review", revJSON, "application/json", 1)
+	ReviewGroupMembershipRequestAPI(revRR, revReq)
+	if revRR.Code != http.StatusOK {
+		t.Fatalf("ReviewGroupMembershipRequestAPI approve failed: %d (body: %s)", revRR.Code, revRR.Body.String())
+	}
+
+	// 5. User 3 submits and cancels request
+	req3JSON := fmt.Sprintf(`{"group_id": %d, "message": "User 3 request"}`, groupID)
+	req3Req, req3RR := makeAuthReq(http.MethodPost, "/messages/groups/requests/submit", req3JSON, "application/json", 3)
+	SubmitGroupMembershipRequestAPI(req3RR, req3Req)
+	if req3RR.Code != http.StatusOK {
+		t.Fatalf("SubmitGroupMembershipRequestAPI user 3 failed: %d", req3RR.Code)
+	}
+
+	cancelJSON := fmt.Sprintf(`{"group_id": %d}`, groupID)
+	cancelReq, cancelRR := makeAuthReq(http.MethodPost, "/messages/groups/requests/cancel", cancelJSON, "application/json", 3)
+	CancelGroupMembershipRequestAPI(cancelRR, cancelReq)
+	if cancelRR.Code != http.StatusOK {
+		t.Fatalf("CancelGroupMembershipRequestAPI failed: %d (body: %s)", cancelRR.Code, cancelRR.Body.String())
+	}
+
+	// 6. User 2 (now member) sends a message
+	sendJSON := fmt.Sprintf(`{"conversation_id": %d, "body": "Hello leaders!"}`, groupID)
+	sendReq, sendRR := makeAuthReq(http.MethodPost, "/messages/send", sendJSON, "application/json", 2)
+	SendMessageAPI(sendRR, sendReq)
+	if sendRR.Code != http.StatusOK {
+		t.Fatalf("SendMessageAPI failed: %d (body: %s)", sendRR.Code, sendRR.Body.String())
+	}
+
+	var sendResp struct {
+		Message struct {
+			ID int `json:"id"`
+		} `json:"message"`
+	}
+	_ = json.Unmarshal(sendRR.Body.Bytes(), &sendResp)
+	msgID := sendResp.Message.ID
+
+	// Outsider User 3 cannot delete User 2's message
+	del3JSON := fmt.Sprintf(`{"message_id": %d}`, msgID)
+	del3Req, del3RR := makeAuthReq(http.MethodPost, "/messages/message/delete", del3JSON, "application/json", 3)
+	DeleteMessageAPI(del3RR, del3Req)
+	if del3RR.Code != http.StatusForbidden && del3RR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 403 or 400 for unauthorized deletion, got %d", del3RR.Code)
+	}
+
+	// User 1 (group owner) moderates/deletes User 2's message
+	del1JSON := fmt.Sprintf(`{"message_id": %d}`, msgID)
+	del1Req, del1RR := makeAuthReq(http.MethodPost, "/messages/message/delete", del1JSON, "application/json", 1)
+	DeleteMessageAPI(del1RR, del1Req)
+	if del1RR.Code != http.StatusOK {
+		t.Fatalf("DeleteMessageAPI by owner failed: %d (body: %s)", del1RR.Code, del1RR.Body.String())
+	}
+}

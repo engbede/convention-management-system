@@ -192,4 +192,3 @@ func TestSaveAndRetrieveMessages(t *testing.T) {
 		t.Fatalf("Expected total 1 message, got %d (err: %v)", totalCount, err)
 	}
 }
-

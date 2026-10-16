@@ -131,71 +131,114 @@ func GetReactionSummary(
 
 	var summary models.ReactionSummary
 
-	var err error
-
-	summary.Like, err = CountReactionType(
-		postID,
-		"like",
-	)
-
+	counts, total, err := GetPostReactionCounts(postID)
 	if err != nil {
 		return summary, err
 	}
 
-	summary.Love, err = CountReactionType(
-		postID,
-		"love",
-	)
-
-	if err != nil {
-		return summary, err
-	}
-
-	summary.Amen, err = CountReactionType(
-		postID,
-		"amen",
-	)
-
-	if err != nil {
-		return summary, err
-	}
-
-	summary.Clap, err = CountReactionType(
-		postID,
-		"clap",
-	)
-
-	if err != nil {
-		return summary, err
-	}
-
-	summary.Fire, err = CountReactionType(
-		postID,
-		"fire",
-	)
-
-	if err != nil {
-		return summary, err
-	}
-
-	summary.Celebrate, err = CountReactionType(
-		postID,
-		"celebrate",
-	)
-
-	if err != nil {
-		return summary, err
-	}
-
-	summary.Total =
-		summary.Like +
-			summary.Love +
-			summary.Amen +
-			summary.Clap +
-			summary.Fire +
-			summary.Celebrate
+	summary.Like = counts["like"]
+	summary.Love = counts["love"]
+	summary.Amen = counts["amen"]
+	summary.Clap = counts["clap"]
+	summary.Fire = counts["fire"]
+	summary.Celebrate = counts["celebrate"]
+	summary.Total = total
 
 	return summary, nil
+}
+
+// GetPostReactionCounts returns a map of reaction type to count and total count.
+func GetPostReactionCounts(postID int) (map[string]int, int, error) {
+	query := `
+		SELECT reaction, COUNT(*)
+		FROM reactions
+		WHERE post_id = ?
+		GROUP BY reaction
+	`
+	rows, err := database.DB.Query(query, postID)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	counts := make(map[string]int)
+	total := 0
+	for rows.Next() {
+		var rType string
+		var count int
+		if err := rows.Scan(&rType, &count); err == nil {
+			counts[rType] = count
+			total += count
+		}
+	}
+	return counts, total, nil
+}
+
+// GetTopReactionCounts returns the top reactions with their emoji, label, and counts.
+func GetTopReactionCounts(postID int, limit int) ([]models.ReactionCountItem, error) {
+	if limit <= 0 {
+		limit = 5
+	}
+	query := `
+		SELECT reaction, COUNT(*) as c
+		FROM reactions
+		WHERE post_id = ?
+		GROUP BY reaction
+		ORDER BY c DESC, reaction ASC
+		LIMIT ?
+	`
+	rows, err := database.DB.Query(query, postID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []models.ReactionCountItem
+	for rows.Next() {
+		var rType string
+		var count int
+		if err := rows.Scan(&rType, &count); err == nil {
+			items = append(items, models.ReactionCountItem{
+				Type:  rType,
+				Emoji: models.GetReactionEmoji(rType),
+				Label: models.GetReactionLabel(rType),
+				Count: count,
+			})
+		}
+	}
+	return items, nil
+}
+
+// GetReactionUsersForPost returns users who reacted to a post.
+func GetReactionUsersForPost(postID int, limit int) ([]models.ReactionUserDetail, error) {
+	if limit <= 0 {
+		limit = 25
+	}
+	query := `
+		SELECT u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''), r.reaction
+		FROM reactions r
+		JOIN users u ON r.user_id = u.id
+		WHERE r.post_id = ?
+		ORDER BY r.created_at DESC
+		LIMIT ?
+	`
+	rows, err := database.DB.Query(query, postID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []models.ReactionUserDetail
+	for rows.Next() {
+		var u models.ReactionUserDetail
+		var photo string
+		if err := rows.Scan(&u.UserID, &u.FullName, &u.Username, &photo, &u.ReactionType); err == nil {
+			u.ProfilePhoto = photo
+			u.Emoji = models.GetReactionEmoji(u.ReactionType)
+			users = append(users, u)
+		}
+	}
+	return users, nil
 }
 
 // Count all reactions regardless of type.

@@ -31,7 +31,6 @@ func FriendsDashboard(
 		return
 	}
 
-
 	user, err := services.GetUserProfile(
 		userID,
 	)
@@ -47,26 +46,21 @@ func FriendsDashboard(
 		return
 	}
 
-
 	friends, _ := services.GetFriends(
 		userID,
 	)
-
 
 	incoming, _ := services.GetPendingFriendRequests(
 		userID,
 	)
 
-
 	outgoing, _ := services.GetSentFriendRequests(
 		userID,
 	)
 
-
 	unread, _ := services.CountUnreadNotifications(
 		userID,
 	)
-
 
 	Render(
 		w,
@@ -82,7 +76,6 @@ func FriendsDashboard(
 			"Outgoing": outgoing,
 
 			"UnreadCount": unread,
-
 		},
 	)
 }

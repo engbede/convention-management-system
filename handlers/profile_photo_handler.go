@@ -99,7 +99,7 @@ func UploadCoverPhoto(
 		)
 
 	}
-	
+
 	filename, err := utils.SaveUploadedFile(
 		file,
 		header,

@@ -77,7 +77,9 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 	mux.HandleFunc(
 		"/reports",
-		handlers.Reports,
+		middleware.RequireAuth(
+			handlers.Reports,
+		),
 	)
 	// Convention Management
 	mux.HandleFunc(
@@ -272,6 +274,10 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/announcements",
+		handlers.PublicAnnouncements,
+	)
+	mux.HandleFunc(
 		"/backup",
 		middleware.RequireAuth(
 			handlers.BackupPage,
@@ -295,6 +301,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 		"/backup/restore",
 		middleware.RequireAuth(
 			handlers.RestoreBackup,
+		),
+	)
+	mux.HandleFunc(
+		"/backup/delete",
+		middleware.RequireAuth(
+			handlers.DeleteBackup,
 		),
 	)
 	mux.HandleFunc(
@@ -521,6 +533,11 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 
 	mux.HandleFunc(
+		"/community/post/reactions",
+		handlers.GetPostReactionsAPI,
+	)
+
+	mux.HandleFunc(
 		"/community/login",
 		handlers.CommunityLogin,
 	)
@@ -646,6 +663,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/group/member/add",
+		middleware.RequireLogin(
+			handlers.AddGroupMembersAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/group/members/remove",
 		middleware.RequireLogin(
 			handlers.RemoveGroupMemberAPI,
@@ -664,9 +687,51 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/group/settings/update",
+		middleware.RequireLogin(
+			handlers.UpdateGroupSettingsAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/groups/discover",
 		middleware.RequireLogin(
 			handlers.DiscoverGroupsAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/groups/requests/submit",
+		middleware.RequireLogin(
+			handlers.SubmitGroupMembershipRequestAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/groups/requests/review",
+		middleware.RequireLogin(
+			handlers.ReviewGroupMembershipRequestAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/groups/requests/cancel",
+		middleware.RequireLogin(
+			handlers.CancelGroupMembershipRequestAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/groups/requests",
+		middleware.RequireLogin(
+			handlers.GetGroupMembershipRequestsAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/message/delete",
+		middleware.RequireLogin(
+			handlers.DeleteMessageAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/delete",
+		middleware.RequireLogin(
+			handlers.DeleteMessageAPI,
 		),
 	)
 	mux.HandleFunc(
@@ -716,8 +781,61 @@ func RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/friends/cancel", handlers.CancelFriendRequest)
 	mux.HandleFunc("/friends/remove", handlers.RemoveFriend)
 	mux.HandleFunc("/signup", handlers.ShowSignup)
+	mux.HandleFunc("/groups", middleware.RequireLogin(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/messages", http.StatusSeeOther)
+	}))
+	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/#conventions", http.StatusSeeOther)
+	})
+	mux.HandleFunc("/prayer", middleware.RequireLogin(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/messages", http.StatusSeeOther)
+	}))
+	mux.HandleFunc("/bible-study", middleware.RequireLogin(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/messages", http.StatusSeeOther)
+	}))
+	mux.HandleFunc("/publications", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/announcements", http.StatusSeeOther)
+	})
+	mux.HandleFunc("/saved", middleware.RequireLogin(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/community", http.StatusSeeOther)
+	}))
+
+	// Live Streaming & Online Programmes
+	mux.HandleFunc("/programmes", handlers.ListProgrammes)
+	mux.HandleFunc("/programmes/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/programmes/" {
+			http.Redirect(w, r, "/programmes", http.StatusMovedPermanently)
+			return
+		}
+		http.NotFound(w, r)
+	})
+	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/programmes?tab=live", http.StatusSeeOther)
+	})
+	mux.HandleFunc("/live-programmes", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/programmes", http.StatusSeeOther)
+	})
+	mux.HandleFunc("/online-programmes", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/programmes", http.StatusSeeOther)
+	})
+	mux.HandleFunc("/programmes/view", handlers.ViewProgramme)
+	mux.HandleFunc("/programmes/new", handlers.NewProgramme)
+	mux.HandleFunc("/programmes/create", handlers.CreateProgramme)
+	mux.HandleFunc("/programmes/edit", handlers.EditProgramme)
+	mux.HandleFunc("/programmes/update", handlers.UpdateProgramme)
+	mux.HandleFunc("/programmes/status", handlers.TransitionProgrammeStatusHandler)
+	mux.HandleFunc("/programmes/chat/send", handlers.SendProgrammeChatMessage)
+	mux.HandleFunc("/programmes/chat/messages", handlers.GetProgrammeChatMessagesAPI)
+	mux.HandleFunc("/programmes/chat/hide", handlers.HideProgrammeChatMessage)
+	mux.HandleFunc("/programmes/prayer/submit", handlers.SubmitPrayerRequest)
+	mux.HandleFunc("/programmes/prayer/list", handlers.GetProgrammePrayerRequestsAPI)
+	mux.HandleFunc("/programmes/prayer/status", handlers.UpdatePrayerRequestStatusHandler)
+	mux.HandleFunc("/programmes/moderators/add", handlers.AssignModeratorHandler)
+	mux.HandleFunc("/programmes/moderators/remove", handlers.RemoveModeratorHandler)
 
 	mux.HandleFunc("/create-account", handlers.Signup)
+	mux.HandleFunc("/forgot-password", handlers.ForgotPasswordHandler)
+	mux.HandleFunc("/reset-password", handlers.ResetPasswordHandler)
 
 	mux.HandleFunc("/finance", handlers.ListFinance)
 

@@ -33,4 +33,20 @@ type Post struct {
 	ReactionSummary ReactionSummary
 
 	CommentsList []Comment
+
+	// Enhanced reactions
+	UserReaction      string
+	UserReactionEmoji string
+	UserReactionLabel string
+	ReactionCounts    map[string]int
+	TotalReactions    int
+	TopReactions      []ReactionCountItem
+}
+
+// ReactionCountItem models a reaction chip showing emoji and its count.
+type ReactionCountItem struct {
+	Type  string `json:"type"`
+	Emoji string `json:"emoji"`
+	Label string `json:"label"`
+	Count int    `json:"count"`
 }

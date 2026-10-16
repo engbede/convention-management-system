@@ -107,109 +107,151 @@
 
         {{end}}
 
-        <!-- Statistics -->
+        <!-- Statistics / Reactions Summary -->
+        <div class="reaction-summary d-flex justify-content-between align-items-center mb-3" id="postReactionsSummary_{{.ID}}">
+            <div class="d-flex align-items-center gap-1 cursor-pointer view-reaction-users-btn" data-post-id="{{.ID}}" role="button" title="View who reacted">
+                <div class="d-inline-flex align-items-center top-reactions-cluster" id="topReactionsCluster_{{.ID}}">
+                    {{if .TopReactions}}
+                        {{range .TopReactions}}
+                            <span class="badge rounded-pill bg-light text-dark border px-2 py-1 shadow-xs me-1" title="{{.Label}}: {{.Count}}">
+                                {{.Emoji}} <small class="text-secondary fw-bold ms-1">{{.Count}}</small>
+                            </span>
+                        {{end}}
+                    {{else if gt .TotalReactions 0}}
+                        {{range $rType, $rCount := .ReactionCounts}}
+                            {{if gt $rCount 0}}
+                                <span class="badge rounded-pill bg-light text-dark border px-2 py-1 shadow-xs me-1">
+                                    <small class="text-secondary fw-bold">{{$rCount}}</small>
+                                </span>
+                            {{end}}
+                        {{end}}
+                    {{else if gt .ReactionSummary.Total 0}}
+                        {{if gt .ReactionSummary.Like 0}}<span class="badge rounded-pill bg-light text-dark border px-2 py-1 me-1">👍 {{.ReactionSummary.Like}}</span>{{end}}
+                        {{if gt .ReactionSummary.Love 0}}<span class="badge rounded-pill bg-light text-dark border px-2 py-1 me-1">❤️ {{.ReactionSummary.Love}}</span>{{end}}
+                        {{if gt .ReactionSummary.Amen 0}}<span class="badge rounded-pill bg-light text-dark border px-2 py-1 me-1">🙏 {{.ReactionSummary.Amen}}</span>{{end}}
+                    {{end}}
+                </div>
+                <span class="small text-muted fw-semibold ms-1 total-reactions-label" id="totalReactionsCount_{{.ID}}">
+                    {{if gt .TotalReactions 0}}{{.TotalReactions}} Reaction{{if ne .TotalReactions 1}}s{{end}}{{else if gt .ReactionSummary.Total 0}}{{.ReactionSummary.Total}} Reactions{{end}}
+                </span>
+            </div>
 
-        <div class="reaction-summary d-flex justify-content-between align-items-center mb-3">
+            <div class="text-muted small">
+                <span>{{.Comments}} Comments</span> • <span>{{.Shares}} Shares</span>
+            </div>
+        </div>
 
-    <div class="d-flex flex-wrap gap-3">
+        <hr class="my-2">
 
-        {{if gt .ReactionSummary.Like 0}}
-        <span>👍 {{.ReactionSummary.Like}}</span>
-        {{end}}
-
-        {{if gt .ReactionSummary.Love 0}}
-        <span>❤️ {{.ReactionSummary.Love}}</span>
-        {{end}}
-
-        {{if gt .ReactionSummary.Amen 0}}
-        <span>🙏 {{.ReactionSummary.Amen}}</span>
-        {{end}}
-
-        {{if gt .ReactionSummary.Clap 0}}
-        <span>👏 {{.ReactionSummary.Clap}}</span>
-        {{end}}
-
-        {{if gt .ReactionSummary.Fire 0}}
-        <span>🔥 {{.ReactionSummary.Fire}}</span>
-        {{end}}
-
-        {{if gt .ReactionSummary.Celebrate 0}}
-        <span>🎉 {{.ReactionSummary.Celebrate}}</span>
-        {{end}}
-
-    </div>
-
-    <div class="text-muted">
-
-        {{.ReactionSummary.Total}} Reactions
-
-        •
-
-        {{.Comments}} Comments
-
-        •
-
-        {{.Shares}} Shares
-
-    </div>
-
-</div>
-
-        <hr>
-
-        <!-- Buttons -->
-
-        <div class="row text-center">
-
-            <div class="col">
-
-                <form
-                    action="/community/react"
-                    method="POST">
-
-                    <input
-                        type="hidden"
-                        name="post_id"
-                        value="{{.ID}}">
-
-                    <input
-                        type="hidden"
-                        name="reaction"
-                        value="like">
-
-                    <button
-                        class="btn btn-light w-100">
-
-                        👍 Like
-
+        <!-- Action Buttons -->
+        <div class="row text-center g-2 position-relative">
+            <!-- React Button with Multi-Category Sticker Picker -->
+            <div class="col position-relative post-reaction-container" data-post-id="{{.ID}}">
+                <div class="btn-group w-100 shadow-xs rounded-3">
+                    <button type="button"
+                            class="btn {{if .UserReaction}}btn-success text-white fw-bold{{else}}btn-light text-secondary{{end}} w-100 d-flex align-items-center justify-content-center gap-1 main-reaction-btn"
+                            id="reactionBtn_{{.ID}}"
+                            data-post-id="{{.ID}}"
+                            data-current-reaction="{{.UserReaction}}"
+                            data-default-reaction="like"
+                            title="{{if .UserReaction}}{{.UserReactionLabel}} (Click to remove){{else}}React to post{{end}}">
+                        <span class="reaction-emoji-display fs-6" id="reactionEmoji_{{.ID}}">
+                            {{if .UserReactionEmoji}}{{.UserReactionEmoji}}{{else}}👍{{end}}
+                        </span>
+                        <span class="reaction-label-display small fw-semibold" id="reactionLabel_{{.ID}}">
+                            {{if .UserReactionLabel}}{{.UserReactionLabel}}{{else}}Like{{end}}
+                        </span>
                     </button>
+                    <button type="button"
+                            class="btn {{if .UserReaction}}btn-success text-white border-start{{else}}btn-light text-secondary{{end}} px-2 dropdown-toggle-split reaction-picker-toggle-btn"
+                            data-post-id="{{.ID}}"
+                            title="More reactions & stickers">
+                        <i class="bi bi-chevron-up small"></i>
+                    </button>
+                </div>
 
-                </form>
+                <!-- 8-Category Curated Reactions Popup -->
+                <div class="reaction-picker-popover shadow-lg border rounded-4 bg-white p-2 position-absolute bottom-100 start-50 translate-middle-x mb-2 d-none"
+                     id="reactionPicker_{{.ID}}"
+                     style="z-index: 1050; width: 340px; max-width: 90vw;">
+                    <div class="d-flex align-items-center justify-content-between px-2 pb-1 border-bottom mb-2">
+                        <span class="small fw-bold text-dark"><i class="bi bi-emoji-smile me-1 text-success"></i> Choose a Reaction</span>
+                        <button type="button" class="btn-close btn-close-sm reaction-picker-close-btn" data-post-id="{{.ID}}" aria-label="Close" style="font-size: 0.65rem;"></button>
+                    </div>
 
+                    <!-- Category Pills -->
+                    <div class="reaction-category-tabs d-flex gap-1 overflow-x-auto pb-1 mb-2 px-1" style="scrollbar-width: thin;">
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 active reaction-cat-filter" data-post-id="{{.ID}}" data-category="all" style="font-size: 0.7rem;">All</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 reaction-cat-filter" data-post-id="{{.ID}}" data-category="approval" style="font-size: 0.7rem;">👍 Approval</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 reaction-cat-filter" data-post-id="{{.ID}}" data-category="affection" style="font-size: 0.7rem;">❤️ Love</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 reaction-cat-filter" data-post-id="{{.ID}}" data-category="faith" style="font-size: 0.7rem;">🙏 Faith</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 reaction-cat-filter" data-post-id="{{.ID}}" data-category="joy" style="font-size: 0.7rem;">😂 Joy</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 reaction-cat-filter" data-post-id="{{.ID}}" data-category="celebration" style="font-size: 0.7rem;">🎉 Celebrate</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 reaction-cat-filter" data-post-id="{{.ID}}" data-category="support" style="font-size: 0.7rem;">🤝 Support</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 reaction-cat-filter" data-post-id="{{.ID}}" data-category="amazement" style="font-size: 0.7rem;">🚀 Wonder</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-0 reaction-cat-filter" data-post-id="{{.ID}}" data-category="sympathy" style="font-size: 0.7rem;">😢 Sympathy</button>
+                    </div>
+
+                    <!-- Emoji Grid -->
+                    <div class="reaction-emoji-grid d-flex flex-wrap gap-1 justify-content-center p-1" style="max-height: 180px; overflow-y: auto;" id="reactionEmojiGrid_{{.ID}}">
+                        <!-- Like & Approval -->
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "like"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="like" data-category="approval" title="Like" style="width: 38px; height: 38px; font-size: 1.25rem;">👍</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "clap"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="clap" data-category="approval" title="Clap" style="width: 38px; height: 38px; font-size: 1.25rem;">👏</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "highfive"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="highfive" data-category="approval" title="High Five" style="width: 38px; height: 38px; font-size: 1.25rem;">🙌</button>
+
+                        <!-- Love & Affection -->
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "love"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="love" data-category="affection" title="Love" style="width: 38px; height: 38px; font-size: 1.25rem;">❤️</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "heart"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="heart" data-category="affection" title="Sparkling Heart" style="width: 38px; height: 38px; font-size: 1.25rem;">💖</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "hug"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="hug" data-category="affection" title="Warm Hug" style="width: 38px; height: 38px; font-size: 1.25rem;">🤗</button>
+
+                        <!-- Joy & Laughter -->
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "laugh"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="laugh" data-category="joy" title="Laugh" style="width: 38px; height: 38px; font-size: 1.25rem;">😂</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "smile"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="smile" data-category="joy" title="Smile" style="width: 38px; height: 38px; font-size: 1.25rem;">😊</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "party"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="party" data-category="joy" title="Party" style="width: 38px; height: 38px; font-size: 1.25rem;">🥳</button>
+
+                        <!-- Celebration & Victory -->
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "celebrate"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="celebrate" data-category="celebration" title="Celebrate" style="width: 38px; height: 38px; font-size: 1.25rem;">🎉</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "champion"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="champion" data-category="celebration" title="Champion" style="width: 38px; height: 38px; font-size: 1.25rem;">🏆</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "star"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="star" data-category="celebration" title="Star" style="width: 38px; height: 38px; font-size: 1.25rem;">🌟</button>
+
+                        <!-- Prayer & Faith -->
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "amen"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="amen" data-category="faith" title="Amen" style="width: 38px; height: 38px; font-size: 1.25rem;">🙏</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "cross"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="cross" data-category="faith" title="Cross" style="width: 38px; height: 38px; font-size: 1.25rem;">✝️</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "peace"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="peace" data-category="faith" title="Peace Dove" style="width: 38px; height: 38px; font-size: 1.25rem;">🕊️</button>
+
+                        <!-- Support & Gratitude -->
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "handshake"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="handshake" data-category="support" title="Handshake" style="width: 38px; height: 38px; font-size: 1.25rem;">🤝</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "flowers"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="flowers" data-category="support" title="Flowers" style="width: 38px; height: 38px; font-size: 1.25rem;">💐</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "inspired"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="inspired" data-category="support" title="Inspired" style="width: 38px; height: 38px; font-size: 1.25rem;">💡</button>
+
+                        <!-- Surprise & Amazement -->
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "wow"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="wow" data-category="amazement" title="Wow" style="width: 38px; height: 38px; font-size: 1.25rem;">😲</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "rocket"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="rocket" data-category="amazement" title="Rocket" style="width: 38px; height: 38px; font-size: 1.25rem;">🚀</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "fire"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="fire" data-category="amazement" title="Fire" style="width: 38px; height: 38px; font-size: 1.25rem;">🔥</button>
+
+                        <!-- Sadness & Sympathy -->
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "care"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="care" data-category="sympathy" title="Care" style="width: 38px; height: 38px; font-size: 1.25rem;">😢</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "candle"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="candle" data-category="sympathy" title="Candle" style="width: 38px; height: 38px; font-size: 1.25rem;">🕯️</button>
+                        <button type="button" class="btn btn-light rounded-circle reaction-item-btn p-0 d-flex flex-column align-items-center justify-content-center {{if eq .UserReaction "sympathy"}}active-reaction border-success bg-success-subtle{{end}}" data-post-id="{{.ID}}" data-reaction="sympathy" data-category="sympathy" title="Sympathy" style="width: 38px; height: 38px; font-size: 1.25rem;">💔</button>
+                    </div>
+                </div>
             </div>
 
+            <!-- Comment Button -->
             <div class="col">
-
-                <button
-                    class="btn btn-light w-100">
-
-                    💬 Comment
-
+                <button type="button" class="btn btn-light w-100 d-flex align-items-center justify-content-center gap-1 focus-comment-btn" data-post-id="{{.ID}}">
+                    <span>💬</span>
+                    <span class="small fw-semibold">Comment</span>
                 </button>
-
             </div>
 
+            <!-- Share Button -->
             <div class="col">
-
-                <button
-                    class="btn btn-light w-100">
-
-                    🔄 Share
-
+                <button type="button" class="btn btn-light w-100 d-flex align-items-center justify-content-center gap-1 share-post-btn" data-post-id="{{.ID}}" title="Share post">
+                    <span>🔄</span>
+                    <span class="small fw-semibold">Share</span>
                 </button>
-
             </div>
-
         </div>
 
         <!-- Comments -->
@@ -322,4 +364,377 @@
 
 {{end}}
 
+<!-- MODAL: Post Reaction Details -->
+<div class="modal fade" id="postReactedUsersModal" tabindex="-1" aria-labelledby="postReactedUsersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 440px;">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header border-bottom py-3 px-4">
+                <h6 class="modal-title fw-bold text-dark mb-0" id="postReactedUsersModalLabel">
+                    <i class="bi bi-heart-fill text-danger me-2"></i> Post Reactions
+                </h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <!-- Reaction Filter Pills in Modal -->
+                <div class="d-flex gap-1 p-3 border-bottom overflow-x-auto bg-light" id="reactedUsersFilterTabs" style="scrollbar-width: thin;">
+                    <button type="button" class="btn btn-sm btn-dark rounded-pill px-3 py-1 modal-user-filter active" data-filter="all">All <span id="modalTotalReactionsBadge" class="badge bg-light text-dark ms-1">0</span></button>
+                </div>
+                <!-- Reacted Users List -->
+                <div class="list-group list-group-flush" id="postReactedUsersList" style="max-height: 320px; overflow-y: auto;">
+                    <div class="text-center py-4 text-muted small">
+                        <span class="spinner-border spinner-border-sm me-2 text-success" role="status"></span>
+                        Loading reactions...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Attach post reaction interactions once DOM is ready
+(function() {
+    function initPostReactions() {
+        // Toggle Reaction Picker Popover
+        document.querySelectorAll('.reaction-picker-toggle-btn').forEach(btn => {
+            btn.onclick = function(e) {
+                e.stopPropagation();
+                const postID = this.dataset.postId;
+                const picker = document.getElementById('reactionPicker_' + postID);
+                if (picker) {
+                    const isHidden = picker.classList.contains('d-none');
+                    // Hide all other open pickers first
+                    document.querySelectorAll('.reaction-picker-popover').forEach(p => p.classList.add('d-none'));
+                    if (isHidden) {
+                        picker.classList.remove('d-none');
+                    }
+                }
+            };
+        });
+
+        // Close button inside picker
+        document.querySelectorAll('.reaction-picker-close-btn').forEach(btn => {
+            btn.onclick = function(e) {
+                e.stopPropagation();
+                const postID = this.dataset.postId;
+                const picker = document.getElementById('reactionPicker_' + postID);
+                if (picker) picker.classList.add('d-none');
+            };
+        });
+
+        // Category filter buttons inside picker
+        document.querySelectorAll('.reaction-cat-filter').forEach(btn => {
+            btn.onclick = function(e) {
+                e.stopPropagation();
+                const postID = this.dataset.postId;
+                const cat = this.dataset.category;
+                const grid = document.getElementById('reactionEmojiGrid_' + postID);
+                if (!grid) return;
+
+                // Update active tab style
+                btn.closest('.reaction-category-tabs').querySelectorAll('.reaction-cat-filter').forEach(b => {
+                    b.classList.remove('active', 'btn-secondary', 'text-white');
+                    b.classList.add('btn-outline-secondary');
+                });
+                btn.classList.add('active', 'btn-secondary', 'text-white');
+                btn.classList.remove('btn-outline-secondary');
+
+                // Filter emojis
+                grid.querySelectorAll('.reaction-item-btn').forEach(emojiBtn => {
+                    if (cat === 'all' || emojiBtn.dataset.category === cat) {
+                        emojiBtn.style.display = 'flex';
+                    } else {
+                        emojiBtn.style.display = 'none';
+                    }
+                });
+            };
+        });
+
+        // Selecting a reaction emoji item
+        document.querySelectorAll('.reaction-item-btn').forEach(btn => {
+            btn.onclick = function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                const postID = this.dataset.postId;
+                const reaction = this.dataset.reaction;
+                submitPostReaction(postID, reaction);
+            };
+        });
+
+        // Main reaction button click (toggles active or sends like)
+        document.querySelectorAll('.main-reaction-btn').forEach(btn => {
+            btn.onclick = function(e) {
+                e.preventDefault();
+                const postID = this.dataset.postId;
+                const currentReaction = this.dataset.currentReaction || '';
+                // If user already reacted, clicking toggles it off
+                const reactionToSend = currentReaction ? currentReaction : 'like';
+                submitPostReaction(postID, reactionToSend);
+            };
+        });
+
+        // View reaction users modal
+        document.querySelectorAll('.view-reaction-users-btn').forEach(btn => {
+            btn.onclick = function(e) {
+                e.preventDefault();
+                const postID = this.dataset.postId;
+                openReactionUsersModal(postID);
+            };
+        });
+
+        // Focus comment input
+        document.querySelectorAll('.focus-comment-btn').forEach(btn => {
+            btn.onclick = function(e) {
+                e.preventDefault();
+                const card = this.closest('.post-card');
+                if (card) {
+                    const commentInput = card.querySelector('input[name="content"]');
+                    if (commentInput) {
+                        commentInput.focus();
+                        commentInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                }
+            };
+        });
+
+        // Share post button
+        document.querySelectorAll('.share-post-btn').forEach(btn => {
+            btn.onclick = function(e) {
+                e.preventDefault();
+                const postID = this.dataset.postId;
+                const shareURL = window.location.origin + '/community#post-' + postID;
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(shareURL).then(() => {
+                        const originalText = this.innerHTML;
+                        this.innerHTML = '<span class="text-success"><i class="bi bi-check2"></i> Copied!</span>';
+                        setTimeout(() => { this.innerHTML = originalText; }, 2000);
+                    });
+                } else {
+                    alert('Post link: ' + shareURL);
+                }
+            };
+        });
+
+        // Global click to close popovers when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.post-reaction-container')) {
+                document.querySelectorAll('.reaction-picker-popover').forEach(p => p.classList.add('d-none'));
+            }
+        });
+    }
+
+    // Submit reaction asynchronously
+    function submitPostReaction(postID, reaction) {
+        // Optimistic UI close picker
+        const picker = document.getElementById('reactionPicker_' + postID);
+        if (picker) picker.classList.add('d-none');
+
+        fetch('/community/react', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                post_id: parseInt(postID, 10),
+                reaction: reaction
+            })
+        })
+        .then(res => {
+            if (!res.ok) throw new Error('Reaction failed');
+            return res.json();
+        })
+        .then(data => {
+            if (data.success && data.stats) {
+                updatePostReactionUI(postID, data.stats);
+            }
+        })
+        .catch(err => {
+            console.error('Failed to submit reaction:', err);
+        });
+    }
+
+    // Update Post Reaction UI elements in-place
+    function updatePostReactionUI(postID, stats) {
+        const btn = document.getElementById('reactionBtn_' + postID);
+        const splitBtn = btn ? btn.nextElementSibling : null;
+        const emojiSpan = document.getElementById('reactionEmoji_' + postID);
+        const labelSpan = document.getElementById('reactionLabel_' + postID);
+        const cluster = document.getElementById('topReactionsCluster_' + postID);
+        const totalCount = document.getElementById('totalReactionsCount_' + postID);
+        const grid = document.getElementById('reactionEmojiGrid_' + postID);
+
+        if (btn) {
+            btn.dataset.currentReaction = stats.user_reaction || '';
+            if (stats.user_reaction) {
+                btn.className = 'btn btn-success text-white fw-bold w-100 d-flex align-items-center justify-content-center gap-1 main-reaction-btn';
+                if (splitBtn) splitBtn.className = 'btn btn-success text-white border-start px-2 dropdown-toggle-split reaction-picker-toggle-btn';
+                btn.title = (stats.user_reaction_label || 'Reaction') + ' (Click to remove)';
+                if (emojiSpan) emojiSpan.textContent = stats.user_reaction_emoji || '👍';
+                if (labelSpan) labelSpan.textContent = stats.user_reaction_label || 'Reacted';
+            } else {
+                btn.className = 'btn btn-light text-secondary w-100 d-flex align-items-center justify-content-center gap-1 main-reaction-btn';
+                if (splitBtn) splitBtn.className = 'btn btn-light text-secondary px-2 dropdown-toggle-split reaction-picker-toggle-btn';
+                btn.title = 'React to post';
+                if (emojiSpan) emojiSpan.textContent = '👍';
+                if (labelSpan) labelSpan.textContent = 'Like';
+            }
+        }
+
+        // Highlight active reaction inside emoji grid
+        if (grid) {
+            grid.querySelectorAll('.reaction-item-btn').forEach(item => {
+                if (stats.user_reaction && item.dataset.reaction === stats.user_reaction) {
+                    item.classList.add('active-reaction', 'border-success', 'bg-success-subtle');
+                } else {
+                    item.classList.remove('active-reaction', 'border-success', 'bg-success-subtle');
+                }
+            });
+        }
+
+        // Update Top reactions cluster
+        if (cluster) {
+            cluster.innerHTML = '';
+            if (stats.top_reactions && stats.top_reactions.length > 0) {
+                stats.top_reactions.forEach(tr => {
+                    const span = document.createElement('span');
+                    span.className = 'badge rounded-pill bg-light text-dark border px-2 py-1 shadow-xs me-1';
+                    span.title = tr.label + ': ' + tr.count;
+                    span.innerHTML = tr.emoji + ' <small class="text-secondary fw-bold ms-1">' + tr.count + '</small>';
+                    cluster.appendChild(span);
+                });
+            }
+        }
+
+        // Update total reactions label
+        if (totalCount) {
+            if (stats.total_reactions > 0) {
+                totalCount.textContent = stats.total_reactions + (stats.total_reactions === 1 ? ' Reaction' : ' Reactions');
+            } else {
+                totalCount.textContent = '';
+            }
+        }
+    }
+
+    // Open Reaction Users Details Modal
+    function openReactionUsersModal(postID) {
+        const modalEl = document.getElementById('postReactedUsersModal');
+        if (!modalEl) return;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        const usersList = document.getElementById('postReactedUsersList');
+        const filterTabs = document.getElementById('reactedUsersFilterTabs');
+        const badge = document.getElementById('modalTotalReactionsBadge');
+
+        usersList.innerHTML = '<div class="text-center py-4 text-muted small"><span class="spinner-border spinner-border-sm me-2 text-success"></span>Loading reactions...</div>';
+        modal.show();
+
+        fetch('/community/post/reactions?post_id=' + postID, {
+            headers: { 'Accept': 'application/json' }
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success || !data.stats) {
+                usersList.innerHTML = '<div class="text-center py-4 text-muted small">No reactions recorded yet.</div>';
+                return;
+            }
+
+            const stats = data.stats;
+            if (badge) badge.textContent = stats.total_reactions || 0;
+
+            const users = stats.reacted_users || [];
+            if (users.length === 0) {
+                usersList.innerHTML = '<div class="text-center py-4 text-muted small"><i class="bi bi-heart text-secondary fs-3 d-block mb-1 opacity-50"></i>No one has reacted yet. Be the first!</div>';
+                return;
+            }
+
+            // Render users list
+            function renderUserList(filteredUsers) {
+                usersList.innerHTML = '';
+                filteredUsers.forEach(u => {
+                    const row = document.createElement('div');
+                    row.className = 'list-group-item p-3 d-flex align-items-center justify-content-between border-0 border-bottom';
+
+                    let avatarHtml = '';
+                    if (u.user && u.user.profile_photo) {
+                        avatarHtml = `<img src="/uploads/profiles/${u.user.profile_photo}" class="rounded-circle object-fit-cover shadow-sm flex-shrink-0" style="width: 40px; height: 40px;" alt="${u.user.full_name}">`;
+                    } else {
+                        avatarHtml = `<div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center fw-bold shadow-sm flex-shrink-0" style="width: 40px; height: 40px;">${(u.user && u.user.initials) ? u.user.initials : 'U'}</div>`;
+                    }
+
+                    row.innerHTML = `
+                        <div class="d-flex align-items-center gap-2 overflow-hidden">
+                            ${avatarHtml}
+                            <div class="overflow-hidden">
+                                <a href="/user/${u.user ? u.user.username : ''}" class="text-decoration-none text-dark fw-bold text-truncate d-block">${u.user ? u.user.full_name : 'Member'}</a>
+                                <small class="text-muted d-block text-truncate">@${u.user ? u.user.username : ''}</small>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-1 flex-shrink-0">
+                            <span class="fs-5" title="${u.reaction_label || u.reaction_type}">${u.reaction_emoji || '👍'}</span>
+                        </div>
+                    `;
+                    usersList.appendChild(row);
+                });
+            }
+
+            renderUserList(users);
+
+            // Rebuild filter tabs
+            filterTabs.innerHTML = `<button type="button" class="btn btn-sm btn-dark rounded-pill px-3 py-1 modal-user-filter active" data-filter="all">All <span class="badge bg-light text-dark ms-1">${users.length}</span></button>`;
+
+            // Tab for each reaction count
+            if (stats.reaction_counts) {
+                for (const [rType, rCount] of Object.entries(stats.reaction_counts)) {
+                    if (rCount > 0) {
+                        const tabBtn = document.createElement('button');
+                        tabBtn.type = 'button';
+                        tabBtn.className = 'btn btn-sm btn-outline-secondary rounded-pill px-3 py-1 modal-user-filter text-nowrap';
+                        tabBtn.dataset.filter = rType;
+
+                        let rEmoji = '👍';
+                        for (const u of users) {
+                            if (u.reaction_type === rType) {
+                                rEmoji = u.reaction_emoji;
+                                break;
+                            }
+                        }
+                        tabBtn.innerHTML = `${rEmoji} <span class="badge bg-secondary-subtle text-secondary ms-1">${rCount}</span>`;
+                        filterTabs.appendChild(tabBtn);
+                    }
+                }
+            }
+
+            // Tab click filtering
+            filterTabs.querySelectorAll('.modal-user-filter').forEach(tBtn => {
+                tBtn.onclick = function() {
+                    filterTabs.querySelectorAll('.modal-user-filter').forEach(b => {
+                        b.classList.remove('active', 'btn-dark');
+                        b.classList.add('btn-outline-secondary');
+                    });
+                    this.classList.add('active', 'btn-dark');
+                    this.classList.remove('btn-outline-secondary');
+
+                    const filter = this.dataset.filter;
+                    if (filter === 'all') {
+                        renderUserList(users);
+                    } else {
+                        renderUserList(users.filter(u => u.reaction_type === filter));
+                    }
+                };
+            });
+        })
+        .catch(err => {
+            console.error('Failed to load reactions:', err);
+            usersList.innerHTML = '<div class="text-center py-4 text-danger small">Unable to load reaction details.</div>';
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initPostReactions);
+    } else {
+        initPostReactions();
+    }
+})();
+</script>
 {{end}}

@@ -98,6 +98,15 @@ func GetAllPosts() ([]models.Post, error) {
 			post.ReactionSummary = summary
 			post.Likes = summary.Total
 		}
+		counts, total, cErr := GetPostReactionCounts(post.ID)
+		if cErr == nil {
+			post.ReactionCounts = counts
+			post.TotalReactions = total
+		}
+		top, tErr := GetTopReactionCounts(post.ID, 5)
+		if tErr == nil {
+			post.TopReactions = top
+		}
 
 		// Load comments
 		comments, err := GetCommentsByPost(post.ID)
@@ -177,6 +186,15 @@ func GetPostsByUser(userID int) ([]models.Post, error) {
 		if err == nil {
 			post.ReactionSummary = summary
 			post.Likes = summary.Total
+		}
+		counts, total, cErr := GetPostReactionCounts(post.ID)
+		if cErr == nil {
+			post.ReactionCounts = counts
+			post.TotalReactions = total
+		}
+		top, tErr := GetTopReactionCounts(post.ID, 5)
+		if tErr == nil {
+			post.TopReactions = top
 		}
 
 		comments, err := GetCommentsByPost(post.ID)

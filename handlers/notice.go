@@ -120,6 +120,31 @@ func ListNotices(
 		notices,
 	)
 }
+
+func PublicAnnouncements(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	notices, err := repository.GetActiveNotices()
+	if err != nil || len(notices) == 0 {
+		notices, _ = repository.GetAllNotices()
+	}
+
+	data := struct {
+		Title   string
+		Notices []models.Notice
+	}{
+		Title:   "Public Announcements",
+		Notices: notices,
+	}
+
+	Render(
+		w,
+		"announcements.html",
+		data,
+	)
+}
+
 func ViewNotice(
 	w http.ResponseWriter,
 	r *http.Request,

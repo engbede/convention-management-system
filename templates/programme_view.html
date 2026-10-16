@@ -1,0 +1,841 @@
+{{template "header" .}}
+{{template "navbar" .}}
+
+<style>
+.badge-live-pulse {
+    background-color: #dc3545;
+    animation: pulse-live 1.5s infinite;
+}
+@keyframes pulse-live {
+    0% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+    70% { box-shadow: 0 0 0 8px rgba(220, 53, 69, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
+}
+.player-container {
+    background-color: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+.chat-scroll-area {
+    height: 480px;
+    overflow-y: auto;
+    background-color: #ffffff;
+    display: flex;
+    flex-direction: column;
+}
+.chat-bubble {
+    border-radius: 12px;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+}
+.chat-bubble-self {
+    background-color: #e8f5e9;
+    border-color: #c8e6c9;
+}
+.chat-bubble.is-hidden {
+    opacity: 0.6;
+    background-color: #fee2e2;
+    border-color: #fca5a5;
+}
+.prayer-item {
+    border-left: 4px solid #198754;
+    background-color: #ffffff;
+    border-radius: 8px;
+    transition: transform 0.1s ease;
+}
+.prayer-item.is-private {
+    border-left-color: #fd7e14;
+    background-color: #fffbf5;
+}
+.nav-tabs .nav-link.active {
+    font-weight: 700;
+    color: #198754;
+    border-bottom: 3px solid #198754;
+}
+</style>
+
+<div class="container-fluid px-lg-5 py-4">
+
+    <!-- Flash Alerts -->
+    {{if .ErrorMessage}}
+    <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i> {{.ErrorMessage}}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {{end}}
+    {{if .SuccessMessage}}
+    <div class="alert alert-success alert-dismissible fade show rounded-3 shadow-sm" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i> {{.SuccessMessage}}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {{end}}
+
+    <!-- Top Breadcrumb & Status Bar -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a href="/programmes" class="text-success text-decoration-none">Programmes</a></li>
+                <li class="breadcrumb-item"><span class="badge bg-light text-dark border">{{.Programme.CategoryDisplay}}</span></li>
+                <li class="breadcrumb-item active text-truncate" style="max-width: 250px;">{{.Programme.Title}}</li>
+            </ol>
+        </nav>
+        <div class="d-flex align-items-center gap-2">
+            <span class="badge {{.Programme.StatusBadgeClass}} px-3 py-2 rounded-pill fw-bold fs-6 {{if .Programme.IsLive}}badge-live-pulse text-white{{end}}">
+                {{if .Programme.IsLive}}<i class="bi bi-circle-fill me-1 small"></i> LIVE STREAMING
+                {{else if .Programme.IsScheduled}}<i class="bi bi-calendar-event me-1"></i> Upcoming
+                {{else if .Programme.IsEnded}}<i class="bi bi-check-circle me-1"></i> Ended
+                {{else if .Programme.IsCancelled}}<i class="bi bi-x-circle me-1"></i> Cancelled
+                {{else}}{{.Programme.Status}}{{end}}
+            </span>
+            {{if .Programme.IsMembersOnly}}
+            <span class="badge bg-warning text-dark px-2 py-1 rounded-pill">
+                <i class="bi bi-lock-fill"></i> Members Only
+            </span>
+            {{else}}
+            <span class="badge bg-light text-muted border px-2 py-1 rounded-pill">
+                <i class="bi bi-globe"></i> Public Access
+            </span>
+            {{end}}
+        </div>
+    </div>
+
+    <!-- Organizer & Moderator Controls Panel (if authorized) -->
+    {{if or .CanManage .IsModerator}}
+    <div class="card border-0 shadow-sm bg-light mb-4 rounded-3 border-start border-success border-4">
+        <div class="card-body p-3">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-dark rounded-pill px-3 py-2">
+                        <i class="bi bi-shield-lock-fill me-1"></i> Management & Moderation
+                    </span>
+                    <span class="text-muted small">Status: <strong>{{.Programme.Status}}</strong></span>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    {{if eq .Programme.Status "draft"}}
+                    <form action="/programmes/status" method="POST" class="d-inline">
+                        <input type="hidden" name="id" value="{{.Programme.ID}}">
+                        <input type="hidden" name="status" value="scheduled">
+                        <button type="submit" class="btn btn-sm btn-primary rounded-pill fw-semibold">
+                            <i class="bi bi-calendar-check me-1"></i> Publish Schedule
+                        </button>
+                    </form>
+                    <form action="/programmes/status" method="POST" class="d-inline">
+                        <input type="hidden" name="id" value="{{.Programme.ID}}">
+                        <input type="hidden" name="status" value="live">
+                        <button type="submit" class="btn btn-sm btn-danger rounded-pill fw-bold">
+                            <i class="bi bi-broadcast me-1"></i> Go Live Now
+                        </button>
+                    </form>
+                    {{else if eq .Programme.Status "scheduled"}}
+                    <form action="/programmes/status" method="POST" class="d-inline">
+                        <input type="hidden" name="id" value="{{.Programme.ID}}">
+                        <input type="hidden" name="status" value="live">
+                        <button type="submit" class="btn btn-sm btn-danger rounded-pill fw-bold">
+                            <i class="bi bi-broadcast me-1"></i> Start Live Broadcast Now
+                        </button>
+                    </form>
+                    {{else if eq .Programme.Status "live"}}
+                    <form action="/programmes/status" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to conclude the live broadcast?');">
+                        <input type="hidden" name="id" value="{{.Programme.ID}}">
+                        <input type="hidden" name="status" value="ended">
+                        <button type="submit" class="btn btn-sm btn-secondary rounded-pill fw-semibold">
+                            <i class="bi bi-stop-circle me-1"></i> Conclude Stream
+                        </button>
+                    </form>
+                    {{end}}
+
+                    {{if not (or .Programme.IsEnded .Programme.IsCancelled)}}
+                    <button type="button" class="btn btn-sm btn-outline-danger rounded-pill fw-semibold" data-bs-toggle="modal" data-bs-target="#cancelModal">
+                        <i class="bi bi-x-circle me-1"></i> Cancel Programme
+                    </button>
+                    {{end}}
+
+                    {{if .CanManage}}
+                    <a href="/programmes/edit?id={{.Programme.ID}}" class="btn btn-sm btn-outline-secondary rounded-pill fw-semibold">
+                        <i class="bi bi-pencil-square me-1"></i> Edit Settings
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill fw-semibold" data-bs-toggle="modal" data-bs-target="#moderatorModal">
+                        <i class="bi bi-people me-1"></i> Moderators ({{len .Moderators}})
+                    </button>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+    </div>
+    {{end}}
+
+    <!-- Main Content Grid: Stream & Interaction Panels -->
+    <div class="row g-4">
+        
+        <!-- Left Column: Video Player & Programme Description -->
+        <div class="col-lg-8">
+
+            <!-- Video Player Area -->
+            <div class="player-container mb-3 position-relative">
+                {{if .Programme.IsCancelled}}
+                <div class="p-5 text-center text-white bg-dark">
+                    <i class="bi bi-exclamation-octagon display-3 text-danger mb-3"></i>
+                    <h3 class="fw-bold">Programme Cancelled</h3>
+                    <p class="lead text-light mb-0">
+                        {{if .Programme.CancellationReason}}{{.Programme.CancellationReason}}{{else}}This session was cancelled by the ministry.{{end}}
+                    </p>
+                </div>
+                {{else if and .Programme.IsEnded (not .Programme.RecordingAvailable)}}
+                <div class="p-5 text-center text-white bg-dark">
+                    <i class="bi bi-camera-video-off display-3 text-secondary mb-3"></i>
+                    <h3 class="fw-bold">Broadcast Concluded</h3>
+                    <p class="lead text-muted mb-0">
+                        This live stream has ended. The recorded video is not currently published for this session.
+                    </p>
+                </div>
+                {{else if .Programme.EmbedURL}}
+                <div class="ratio ratio-16x9">
+                    <iframe
+                        src="{{.Programme.EmbedURL}}"
+                        title="{{.Programme.Title}}"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowfullscreen
+                        loading="lazy">
+                    </iframe>
+                </div>
+                {{else}}
+                <div class="p-5 text-center text-white bg-dark">
+                    <i class="bi bi-hourglass-split display-3 text-warning mb-3"></i>
+                    <h3 class="fw-bold">{{if .Programme.IsScheduled}}Starting Soon{{else}}Stream Offline{{end}}</h3>
+                    <p class="lead text-light mb-1">
+                        Scheduled for: {{.Programme.ScheduleStartTime.Format "Monday, Jan 02, 2006 at 15:04"}} {{.Programme.Timezone}}
+                    </p>
+                    <p class="small text-muted mb-0">The live video feed will appear here as soon as broadcast begins.</p>
+                </div>
+                {{end}}
+            </div>
+
+            <!-- Programme Info Card -->
+            <div class="card shadow-sm border-0 rounded-3 mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-3">
+                        <div>
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 mb-2">
+                                <i class="bi bi-tag-fill me-1"></i> {{.Programme.CategoryDisplay}}
+                            </span>
+                            <h2 class="h3 fw-bold text-dark mb-1">{{.Programme.Title}}</h2>
+                        </div>
+                        <div class="text-end">
+                            <span class="text-muted small d-block">Scheduled Time</span>
+                            <span class="fw-semibold text-secondary">
+                                <i class="bi bi-clock me-1"></i> {{.Programme.ScheduleStartTime.Format "15:04"}} - {{.Programme.ScheduleEndTime.Format "15:04"}} {{.Programme.Timezone}}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-light rounded-3 mb-3">
+                        <div class="row g-2 text-secondary small">
+                            <div class="col-sm-6">
+                                <i class="bi bi-calendar-event me-1 text-success"></i> <strong>Date:</strong> {{.Programme.ScheduleStartTime.Format "Monday, January 02, 2006"}}
+                            </div>
+                            <div class="col-sm-6">
+                                <i class="bi bi-person-fill me-1 text-success"></i> <strong>Organizer:</strong> {{if .Programme.Organizer}}{{.Programme.Organizer.FullName}}{{else}}Convention Ministry{{end}}
+                            </div>
+                        </div>
+                    </div>
+
+                    <h5 class="fw-bold text-dark mt-3 mb-2">About This Programme</h5>
+                    <div class="text-secondary" style="white-space: pre-line; line-height: 1.6;">
+                        {{if .Programme.Description}}{{.Programme.Description}}{{else}}No detailed description has been provided for this programme.{{end}}
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Right Column: Interactive Live Chat & Prayer Requests Tabs -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm border-0 rounded-3 h-100 d-flex flex-column">
+                
+                <!-- Panel Tabs -->
+                <div class="card-header bg-white border-bottom p-0">
+                    <ul class="nav nav-tabs nav-fill border-0" id="interactionTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active py-3" id="chat-tab" data-bs-toggle="tab" data-bs-target="#chat-pane" type="button" role="tab">
+                                <i class="bi bi-chat-dots-fill me-1"></i> Live Chat
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link py-3" id="prayer-tab" data-bs-toggle="tab" data-bs-target="#prayer-pane" type="button" role="tab">
+                                <i class="bi bi-heart-pulse-fill me-1"></i> Prayer Requests
+                                <span class="badge bg-success rounded-pill ms-1" id="prayerBadgeCount">{{len .PrayerRequests}}</span>
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="card-body p-3 d-flex flex-column flex-grow-1">
+                    <div class="tab-content flex-grow-1 d-flex flex-column" id="interactionTabsContent">
+                        
+                        <!-- TAB 1: LIVE CHAT -->
+                        <div class="tab-pane fade show active flex-grow-1 d-flex flex-column" id="chat-pane" role="tabpanel">
+                            
+                            <!-- Chat Messages List -->
+                            <div class="chat-scroll-area p-2 rounded-3 border flex-grow-1 mb-2" id="chatMessagesContainer">
+                                {{if .ChatMessages}}
+                                    {{range .ChatMessages}}
+                                    <div class="mb-2 p-2 chat-bubble {{if .IsHidden}}is-hidden{{end}}" id="chat-msg-{{.ID}}">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="fw-bold small text-dark">
+                                                {{if .User}}{{.User.FullName}}{{else}}User #{{.UserID}}{{end}}
+                                                {{if and .User (eq .User.Role "admin")}}
+                                                <span class="badge bg-danger rounded-pill px-1 small">Admin</span>
+                                                {{end}}
+                                            </span>
+                                            <div class="d-flex align-items-center gap-1">
+                                                <span class="text-muted" style="font-size: 0.75rem;">{{.CreatedAt.Format "15:04"}}</span>
+                                                {{if $.IsModerator}}
+                                                <button type="button" class="btn btn-sm btn-link text-muted p-0 ms-1" title="Toggle visibility" onclick="toggleHideChat({{.ID}}, {{if .IsHidden}}false{{else}}true{{end}})">
+                                                    <i class="bi {{if .IsHidden}}bi-eye{{else}}bi-eye-slash{{end}}"></i>
+                                                </button>
+                                                {{end}}
+                                            </div>
+                                        </div>
+                                        <div class="small text-break" id="chat-text-{{.ID}}">
+                                            {{if and .IsHidden (not $.IsModerator)}}
+                                            <em class="text-muted">[Message hidden by moderator]</em>
+                                            {{else}}
+                                            {{.Message}}
+                                            {{if .IsHidden}}
+                                            <span class="badge bg-danger-subtle text-danger ms-1 small">Hidden</span>
+                                            {{end}}
+                                            {{end}}
+                                        </div>
+                                    </div>
+                                    {{end}}
+                                {{else}}
+                                    <div class="text-center text-muted my-auto py-4" id="chatEmptyPlaceholder">
+                                        <i class="bi bi-chat-heart display-6 d-block mb-2 text-success opacity-75"></i>
+                                        <div class="fw-semibold">Welcome to Live Chat!</div>
+                                        <small>Say hello and worship together with the youth community.</small>
+                                    </div>
+                                {{end}}
+                            </div>
+
+                            <!-- Chat Input Form -->
+                            <div class="mt-auto">
+                                {{if or .IsLoggedIn .IsAdmin}}
+                                <form id="chatForm" onsubmit="handleSendChat(event)">
+                                    <div class="input-group">
+                                        <input
+                                            type="text"
+                                            id="chatInput"
+                                            class="form-control rounded-start-pill"
+                                            placeholder="Type a chat message..."
+                                            maxlength="500"
+                                            autocomplete="off"
+                                            required>
+                                        <button class="btn btn-success rounded-end-pill px-3" type="submit" id="chatSendBtn">
+                                            <i class="bi bi-send-fill"></i>
+                                        </button>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-1 px-2">
+                                        <span class="text-danger small" id="chatRateLimitMsg"></span>
+                                        <span class="text-muted small ms-auto" id="chatCharCounter">0/500</span>
+                                    </div>
+                                </form>
+                                {{else}}
+                                <div class="bg-light p-3 text-center rounded-3 border">
+                                    <div class="small text-muted mb-2">You must be logged in to participate in live chat.</div>
+                                    <a href="/community/login?next=/programmes/view?id={{.Programme.ID}}" class="btn btn-sm btn-success rounded-pill fw-semibold">
+                                        <i class="bi bi-box-arrow-in-right me-1"></i> Log in to Chat
+                                    </a>
+                                </div>
+                                {{end}}
+                            </div>
+
+                        </div>
+
+                        <!-- TAB 2: PRAYER REQUESTS -->
+                        <div class="tab-pane fade flex-grow-1 d-flex flex-column" id="prayer-pane" role="tabpanel">
+                            
+                            <!-- Prayer Submission Button -->
+                            <div class="mb-3">
+                                {{if or .IsLoggedIn .IsAdmin}}
+                                <button type="button" class="btn btn-outline-success w-100 rounded-pill fw-semibold" data-bs-toggle="modal" data-bs-target="#prayerModal">
+                                    <i class="bi bi-plus-circle me-1"></i> Submit a Prayer Request
+                                </button>
+                                {{else}}
+                                <a href="/community/login?next=/programmes/view?id={{.Programme.ID}}" class="btn btn-outline-success w-100 rounded-pill fw-semibold">
+                                    <i class="bi bi-box-arrow-in-right me-1"></i> Log In to Submit Prayer Request
+                                </a>
+                                {{end}}
+                            </div>
+
+                            <!-- Prayer Requests Stream -->
+                            <div class="chat-scroll-area p-2 rounded-3 border flex-grow-1" id="prayerRequestsContainer">
+                                {{if .PrayerRequests}}
+                                    {{range .PrayerRequests}}
+                                    <div class="p-3 mb-2 prayer-item shadow-sm {{if .IsPrivate}}is-private{{end}}" id="prayer-item-{{.ID}}">
+                                        <div class="d-flex justify-content-between align-items-start mb-1">
+                                            <span class="fw-bold small text-dark">
+                                                {{if .User}}{{.User.FullName}}{{else}}Member #{{.UserID}}{{end}}
+                                            </span>
+                                            <div>
+                                                {{if .IsPrivate}}
+                                                <span class="badge bg-warning text-dark rounded-pill me-1 small" title="Confidential prayer request">
+                                                    <i class="bi bi-lock-fill"></i> Private
+                                                </span>
+                                                {{end}}
+                                                <span class="badge {{if eq .Status "answered"}}bg-success{{else if eq .Status "praying"}}bg-primary{{else}}bg-secondary{{end}} rounded-pill small" id="prayer-status-badge-{{.ID}}">
+                                                    {{.Status}}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <p class="small text-secondary mb-2" style="white-space: pre-line;">{{.Request}}</p>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span class="text-muted" style="font-size: 0.75rem;">{{.CreatedAt.Format "Jan 02 at 15:04"}}</span>
+                                            {{if $.IsModerator}}
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-link text-muted p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                    Status
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                    <li><a class="dropdown-item small" href="javascript:void(0)" onclick="updatePrayerStatus({{.ID}}, 'pending')">Mark as Pending</a></li>
+                                                    <li><a class="dropdown-item small text-primary" href="javascript:void(0)" onclick="updatePrayerStatus({{.ID}}, 'praying')"><i class="bi bi-heart-fill me-1"></i> Praying Now</a></li>
+                                                    <li><a class="dropdown-item small text-success" href="javascript:void(0)" onclick="updatePrayerStatus({{.ID}}, 'answered')"><i class="bi bi-check-circle-fill me-1"></i> Answered</a></li>
+                                                </ul>
+                                            </div>
+                                            {{end}}
+                                        </div>
+                                    </div>
+                                    {{end}}
+                                {{else}}
+                                    <div class="text-center text-muted my-auto py-4" id="prayerEmptyPlaceholder">
+                                        <i class="bi bi-heart-pulse display-6 d-block mb-2 text-success opacity-75"></i>
+                                        <div class="fw-semibold">No prayer requests yet</div>
+                                        <small>Lift up your needs or pray in agreement with our brethren.</small>
+                                    </div>
+                                {{end}}
+                            </div>
+
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+</div>
+
+<!-- Submit Prayer Request Modal -->
+<div class="modal fade" id="prayerModal" tabindex="-1" aria-labelledby="prayerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold" id="prayerModalLabel">
+                    <i class="bi bi-heart-pulse me-1"></i> Submit Prayer Request
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="prayerForm" onsubmit="handleSubmitPrayer(event)">
+                <div class="modal-body p-4">
+                    <p class="small text-muted mb-3">
+                        Share what you would like the church ministry and prayer team to stand in faith with you for.
+                    </p>
+                    <div class="mb-3">
+                        <label for="prayerText" class="form-label fw-semibold">Your Prayer Request</label>
+                        <textarea class="form-control rounded-3" id="prayerText" rows="4" maxlength="1000" placeholder="Write your request here in faith..." required></textarea>
+                    </div>
+                    <div class="form-check p-3 bg-light rounded-3 border">
+                        <input class="form-check-input" type="checkbox" id="prayerIsPrivate" value="1">
+                        <label class="form-check-label fw-semibold text-dark" for="prayerIsPrivate">
+                            <i class="bi bi-lock-fill text-warning me-1"></i> Keep this prayer request confidential
+                        </label>
+                        <div class="text-muted small ps-0 mt-1">
+                            When checked, only you, the organizers, and the assigned prayer moderators will be able to see this request.
+                        </div>
+                    </div>
+                    <div id="prayerErrorMsg" class="text-danger small mt-2"></div>
+                </div>
+                <div class="modal-footer border-top-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success rounded-pill px-4 fw-semibold" id="prayerSubmitBtn">
+                        <i class="bi bi-send-check me-1"></i> Submit Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Programme Confirmation Modal -->
+<div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-1"></i> Cancel Programme</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/programmes/status" method="POST">
+                <input type="hidden" name="id" value="{{.Programme.ID}}">
+                <input type="hidden" name="status" value="cancelled">
+                <div class="modal-body p-4">
+                    <p class="text-danger fw-semibold">Are you sure you want to cancel this online programme?</p>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold">Reason for Cancellation (displayed to viewers)</label>
+                        <textarea name="reason" class="form-control rounded-3" rows="3" placeholder="e.g. Rescheduled due to technical maintenance" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-top-0">
+                    <button type="button" class="btn btn-light rounded-pill" data-bs-dismiss="modal">Close</button>
+                    <button type="submit" class="btn btn-danger rounded-pill fw-semibold">Confirm Cancellation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Moderators Modal -->
+{{if .CanManage}}
+<div class="modal fade" id="moderatorModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title fw-bold"><i class="bi bi-shield-check me-1"></i> Assigned Moderators</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">Moderators have permissions to hide inappropriate chat messages and update prayer requests.</p>
+                <div class="list-group mb-3">
+                    {{if .Moderators}}
+                        {{range .Moderators}}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="fw-semibold text-dark">{{if .User}}{{.User.FullName}}{{else}}User #{{.UserID}}{{end}}</span>
+                                <small class="text-muted d-block">Assigned: {{.AssignedAt.Format "Jan 02"}}</small>
+                            </div>
+                            <form action="/programmes/moderators/remove" method="POST" class="m-0">
+                                <input type="hidden" name="programme_id" value="{{$.Programme.ID}}">
+                                <input type="hidden" name="user_id" value="{{.UserID}}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill">Remove</button>
+                            </form>
+                        </div>
+                        {{end}}
+                    {{else}}
+                        <div class="text-muted small text-center py-2">No moderators assigned yet.</div>
+                    {{end}}
+                </div>
+
+                <form action="/programmes/moderators/add" method="POST">
+                    <input type="hidden" name="programme_id" value="{{.Programme.ID}}">
+                    <label class="form-label small fw-semibold">Assign New Moderator (by User ID)</label>
+                    <div class="input-group">
+                        <input type="number" name="user_id" class="form-control rounded-start-pill" placeholder="Enter User ID..." required min="1">
+                        <button type="submit" class="btn btn-primary rounded-end-pill">Assign</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{{end}}
+
+<!-- Interactive JavaScript for Live Chat & Prayer Requests -->
+<script>
+const programmeID = {{.Programme.ID}};
+let lastChatMsgID = 0;
+const isModerator = {{if .IsModerator}}true{{else}}false{{end}};
+
+// Find highest existing chat ID
+document.querySelectorAll("[id^='chat-msg-']").forEach(el => {
+    const id = parseInt(el.id.replace('chat-msg-', ''), 10);
+    if (id > lastChatMsgID) lastChatMsgID = id;
+});
+
+// Auto-scroll chat to bottom
+function scrollChatToBottom() {
+    const container = document.getElementById("chatMessagesContainer");
+    if (container) {
+        container.scrollTop = container.scrollHeight;
+    }
+}
+scrollChatToBottom();
+
+// Chat character counter
+const chatInput = document.getElementById("chatInput");
+const chatCharCounter = document.getElementById("chatCharCounter");
+if (chatInput && chatCharCounter) {
+    chatInput.addEventListener("input", function() {
+        chatCharCounter.textContent = `${this.value.length}/500`;
+    });
+}
+
+// Send live chat message via AJAX
+async function handleSendChat(e) {
+    e.preventDefault();
+    const input = document.getElementById("chatInput");
+    const sendBtn = document.getElementById("chatSendBtn");
+    const errorMsg = document.getElementById("chatRateLimitMsg");
+    const text = input.value.trim();
+    if (!text) return;
+
+    errorMsg.textContent = "";
+    sendBtn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append("programme_id", programmeID);
+        formData.append("message", text);
+
+        const res = await fetch("/programmes/chat/send", {
+            method: "POST",
+            body: formData,
+            headers: { "Accept": "application/json" }
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            errorMsg.textContent = data.error || "Failed to send chat message.";
+        } else {
+            input.value = "";
+            if (chatCharCounter) chatCharCounter.textContent = "0/500";
+            appendChatMessage(data.message);
+        }
+    } catch (err) {
+        errorMsg.textContent = "Network error. Please try again.";
+    } finally {
+        sendBtn.disabled = false;
+        input.focus();
+    }
+}
+
+// Append new chat message to DOM
+function appendChatMessage(msg) {
+    if (!msg || document.getElementById(`chat-msg-${msg.ID}`)) return;
+
+    const placeholder = document.getElementById("chatEmptyPlaceholder");
+    if (placeholder) placeholder.remove();
+
+    const container = document.getElementById("chatMessagesContainer");
+    const div = document.createElement("div");
+    div.id = `chat-msg-${msg.ID}`;
+    div.className = `mb-2 p-2 chat-bubble ${msg.IsHidden ? 'is-hidden' : ''}`;
+
+    const userName = msg.User ? escapeHtml(msg.User.FullName) : `User #${msg.UserID}`;
+    const isAdminBadge = (msg.User && msg.User.Role === 'admin') ? '<span class="badge bg-danger rounded-pill px-1 small">Admin</span>' : '';
+    
+    let modButton = '';
+    if (isModerator) {
+        modButton = `<button type="button" class="btn btn-sm btn-link text-muted p-0 ms-1" onclick="toggleHideChat(${msg.ID}, ${msg.IsHidden ? 'false' : 'true'})">
+            <i class="bi ${msg.IsHidden ? 'bi-eye' : 'bi-eye-slash'}"></i>
+        </button>`;
+    }
+
+    let messageContent = escapeHtml(msg.Message);
+    if (msg.IsHidden && !isModerator) {
+        messageContent = '<em class="text-muted">[Message hidden by moderator]</em>';
+    } else if (msg.IsHidden) {
+        messageContent += ' <span class="badge bg-danger-subtle text-danger ms-1 small">Hidden</span>';
+    }
+
+    const timeStr = new Date(msg.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    div.innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="fw-bold small text-dark">${userName} ${isAdminBadge}</span>
+            <div class="d-flex align-items-center gap-1">
+                <span class="text-muted" style="font-size: 0.75rem;">${timeStr}</span>
+                ${modButton}
+            </div>
+        </div>
+        <div class="small text-break" id="chat-text-${msg.ID}">${messageContent}</div>
+    `;
+
+    container.appendChild(div);
+    if (msg.ID > lastChatMsgID) lastChatMsgID = msg.ID;
+    scrollChatToBottom();
+}
+
+// Polling for live chat updates
+async function pollChatMessages() {
+    try {
+        const res = await fetch(`/programmes/chat/messages?programme_id=${programmeID}&since=${lastChatMsgID}`, {
+            headers: { "Accept": "application/json" }
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.success && data.messages && data.messages.length > 0) {
+                data.messages.forEach(msg => appendChatMessage(msg));
+            }
+        }
+    } catch (e) {
+        // Silent catch for background poll
+    }
+}
+setInterval(pollChatMessages, 3000);
+
+// Moderator toggle hide chat message
+async function toggleHideChat(msgID, shouldHide) {
+    try {
+        const formData = new FormData();
+        formData.append("programme_id", programmeID);
+        formData.append("message_id", msgID);
+        formData.append("hidden", shouldHide ? "1" : "0");
+
+        const res = await fetch("/programmes/chat/hide", {
+            method: "POST",
+            body: formData,
+            headers: { "Accept": "application/json" }
+        });
+        const data = await res.json();
+        if (data.success) {
+            const el = document.getElementById(`chat-msg-${msgID}`);
+            if (el) {
+                if (shouldHide) {
+                    el.classList.add("is-hidden");
+                } else {
+                    el.classList.remove("is-hidden");
+                }
+            }
+        }
+    } catch (err) {
+        alert("Failed to update message moderation status.");
+    }
+}
+
+// Submit Prayer Request via AJAX
+async function handleSubmitPrayer(e) {
+    e.preventDefault();
+    const textEl = document.getElementById("prayerText");
+    const privEl = document.getElementById("prayerIsPrivate");
+    const submitBtn = document.getElementById("prayerSubmitBtn");
+    const errorMsg = document.getElementById("prayerErrorMsg");
+
+    errorMsg.textContent = "";
+    submitBtn.disabled = true;
+
+    try {
+        const formData = new FormData();
+        formData.append("programme_id", programmeID);
+        formData.append("request", textEl.value.trim());
+        if (privEl.checked) formData.append("is_private", "1");
+
+        const res = await fetch("/programmes/prayer/submit", {
+            method: "POST",
+            body: formData,
+            headers: { "Accept": "application/json" }
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            errorMsg.textContent = data.error || "Failed to submit prayer request.";
+        } else {
+            // Close modal
+            const modalEl = document.getElementById('prayerModal');
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+
+            textEl.value = "";
+            privEl.checked = false;
+
+            appendPrayerRequest(data.prayer_request);
+        }
+    } catch (err) {
+        errorMsg.textContent = "Network error. Please try again.";
+    } finally {
+        submitBtn.disabled = false;
+    }
+}
+
+// Append prayer request to DOM
+function appendPrayerRequest(pr) {
+    if (!pr || document.getElementById(`prayer-item-${pr.ID}`)) return;
+
+    const placeholder = document.getElementById("prayerEmptyPlaceholder");
+    if (placeholder) placeholder.remove();
+
+    const container = document.getElementById("prayerRequestsContainer");
+    const div = document.createElement("div");
+    div.id = `prayer-item-${pr.ID}`;
+    div.className = `p-3 mb-2 prayer-item shadow-sm ${pr.IsPrivate ? 'is-private' : ''}`;
+
+    const userName = pr.User ? escapeHtml(pr.User.FullName) : `Member #${pr.UserID}`;
+    const privBadge = pr.IsPrivate ? '<span class="badge bg-warning text-dark rounded-pill me-1 small"><i class="bi bi-lock-fill"></i> Private</span>' : '';
+    const dateStr = new Date(pr.CreatedAt).toLocaleDateString([], { month: 'short', day: '2-digit' }) + ' at ' + new Date(pr.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    let modDropdown = '';
+    if (isModerator) {
+        modDropdown = `
+            <div class="dropdown">
+                <button class="btn btn-sm btn-link text-muted p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown">Status</button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <li><a class="dropdown-item small" href="javascript:void(0)" onclick="updatePrayerStatus(${pr.ID}, 'pending')">Mark as Pending</a></li>
+                    <li><a class="dropdown-item small text-primary" href="javascript:void(0)" onclick="updatePrayerStatus(${pr.ID}, 'praying')"><i class="bi bi-heart-fill me-1"></i> Praying Now</a></li>
+                    <li><a class="dropdown-item small text-success" href="javascript:void(0)" onclick="updatePrayerStatus(${pr.ID}, 'answered')"><i class="bi bi-check-circle-fill me-1"></i> Answered</a></li>
+                </ul>
+            </div>
+        `;
+    }
+
+    div.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start mb-1">
+            <span class="fw-bold small text-dark">${userName}</span>
+            <div>
+                ${privBadge}
+                <span class="badge bg-secondary rounded-pill small" id="prayer-status-badge-${pr.ID}">${pr.Status}</span>
+            </div>
+        </div>
+        <p class="small text-secondary mb-2" style="white-space: pre-line;">${escapeHtml(pr.Request)}</p>
+        <div class="d-flex justify-content-between align-items-center">
+            <span class="text-muted" style="font-size: 0.75rem;">${dateStr}</span>
+            ${modDropdown}
+        </div>
+    `;
+
+    container.prepend(div);
+    const countBadge = document.getElementById("prayerBadgeCount");
+    if (countBadge) {
+        const count = parseInt(countBadge.textContent, 10) || 0;
+        countBadge.textContent = count + 1;
+    }
+}
+
+// Update Prayer Request status via AJAX
+async function updatePrayerStatus(reqID, status) {
+    try {
+        const formData = new FormData();
+        formData.append("programme_id", programmeID);
+        formData.append("request_id", reqID);
+        formData.append("status", status);
+
+        const res = await fetch("/programmes/prayer/status", {
+            method: "POST",
+            body: formData,
+            headers: { "Accept": "application/json" }
+        });
+        const data = await res.json();
+        if (data.success) {
+            const badge = document.getElementById(`prayer-status-badge-${reqID}`);
+            if (badge) {
+                badge.textContent = status;
+                badge.className = `badge rounded-pill small ${status === 'answered' ? 'bg-success' : status === 'praying' ? 'bg-primary' : 'bg-secondary'}`;
+            }
+        }
+    } catch (err) {
+        alert("Failed to update prayer status.");
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+</script>
+
+{{template "footer" .}}
+
