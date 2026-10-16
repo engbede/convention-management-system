@@ -1,3 +1,13 @@
+
+# Environment variables and secrets
 .env
+.env.*
+
+# Local databases and application data
 data/
 *.db
+
+# Local database backups
+backups/
+# User-uploaded media
+uploads/
