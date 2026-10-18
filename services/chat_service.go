@@ -878,6 +878,131 @@ func AddGroupMembers(actingUserID, groupID int, userIDs []int) error {
 	return nil
 }
 
+// ConvertDirectToGroupConversation transitions an individual (direct) chat into a group conversation
+// while preserving all existing messages, call history, and participants.
+// It sets the initiator as group 'owner' and adds the selected registered members.
+func ConvertDirectToGroupConversation(convID int, initiatorUserID int, newMemberIDs []int, customTitle string) (*models.Conversation, error) {
+	if convID <= 0 || initiatorUserID <= 0 {
+		return nil, errors.New("invalid conversation or user ID")
+	}
+
+	conv, err := repository.GetConversationByID(convID)
+	if err != nil || conv == nil {
+		return nil, errors.New("conversation not found")
+	}
+
+	// If already a group, delegate to AddGroupMembers
+	if conv.Type == "group" {
+		if err := AddGroupMembers(initiatorUserID, convID, newMemberIDs); err != nil {
+			return nil, err
+		}
+		return repository.GetConversationByID(convID)
+	}
+
+	// Verify initiator is a participant of this conversation
+	isMember, err := repository.IsConversationMember(convID, initiatorUserID)
+	if err != nil || !isMember {
+		return nil, errors.New("access denied: you are not a participant in this conversation")
+	}
+
+	initiator, err := repository.GetUserByID(initiatorUserID)
+	if err != nil || initiator.ID <= 0 {
+		return nil, errors.New("initiator user not found")
+	}
+
+	// Get other participant in the direct conversation
+	otherParticipant, _ := repository.GetConversationOtherParticipant(convID, initiatorUserID)
+
+	// Fetch current members to avoid duplicates
+	currentMembers, err := repository.GetConversationMembers(convID)
+	if err != nil {
+		return nil, err
+	}
+	existingMembersMap := make(map[int]bool)
+	for _, m := range currentMembers {
+		existingMembersMap[m.UserID] = true
+	}
+
+	// Filter and validate candidates
+	var validUserIDs []int
+	var validUserNames []string
+	seen := make(map[int]bool)
+
+	for _, targetID := range newMemberIDs {
+		if targetID <= 0 || targetID == initiatorUserID || existingMembersMap[targetID] || seen[targetID] {
+			continue
+		}
+		seen[targetID] = true
+
+		// Check communication block
+		blocked, _ := repository.IsCommunicationBlocked(initiatorUserID, targetID)
+		if blocked {
+			continue
+		}
+
+		// Verify target user actually exists in database
+		u, uErr := repository.GetUserByID(targetID)
+		if uErr != nil || u.ID <= 0 {
+			continue
+		}
+
+		validUserIDs = append(validUserIDs, targetID)
+		validUserNames = append(validUserNames, u.FullName)
+	}
+
+	if len(validUserIDs) == 0 {
+		return nil, errors.New("no valid registered members were selected to add")
+	}
+
+	// Determine group title
+	finalTitle := strings.TrimSpace(customTitle)
+	if finalTitle == "" {
+		otherName := "Member"
+		if otherParticipant != nil && otherParticipant.FullName != "" {
+			otherName = otherParticipant.FullName
+		}
+		if len(validUserNames) == 1 {
+			finalTitle = fmt.Sprintf("%s, %s & %s", initiator.FullName, otherName, validUserNames[0])
+		} else {
+			finalTitle = fmt.Sprintf("%s, %s + %d others", initiator.FullName, otherName, len(validUserNames))
+		}
+		if len(finalTitle) > 100 {
+			finalTitle = finalTitle[:97] + "..."
+		}
+	}
+
+	// Execute conversion in repository transaction
+	if err := repository.ConvertDirectToGroup(convID, finalTitle, initiatorUserID, validUserIDs); err != nil {
+		return nil, err
+	}
+
+	// Insert system message into the conversation
+	sysMsg := &models.Message{
+		ConversationID: convID,
+		SenderID:       initiatorUserID,
+		MessageType:    "system",
+		Body:           fmt.Sprintf("%s converted this conversation into a group and added %s.", initiator.FullName, strings.Join(validUserNames, ", ")),
+	}
+	_ = repository.SaveMessage(sysMsg)
+
+	// Broadcast updates via WebSocket
+	GlobalHub.BroadcastToConversation(convID, WSEvent{
+		Type:           "new_message",
+		ConversationID: convID,
+		Message:        sysMsg,
+	})
+
+	for _, newUID := range validUserIDs {
+		GlobalHub.BroadcastToUser(newUID, WSEvent{
+			Type:           "group_created",
+			ConversationID: convID,
+			CallerName:     initiator.FullName,
+		})
+	}
+
+	return repository.GetConversationByID(convID)
+}
+
 // RemoveGroupMember removes a participant from a group (admin or owner privilege required).
 func RemoveGroupMember(actingUserID, groupID, targetUserID int) error {
 	if actingUserID == targetUserID {

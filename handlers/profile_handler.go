@@ -63,6 +63,7 @@ func Profile(
 		"profile.html",
 		map[string]any{
 			"User":        user,
+			"CurrentUser": user,
 			"Posts":       posts,
 			"UnreadCount": unread,
 		},

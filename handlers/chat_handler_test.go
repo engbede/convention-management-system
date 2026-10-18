@@ -14,6 +14,8 @@ import (
 
 	"convention-management-system/database"
 	"convention-management-system/middleware"
+	"convention-management-system/repository"
+	"convention-management-system/services"
 	"convention-management-system/sessions"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -1320,5 +1322,105 @@ func TestMembershipRequestsAndModerationAPIs(t *testing.T) {
 	DeleteMessageAPI(del1RR, del1Req)
 	if del1RR.Code != http.StatusOK {
 		t.Fatalf("DeleteMessageAPI by owner failed: %d (body: %s)", del1RR.Code, del1RR.Body.String())
+	}
+}
+
+func TestConvertDirectToGroupAPI(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Insert additional test users
+	_, _ = database.DB.Exec(`
+		INSERT INTO users (id, full_name, username, password_hash)
+		VALUES 
+			(4, 'Fourth Member', 'fourth_member', 'hash4'),
+			(5, 'Fifth Member', 'fifth_member', 'hash5');
+	`)
+
+	// 1. Create a direct chat between user 1 and user 2
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("Failed to create direct conversation: %v", err)
+	}
+
+	// 2. Unauthenticated request must return 401
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/direct/add-members", strings.NewReader(`{"conversation_id":1,"user_ids":[3]}`))
+	unauthReq.Header.Set("Content-Type", "application/json")
+	unauthReq.Header.Set("Accept", "application/json")
+	unauthRR := httptest.NewRecorder()
+	ConvertDirectToGroupAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated request, got %d", unauthRR.Code)
+	}
+
+	// 3. Outsider User 3 trying to convert User 1 & 2's direct chat must be rejected (403/400)
+	outsiderJSON := fmt.Sprintf(`{"conversation_id": %d, "user_ids": [4]}`, conv.ID)
+	outReq, outRR := makeAuthReq(http.MethodPost, "/messages/direct/add-members", outsiderJSON, "application/json", 3)
+	ConvertDirectToGroupAPI(outRR, outReq)
+	if outRR.Code != http.StatusForbidden && outRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 403 or 400 when non-participant tries to convert conversation, got %d", outRR.Code)
+	}
+
+	// 4. Invalid input (no users selected) must fail
+	emptyJSON := fmt.Sprintf(`{"conversation_id": %d, "user_ids": []}`, conv.ID)
+	emptyReq, emptyRR := makeAuthReq(http.MethodPost, "/messages/direct/add-members", emptyJSON, "application/json", 1)
+	ConvertDirectToGroupAPI(emptyRR, emptyReq)
+	if emptyRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for empty user selection, got %d", emptyRR.Code)
+	}
+
+	// 5. Valid conversion: User 1 adds User 3 with a custom group title
+	validJSON := fmt.Sprintf(`{"conversation_id": %d, "user_ids": [3], "group_title": "Trinity Fellowship"}`, conv.ID)
+	valReq, valRR := makeAuthReq(http.MethodPost, "/messages/direct/add-members", validJSON, "application/json", 1)
+	ConvertDirectToGroupAPI(valRR, valReq)
+	if valRR.Code != http.StatusOK {
+		t.Fatalf("ConvertDirectToGroupAPI failed: %d (body: %s)", valRR.Code, valRR.Body.String())
+	}
+
+	var valResp struct {
+		Success        bool   `json:"success"`
+		ConversationID int    `json:"conversation_id"`
+		RedirectURL    string `json:"redirect_url"`
+	}
+	if err := json.Unmarshal(valRR.Body.Bytes(), &valResp); err != nil {
+		t.Fatalf("Failed to decode response JSON: %v", err)
+	}
+	if !valResp.Success || valResp.ConversationID != conv.ID {
+		t.Errorf("Expected success true and matching conv ID %d, got %+v", conv.ID, valResp)
+	}
+
+	// 6. Verify converted state in repository
+	updatedConv, err := repository.GetConversationByID(conv.ID)
+	if err != nil {
+		t.Fatalf("Failed to fetch updated conversation: %v", err)
+	}
+	if updatedConv.Type != "group" {
+		t.Errorf("Expected type 'group', got %s", updatedConv.Type)
+	}
+	if updatedConv.Title != "Trinity Fellowship" {
+		t.Errorf("Expected title 'Trinity Fellowship', got %s", updatedConv.Title)
+	}
+
+	// 7. Verify member roles in repository
+	m1, _ := repository.GetConversationMember(conv.ID, 1)
+	if m1 == nil || m1.Role != "owner" {
+		t.Errorf("Expected User 1 to have role 'owner', got %+v", m1)
+	}
+	m3, _ := repository.GetConversationMember(conv.ID, 3)
+	if m3 == nil || m3.Role != "member" {
+		t.Errorf("Expected User 3 to have role 'member', got %+v", m3)
+	}
+
+	// 8. Test adding another member via form-urlencoded with manual username
+	formBody := fmt.Sprintf("conversation_id=%d&manual_member=@fourth_member", conv.ID)
+	formReq, formRR := makeAuthReq(http.MethodPost, "/messages/direct/add-members", formBody, "application/x-www-form-urlencoded", 1)
+	ConvertDirectToGroupAPI(formRR, formReq)
+	if formRR.Code != http.StatusOK {
+		t.Fatalf("Form-based manual member addition failed: %d (body: %s)", formRR.Code, formRR.Body.String())
+	}
+
+	m4, _ := repository.GetConversationMember(conv.ID, 4)
+	if m4 == nil || m4.Role != "member" {
+		t.Errorf("Expected User 4 to have been added as 'member', got %+v", m4)
 	}
 }

@@ -62,6 +62,7 @@ func UserProfile(
 		"profile.html",
 		map[string]any{
 			"User":         user,
+			"CurrentUser":  user,
 			"Posts":        posts,
 			"IsOwnProfile": isOwnProfile,
 			"IsFollowing":  isFollowing,

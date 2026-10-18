@@ -32,7 +32,7 @@
 
             <!-- Search -->
 
-            <form class="mx-auto w-50">
+            <form class="mx-auto w-100 my-2 my-lg-0" style="max-width: 450px;">
 
                 <input
                     class="form-control rounded-pill"
@@ -154,5 +154,202 @@
     </div>
 
 </nav>
+
+<!-- GLOBAL INCOMING CALL MODAL FOR NON-CHAT PAGES -->
+<div class="modal fade" id="globalIncomingCallModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 380px;">
+        <div class="modal-content border-0 rounded-4 shadow-lg text-center p-4 bg-white">
+            <div class="position-relative mx-auto mb-3" style="width: 80px; height: 80px;">
+                <div id="globalCallerAvatar" class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow mx-auto" style="width: 80px; height: 80px; font-size: 2rem;">
+                    U
+                </div>
+            </div>
+            <h5 class="fw-bold mb-1 text-dark" id="globalCallerName">Caller</h5>
+            <p class="text-muted small mb-4" id="globalCallTypeLabel">Incoming Video Call...</p>
+            <div class="d-flex justify-content-center gap-4">
+                <button type="button" class="btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow" id="globalDeclineCallBtn" style="width: 56px; height: 56px;" title="Decline Call">
+                    <i class="bi bi-telephone-x-fill fs-4 text-white"></i>
+                </button>
+                <button type="button" class="btn btn-success rounded-circle d-flex justify-content-center align-items-center shadow" id="globalAcceptCallBtn" style="width: 56px; height: 56px;" title="Accept Call">
+                    <i class="bi bi-telephone-fill fs-4 text-white"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    if (window.location.pathname.startsWith("/messages")) {
+        return;
+    }
+
+    const currentUserId = {{if .CurrentUser}}{{.CurrentUser.ID}}{{else}}0{{end}};
+    if (!currentUserId || currentUserId <= 0) {
+        return;
+    }
+
+    let globalWs = null;
+    let globalCallOfferData = null;
+    let globalCallTimeout = null;
+    let globalChimeAudioCtx = null;
+    let globalChimeInterval = null;
+
+    function playGlobalChime() {
+        stopGlobalChime();
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            globalChimeAudioCtx = new AudioCtx();
+            if (globalChimeAudioCtx.state === 'suspended') {
+                globalChimeAudioCtx.resume().catch(() => {});
+            }
+
+            function burst() {
+                if (!globalChimeAudioCtx || globalChimeAudioCtx.state === 'closed') return;
+                const now = globalChimeAudioCtx.currentTime;
+                const osc1 = globalChimeAudioCtx.createOscillator();
+                const osc2 = globalChimeAudioCtx.createOscillator();
+                const gain = globalChimeAudioCtx.createGain();
+
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(440, now);
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(480, now);
+
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.18, now + 0.05);
+                gain.gain.setValueAtTime(0.18, now + 1.4);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(globalChimeAudioCtx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 1.8);
+                osc2.stop(now + 1.8);
+            }
+
+            burst();
+            globalChimeInterval = setInterval(burst, 3200);
+        } catch (e) {
+            console.warn("Global chime error:", e);
+        }
+    }
+
+    function stopGlobalChime() {
+        if (globalChimeInterval) {
+            clearInterval(globalChimeInterval);
+            globalChimeInterval = null;
+        }
+        if (globalChimeAudioCtx) {
+            try { globalChimeAudioCtx.close(); } catch(e) {}
+            globalChimeAudioCtx = null;
+        }
+    }
+
+    function connectGlobalSocket() {
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
+
+        try {
+            globalWs = new WebSocket(wsUrl);
+
+            globalWs.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "call_offer") {
+                        globalCallOfferData = data;
+                        const modalEl = document.getElementById("globalIncomingCallModal");
+                        if (!modalEl || typeof bootstrap === "undefined") return;
+
+                        const nameEl = document.getElementById("globalCallerName");
+                        const labelEl = document.getElementById("globalCallTypeLabel");
+                        const avatarEl = document.getElementById("globalCallerAvatar");
+
+                        if (nameEl) nameEl.textContent = data.caller_name || "Member";
+                        if (labelEl) labelEl.textContent = `Incoming ${data.call_type === "video" ? "Video" : "Audio"} Call...`;
+                        if (avatarEl) {
+                            if (data.caller_avatar) {
+                                avatarEl.innerHTML = `<img src="/uploads/profiles/${data.caller_avatar}" class="rounded-circle object-fit-cover shadow w-100 h-100">`;
+                            } else {
+                                avatarEl.textContent = (data.caller_name || "U").substring(0, 2).toUpperCase();
+                            }
+                        }
+
+                        playGlobalChime();
+                        const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        bsModal.show();
+
+                        clearTimeout(globalCallTimeout);
+                        globalCallTimeout = setTimeout(() => {
+                            stopGlobalChime();
+                            bsModal.hide();
+                            globalCallOfferData = null;
+                        }, 35000);
+                    } else if (data.type === "call_cancel") {
+                        clearTimeout(globalCallTimeout);
+                        stopGlobalChime();
+                        const modalEl = document.getElementById("globalIncomingCallModal");
+                        if (modalEl && typeof bootstrap !== "undefined") {
+                            const bsModal = bootstrap.Modal.getInstance(modalEl);
+                            if (bsModal) bsModal.hide();
+                        }
+                        globalCallOfferData = null;
+                    }
+                } catch(e) {}
+            };
+
+            globalWs.onclose = function() {
+                setTimeout(connectGlobalSocket, 5000);
+            };
+        } catch(e) {}
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        connectGlobalSocket();
+
+        const acceptBtn = document.getElementById("globalAcceptCallBtn");
+        const declineBtn = document.getElementById("globalDeclineCallBtn");
+        const modalEl = document.getElementById("globalIncomingCallModal");
+
+        if (acceptBtn) {
+            acceptBtn.addEventListener("click", function() {
+                clearTimeout(globalCallTimeout);
+                stopGlobalChime();
+                if (modalEl && typeof bootstrap !== "undefined") {
+                    const bsModal = bootstrap.Modal.getInstance(modalEl);
+                    if (bsModal) bsModal.hide();
+                }
+                if (globalCallOfferData) {
+                    window.location.href = `/messages?c=${globalCallOfferData.conversation_id}&auto_call=${globalCallOfferData.call_type || 'audio'}`;
+                }
+            });
+        }
+
+        if (declineBtn) {
+            declineBtn.addEventListener("click", function() {
+                clearTimeout(globalCallTimeout);
+                stopGlobalChime();
+                if (modalEl && typeof bootstrap !== "undefined") {
+                    const bsModal = bootstrap.Modal.getInstance(modalEl);
+                    if (bsModal) bsModal.hide();
+                }
+                if (globalCallOfferData && globalWs && globalWs.readyState === WebSocket.OPEN) {
+                    globalWs.send(JSON.stringify({
+                        type: "call_decline",
+                        conversation_id: globalCallOfferData.conversation_id,
+                        target_user_id: globalCallOfferData.user_id,
+                        call_id: globalCallOfferData.call_id
+                    }));
+                }
+                globalCallOfferData = null;
+            });
+        }
+    });
+})();
+</script>
 
 {{end}}

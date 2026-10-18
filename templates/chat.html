@@ -471,6 +471,9 @@
                                 <a href="/user/{{.ActiveRecipient.Username}}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
                                     <i class="bi bi-person me-1"></i> Profile
                                 </a>
+                                <button class="btn btn-sm btn-outline-primary rounded-pill px-2 px-sm-3 d-inline-flex align-items-center gap-1 shadow-sm" type="button" data-bs-toggle="modal" data-bs-target="#addMemberToDirectModal" title="Add people to this conversation">
+                                    <i class="bi bi-person-plus-fill"></i> <span class="d-none d-sm-inline">Add people</span>
+                                </button>
                             {{end}}
                             {{if eq .ActiveConversation.Type "group"}}
                                 {{if .ActiveGroupCall}}
@@ -599,6 +602,11 @@
                                         </li>
                                     {{else if .ActiveRecipient}}
                                         <!-- Direct Conversation Actions -->
+                                        <li>
+                                            <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2" data-bs-toggle="modal" data-bs-target="#addMemberToDirectModal">
+                                                <i class="bi bi-person-plus-fill text-primary"></i> Add People (Start Group)
+                                            </button>
+                                        </li>
                                         <li>
                                             <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2" data-bs-toggle="offcanvas" data-bs-target="#conversationDetailsOffcanvas">
                                                 <i class="bi bi-info-circle text-primary"></i> View Contact Details
@@ -732,7 +740,7 @@
                                                     <div class="bg-success text-white p-3 rounded-4 shadow-sm text-start message-content-box" style="border-bottom-right-radius: 4px !important; word-wrap: break-word;">
                                                         {{if eq .MessageType "image"}}
                                                             <div class="chat-attachment-image mb-2">
-                                                                <div class="position-relative overflow-hidden rounded-3 shadow-sm border bg-dark" style="max-width: 340px;">
+                                                                <div class="position-relative overflow-hidden rounded-3 shadow-sm border bg-dark" style="max-width: min(340px, 100%);">
                                                                     <a href="{{.AttachmentURL}}" target="_blank" class="d-block text-decoration-none">
                                                                         <img src="{{.AttachmentURL}}" alt="{{.AttachmentName}}" class="img-fluid d-block w-100" style="max-height: 280px; object-fit: cover;" loading="lazy">
                                                                     </a>
@@ -748,7 +756,7 @@
                                                                 </div>
                                                             </div>
                                                         {{else if eq .MessageType "voice"}}
-                                                            <div class="chat-attachment-voice mb-2 p-2 rounded-3 bg-white bg-opacity-25 border border-white border-opacity-25" style="max-width: 320px;">
+                                                            <div class="chat-attachment-voice mb-2 p-2 rounded-3 bg-white bg-opacity-25 border border-white border-opacity-25" style="max-width: min(320px, 100%);">
                                                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                                                     <span class="small fw-semibold d-flex align-items-center gap-1 text-white" style="font-size: 0.78rem;">
                                                                         <i class="bi bi-mic-fill text-warning"></i> Voice Note
@@ -766,7 +774,7 @@
                                                                 </audio>
                                                             </div>
                                                         {{else if eq .MessageType "file"}}
-                                                            <div class="chat-attachment-file mb-2 p-2 rounded-3 bg-white bg-opacity-25 border border-white border-opacity-50 text-white" style="max-width: 340px; min-width: 220px;">
+                                                            <div class="chat-attachment-file mb-2 p-2 rounded-3 bg-white bg-opacity-25 border border-white border-opacity-50 text-white" style="max-width: min(340px, 100%); min-width: min(220px, 100%);">
                                                                 <div class="d-flex align-items-center gap-2">
                                                                     <div class="flex-shrink-0 d-flex align-items-center justify-content-center rounded-3 bg-white text-dark shadow-sm" style="width: 44px; height: 44px;">
                                                                         <i class="{{.FileIconClass}} fs-3"></i>
@@ -845,7 +853,7 @@
                                                     <div class="bg-white text-dark p-3 rounded-4 shadow-sm border message-content-box" style="border-bottom-left-radius: 4px !important; word-wrap: break-word;">
                                                         {{if eq .MessageType "image"}}
                                                             <div class="chat-attachment-image mb-2">
-                                                                <div class="position-relative overflow-hidden rounded-3 shadow-sm border bg-dark" style="max-width: 340px;">
+                                                                <div class="position-relative overflow-hidden rounded-3 shadow-sm border bg-dark" style="max-width: min(340px, 100%);">
                                                                     <a href="{{.AttachmentURL}}" target="_blank" class="d-block text-decoration-none">
                                                                         <img src="{{.AttachmentURL}}" alt="{{.AttachmentName}}" class="img-fluid d-block w-100" style="max-height: 280px; object-fit: cover;" loading="lazy">
                                                                     </a>
@@ -861,7 +869,7 @@
                                                                 </div>
                                                             </div>
                                                         {{else if eq .MessageType "voice"}}
-                                                            <div class="chat-attachment-voice mb-2 p-2 rounded-3 bg-light border" style="max-width: 320px;">
+                                                            <div class="chat-attachment-voice mb-2 p-2 rounded-3 bg-light border" style="max-width: min(320px, 100%);">
                                                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                                                     <span class="small fw-semibold d-flex align-items-center gap-1 text-dark" style="font-size: 0.78rem;">
                                                                         <i class="bi bi-mic-fill text-warning"></i> Voice Note
@@ -879,7 +887,7 @@
                                                                 </audio>
                                                             </div>
                                                         {{else if eq .MessageType "file"}}
-                                                            <div class="chat-attachment-file mb-2 p-2 rounded-3 bg-light border text-dark" style="max-width: 340px; min-width: 220px;">
+                                                            <div class="chat-attachment-file mb-2 p-2 rounded-3 bg-light border text-dark" style="max-width: min(340px, 100%); min-width: min(220px, 100%);">
                                                                 <div class="d-flex align-items-center gap-2">
                                                                     <div class="flex-shrink-0 d-flex align-items-center justify-content-center rounded-3 bg-white shadow-sm border" style="width: 44px; height: 44px;">
                                                                         <i class="{{.FileIconClass}} fs-3"></i>
@@ -1289,10 +1297,13 @@
                 {{if .ActiveRecipient.Bio}}
                     <p class="small text-secondary px-2 mt-2 fst-italic">"{{.ActiveRecipient.Bio}}"</p>
                 {{end}}
-                <div>
-                    <a href="/user/{{.ActiveRecipient.Username}}" class="btn btn-sm btn-outline-success rounded-pill px-4 mt-2">
+                <div class="d-flex flex-wrap justify-content-center gap-2 mt-2">
+                    <a href="/user/{{.ActiveRecipient.Username}}" class="btn btn-sm btn-outline-success rounded-pill px-3">
                         <i class="bi bi-person me-1"></i> View Full Profile
                     </a>
+                    <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#addMemberToDirectModal">
+                        <i class="bi bi-person-plus-fill me-1"></i> Add People
+                    </button>
                 </div>
             </div>
             <hr>
@@ -1843,6 +1854,107 @@
             <div class="modal-footer border-0 p-3">
                 <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
             </div>
+        </div>
+    </div>
+</div>
+{{end}}
+
+{{if and .ActiveConversation (eq .ActiveConversation.Type "direct") .ActiveRecipient}}
+<!-- MODAL: Add Member to Individual Chat (Transition to Group) -->
+<div class="modal fade" id="addMemberToDirectModal" tabindex="-1" aria-labelledby="addMemberToDirectModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title fw-bold" id="addMemberToDirectModalLabel">
+                    <i class="bi bi-person-plus-fill me-2"></i> Add People to Conversation
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="addMemberToDirectForm" action="/messages/direct/add-members" method="POST">
+                <div class="modal-body p-4">
+                    <div id="addMemberToDirectAlert" class="alert alert-danger d-none py-2 px-3 small rounded-3 mb-3" role="alert"></div>
+                    <input type="hidden" name="conversation_id" value="{{.ActiveConversation.ID}}">
+
+                    <div class="alert alert-primary bg-primary-subtle border-0 rounded-3 p-3 mb-3 small text-dark d-flex align-items-start gap-2">
+                        <i class="bi bi-info-circle-fill text-primary fs-5 mt-1 flex-shrink-0"></i>
+                        <div>
+                            Adding members will turn this chat with <strong>{{.ActiveRecipient.FullName}}</strong> into a group conversation. <strong>All existing messages, media, and call history are safely preserved.</strong>
+                        </div>
+                    </div>
+
+                    <!-- Optional Group Title Input -->
+                    <div class="mb-3">
+                        <label for="directGroupTitleInput" class="form-label small fw-semibold text-secondary mb-1">
+                            <i class="bi bi-tag-fill me-1"></i> Group Name (Optional)
+                        </label>
+                        <input type="text" class="form-control" id="directGroupTitleInput" name="group_title" placeholder="e.g. Fellowship with {{.ActiveRecipient.FullName}}" maxlength="100" autocomplete="off">
+                        <div class="form-text small text-muted">Leave empty to automatically name the group using participant names.</div>
+                    </div>
+
+                    <!-- Search Contacts Input -->
+                    <div class="mb-2">
+                        <label class="form-label small fw-semibold text-secondary mb-1">
+                            <i class="bi bi-person-lines-fill me-1"></i> Select Registered Members
+                        </label>
+                        <div class="input-group input-group-sm mb-2">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control border-start-0" id="filterDirectAddMembersInput" placeholder="Search by name, username or church..." autocomplete="off">
+                        </div>
+                    </div>
+
+                    <!-- Members List -->
+                    <div class="border rounded-3 p-3 bg-light bg-opacity-25" id="directAddMembersList" style="max-height: 200px; overflow-y: auto;">
+                        {{$recipientID := .ActiveRecipient.ID}}
+                        {{$currentUserID := .CurrentUser.ID}}
+                        {{$hasContacts := false}}
+                        {{if .EligibleFriends}}
+                            {{range .EligibleFriends}}
+                                {{if and (ne .ID $recipientID) (ne .ID $currentUserID)}}
+                                    {{$hasContacts = true}}
+                                    <div class="form-check d-flex align-items-center gap-2 mb-2 direct-eligible-member-item" data-user-id="{{.ID}}" data-fullname="{{.FullName}}" data-username="{{.Username}}" data-church="{{.ChurchName}}">
+                                        <input class="form-check-input direct-add-member-checkbox" type="checkbox" name="user_ids" value="{{.ID}}" id="directAddMember_{{.ID}}">
+                                        <label class="form-check-label small d-flex align-items-center gap-2 text-dark w-100" for="directAddMember_{{.ID}}">
+                                            {{if .ProfilePhoto}}
+                                                <img src="/uploads/profiles/{{.ProfilePhoto}}" alt="{{.FullName}}" class="rounded-circle object-fit-cover flex-shrink-0" style="width: 28px; height: 28px;">
+                                            {{else}}
+                                                <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold flex-shrink-0" style="width: 28px; height: 28px; font-size: 0.75rem;">
+                                                    {{.Initials}}
+                                                </div>
+                                            {{end}}
+                                            <div class="flex-grow-1 overflow-hidden">
+                                                <div class="fw-semibold text-truncate">{{.FullName}}</div>
+                                                <div class="text-muted" style="font-size: 0.75rem;">@{{.Username}}{{if .ChurchName}} &bull; {{.ChurchName}}{{end}}</div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                {{end}}
+                            {{end}}
+                        {{end}}
+                        <div id="noDirectEligibleMembersFound" class="text-muted small {{if $hasContacts}}d-none{{end}}">
+                            No additional contacts found. Use the manual username input below.
+                        </div>
+                    </div>
+
+                    <!-- Manual Member Input -->
+                    <div class="mt-3 pt-3 border-top">
+                        <label for="directManualMemberInput" class="form-label small fw-bold text-dark mb-1">
+                            <i class="bi bi-at text-primary me-1"></i> Add Member by Username / Email
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-person-fill text-muted"></i></span>
+                            <input type="text" class="form-control border-start-0" id="directManualMemberInput" name="manual_member" placeholder="e.g. johndoe or john@example.com" autocomplete="off">
+                        </div>
+                        <div class="form-text small text-muted mt-1">Enter any registered member's username or email.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" id="directAddMembersSubmitBtn" class="btn btn-primary rounded-pill px-4 fw-bold d-flex align-items-center gap-2">
+                        <span id="directAddMembersBtnSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                        <span id="directAddMembersBtnText"><i class="bi bi-people-fill me-1"></i> Create Group & Add</span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -2636,7 +2748,7 @@ document.addEventListener("DOMContentLoaded", function () {
             safeImgAlt.textContent = m.AttachmentName || "Image";
             mediaHtml = `
                 <div class="chat-attachment-image mb-2">
-                    <div class="position-relative overflow-hidden rounded-3 shadow-sm border bg-dark" style="max-width: 340px;">
+                    <div class="position-relative overflow-hidden rounded-3 shadow-sm border bg-dark" style="max-width: min(340px, 100%);">
                         <a href="${m.AttachmentURL}" target="_blank" class="d-block text-decoration-none">
                             <img src="${m.AttachmentURL}" alt="${safeImgAlt.innerHTML}" class="img-fluid d-block w-100" style="max-height: 280px; object-fit: cover;" loading="lazy">
                         </a>
@@ -2656,7 +2768,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const safeVoiceName = document.createElement("span");
             safeVoiceName.textContent = m.AttachmentName || "Voice Note";
             mediaHtml = `
-                <div class="chat-attachment-voice mb-2 p-2 rounded-3 ${isMe ? 'bg-white bg-opacity-25 border border-white border-opacity-25' : 'bg-light border'}" style="max-width: 320px;">
+                <div class="chat-attachment-voice mb-2 p-2 rounded-3 ${isMe ? 'bg-white bg-opacity-25 border border-white border-opacity-25' : 'bg-light border'}" style="max-width: min(320px, 100%);">
                     <div class="d-flex align-items-center justify-content-between mb-1">
                         <span class="small fw-semibold d-flex align-items-center gap-1 ${isMe ? 'text-white' : 'text-dark'}" style="font-size: 0.78rem;">
                             <i class="bi bi-mic-fill text-warning"></i> Voice Note
@@ -2681,7 +2793,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const ext = getFileExtension(m.AttachmentName || "").toUpperCase();
             const canPreview = (ext === "PDF" || ext === "TXT");
             mediaHtml = `
-                <div class="chat-attachment-file mb-2 p-2 rounded-3 ${isMe ? 'bg-white bg-opacity-25 border border-white border-opacity-50 text-white' : 'bg-light border text-dark'}" style="max-width: 340px; min-width: 220px;">
+                <div class="chat-attachment-file mb-2 p-2 rounded-3 ${isMe ? 'bg-white bg-opacity-25 border border-white border-opacity-50 text-white' : 'bg-light border text-dark'}" style="max-width: min(340px, 100%); min-width: min(220px, 100%);">
                     <div class="d-flex align-items-center gap-2">
                         <div class="flex-shrink-0 d-flex align-items-center justify-content-center rounded-3 ${isMe ? 'bg-white text-dark shadow-sm' : 'bg-white shadow-sm border'}" style="width: 44px; height: 44px;">
                             <i class="${iconClass} fs-3"></i>
@@ -3128,11 +3240,13 @@ document.addEventListener("DOMContentLoaded", function () {
                             incomingCallerAvatar.textContent = (data.caller_name || "U").substring(0, 2).toUpperCase();
                         }
                     }
+                    startCallChime();
                     if (incomingCallModal) incomingCallModal.show();
 
                     // 35s incoming ring timeout
                     clearTimeout(incomingCallRingTimeout);
                     incomingCallRingTimeout = setTimeout(() => {
+                        stopCallChime();
                         if (pendingOfferData && pendingOfferData.call_id === data.call_id) {
                             if (incomingCallModal) incomingCallModal.hide();
                             pendingOfferData = null;
@@ -3143,6 +3257,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 case "call_cancel":
                     clearTimeout(incomingCallRingTimeout);
+                    stopCallChime();
                     if (incomingCallModal) incomingCallModal.hide();
                     pendingOfferData = null;
                     showChatNotification("Call cancelled by caller", false);
@@ -3334,6 +3449,67 @@ document.addEventListener("DOMContentLoaded", function () {
             if (data && data.iceServers) iceServersConfig = data.iceServers;
         })
         .catch(() => {});
+
+    // ==========================================
+    // Web Audio API Ringtone Chime
+    // ==========================================
+    let callChimeAudioCtx = null;
+    let callChimeInterval = null;
+
+    function startCallChime() {
+        stopCallChime();
+        try {
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtx) return;
+            callChimeAudioCtx = new AudioCtx();
+            if (callChimeAudioCtx.state === 'suspended') {
+                callChimeAudioCtx.resume().catch(() => {});
+            }
+
+            function playBurst() {
+                if (!callChimeAudioCtx || callChimeAudioCtx.state === 'closed') return;
+                const now = callChimeAudioCtx.currentTime;
+                const osc1 = callChimeAudioCtx.createOscillator();
+                const osc2 = callChimeAudioCtx.createOscillator();
+                const gain = callChimeAudioCtx.createGain();
+
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(440, now);
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(480, now);
+
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.18, now + 0.05);
+                gain.gain.setValueAtTime(0.18, now + 1.4);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(callChimeAudioCtx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 1.8);
+                osc2.stop(now + 1.8);
+            }
+
+            playBurst();
+            callChimeInterval = setInterval(playBurst, 3200);
+        } catch (e) {
+            console.warn("Could not play incoming call chime:", e);
+        }
+    }
+
+    function stopCallChime() {
+        if (callChimeInterval) {
+            clearInterval(callChimeInterval);
+            callChimeInterval = null;
+        }
+        if (callChimeAudioCtx) {
+            try { callChimeAudioCtx.close(); } catch(e) {}
+            callChimeAudioCtx = null;
+        }
+    }
 
     const startAudioCallBtn = document.getElementById("startAudioCallBtn");
     const startVideoCallBtn = document.getElementById("startVideoCallBtn");
@@ -3535,6 +3711,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function handleCallEnded(duration) {
+        stopCallChime();
         cleanupCallMedia();
         if (activeCallId > 0) {
             fetch("/messages/call/log", {
@@ -3682,6 +3859,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (acceptCallBtn) {
         acceptCallBtn.addEventListener("click", async function () {
             clearTimeout(incomingCallRingTimeout);
+            stopCallChime();
             if (!pendingOfferData) return;
             const offer = pendingOfferData;
             pendingOfferData = null;
@@ -3740,6 +3918,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (declineCallBtn) {
         declineCallBtn.addEventListener("click", function () {
             clearTimeout(incomingCallRingTimeout);
+            stopCallChime();
             if (!pendingOfferData) return;
             const offer = pendingOfferData;
             pendingOfferData = null;
@@ -5309,6 +5488,138 @@ document.addEventListener("DOMContentLoaded", function () {
                 addGroupMembersForm.querySelectorAll('input[name="user_ids"]:checked').forEach(cb => {
                     cb.checked = false;
                 });
+            }
+        });
+    }
+
+    // Add Member to Direct Conversation (Transition to Group)
+    const addMemberToDirectForm = document.getElementById("addMemberToDirectForm");
+    const filterDirectAddMembersInput = document.getElementById("filterDirectAddMembersInput");
+    let isConvertingDirectToGroup = false;
+
+    if (filterDirectAddMembersInput) {
+        filterDirectAddMembersInput.addEventListener("input", function () {
+            const query = this.value.toLowerCase().trim();
+            const items = document.querySelectorAll(".direct-eligible-member-item");
+            let visibleCount = 0;
+            items.forEach(item => {
+                const name = (item.getAttribute("data-fullname") || "").toLowerCase();
+                const user = (item.getAttribute("data-username") || "").toLowerCase();
+                const church = (item.getAttribute("data-church") || "").toLowerCase();
+                if (!query || name.includes(query) || user.includes(query) || church.includes(query)) {
+                    item.style.setProperty("display", "flex", "important");
+                    visibleCount++;
+                } else {
+                    item.style.setProperty("display", "none", "important");
+                }
+            });
+            const noItemsEl = document.getElementById("noDirectEligibleMembersFound");
+            if (noItemsEl) {
+                if (visibleCount === 0) {
+                    noItemsEl.classList.remove("d-none");
+                } else {
+                    noItemsEl.classList.add("d-none");
+                }
+            }
+        });
+    }
+
+    if (addMemberToDirectForm) {
+        addMemberToDirectForm.addEventListener("submit", async function (e) {
+            e.preventDefault();
+            if (isConvertingDirectToGroup) return;
+
+            const errorAlert = document.getElementById("addMemberToDirectAlert");
+            if (errorAlert) {
+                errorAlert.classList.add("d-none");
+                errorAlert.textContent = "";
+            }
+
+            const checkedBoxes = Array.from(addMemberToDirectForm.querySelectorAll('input[name="user_ids"]:checked'));
+            const manualInputEl = document.getElementById("directManualMemberInput");
+            const manualMember = manualInputEl ? manualInputEl.value.trim() : "";
+            const titleInputEl = document.getElementById("directGroupTitleInput");
+            const groupTitle = titleInputEl ? titleInputEl.value.trim() : "";
+
+            if (checkedBoxes.length === 0 && !manualMember) {
+                if (errorAlert) {
+                    errorAlert.textContent = "Please select at least one member or enter a username / email to add.";
+                    errorAlert.classList.remove("d-none");
+                }
+                return;
+            }
+
+            const convIdInput = addMemberToDirectForm.querySelector('input[name="conversation_id"]');
+            const targetConvId = parseInt(convIdInput ? convIdInput.value : (convId || "0"), 10);
+            const userIds = checkedBoxes.map(cb => parseInt(cb.value, 10)).filter(id => !isNaN(id) && id > 0);
+
+            const submitBtn = document.getElementById("directAddMembersSubmitBtn");
+            const spinner = document.getElementById("directAddMembersBtnSpinner");
+            const btnText = document.getElementById("directAddMembersBtnText");
+
+            try {
+                isConvertingDirectToGroup = true;
+                if (submitBtn) submitBtn.disabled = true;
+                if (spinner) spinner.classList.remove("d-none");
+                if (btnText) btnText.textContent = "Creating Group...";
+
+                const response = await fetch("/messages/direct/add-members", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        conversation_id: targetConvId,
+                        group_title: groupTitle,
+                        user_ids: userIds,
+                        manual_member: manualMember
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || data.error || "Failed to create group conversation");
+                }
+
+                showChatNotification("Group conversation created successfully!", true);
+                window.location.href = data.redirect_url || `/messages?c=${data.conversation_id}`;
+            } catch (err) {
+                if (errorAlert) {
+                    errorAlert.textContent = err.message || "Failed to create group. Please try again.";
+                    errorAlert.classList.remove("d-none");
+                } else {
+                    alert(err.message || "Failed to create group");
+                }
+            } finally {
+                isConvertingDirectToGroup = false;
+                if (submitBtn) submitBtn.disabled = false;
+                if (spinner) spinner.classList.add("d-none");
+                if (btnText) btnText.innerHTML = '<i class="bi bi-people-fill me-1"></i> Create Group & Add';
+            }
+        });
+    }
+
+    const addMemberToDirectModalEl = document.getElementById("addMemberToDirectModal");
+    if (addMemberToDirectModalEl) {
+        addMemberToDirectModalEl.addEventListener("hidden.bs.modal", function () {
+            const errorAlert = document.getElementById("addMemberToDirectAlert");
+            if (errorAlert) {
+                errorAlert.classList.add("d-none");
+                errorAlert.textContent = "";
+            }
+            if (addMemberToDirectForm) {
+                addMemberToDirectForm.querySelectorAll('input[name="user_ids"]:checked').forEach(cb => {
+                    cb.checked = false;
+                });
+                const manualInputEl = document.getElementById("directManualMemberInput");
+                if (manualInputEl) manualInputEl.value = "";
+                const titleInputEl = document.getElementById("directGroupTitleInput");
+                if (titleInputEl) titleInputEl.value = "";
+                if (filterDirectAddMembersInput) {
+                    filterDirectAddMembersInput.value = "";
+                    filterDirectAddMembersInput.dispatchEvent(new Event("input"));
+                }
             }
         });
     }

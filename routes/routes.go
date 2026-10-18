@@ -694,6 +694,18 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/direct/add-members",
+		middleware.RequireLogin(
+			handlers.ConvertDirectToGroupAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/convert-to-group",
+		middleware.RequireLogin(
+			handlers.ConvertDirectToGroupAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/group/members/remove",
 		middleware.RequireLogin(
 			handlers.RemoveGroupMemberAPI,

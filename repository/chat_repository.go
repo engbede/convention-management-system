@@ -1264,6 +1264,67 @@ func UpdateGroupDetails(conversationID int, title, category, description, callPe
 	return err
 }
 
+// ConvertDirectToGroup atomically transitions a direct conversation into a group conversation,
+// updates the initiator's role to 'owner', sets other existing participants to 'member',
+// and adds the new members to conversation_members.
+func ConvertDirectToGroup(conversationID int, title string, creatorID int, newMemberIDs []int) error {
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Update conversation type and title
+	updateConvQuery := fmt.Sprintf(`
+		UPDATE conversations
+		SET type = 'group', title = %s, created_by = %s, updated_at = CURRENT_TIMESTAMP
+		WHERE id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
+
+	if _, err := tx.Exec(updateConvQuery, title, creatorID, conversationID); err != nil {
+		return err
+	}
+
+	// 2. Set creator's role to 'owner'
+	updateCreatorRole := fmt.Sprintf(`
+		UPDATE conversation_members
+		SET role = 'owner'
+		WHERE conversation_id = %s AND user_id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	if _, err := tx.Exec(updateCreatorRole, conversationID, creatorID); err != nil {
+		return err
+	}
+
+	// 3. Ensure other existing members remain 'member'
+	updateOtherRole := fmt.Sprintf(`
+		UPDATE conversation_members
+		SET role = 'member'
+		WHERE conversation_id = %s AND user_id != %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	if _, err := tx.Exec(updateOtherRole, conversationID, creatorID); err != nil {
+		return err
+	}
+
+	// 4. Insert each new member
+	for _, memberID := range newMemberIDs {
+		if memberID <= 0 || memberID == creatorID {
+			continue
+		}
+		insertMember := fmt.Sprintf(`
+			INSERT INTO conversation_members (conversation_id, user_id, role, joined_at)
+			SELECT %s, %s, 'member', CURRENT_TIMESTAMP
+			WHERE NOT EXISTS (
+				SELECT 1 FROM conversation_members WHERE conversation_id = %s AND user_id = %s
+			)
+		`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4))
+		if _, err := tx.Exec(insertMember, conversationID, memberID, conversationID, memberID); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit()
+}
+
 // GetDiscoverableGroups retrieves public groups optionally filtered by category with membership and request status.
 func GetDiscoverableGroups(userID int, category string) ([]models.ConversationItem, error) {
 	var args []any

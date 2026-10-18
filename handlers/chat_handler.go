@@ -6,6 +6,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -1152,6 +1153,173 @@ func AddGroupMembersAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", payload.GroupID), http.StatusSeeOther)
+}
+
+// ConvertDirectToGroupAPI handles adding members from an individual chat to transition it into a group chat.
+func ConvertDirectToGroupAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	isAJAX := strings.Contains(r.Header.Get("Accept"), "application/json") ||
+		strings.Contains(r.Header.Get("Content-Type"), "application/json") ||
+		r.Header.Get("X-Requested-With") == "XMLHttpRequest"
+
+	if currentUserID == 0 {
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Unauthorized"})
+			return
+		}
+		http.Redirect(w, r, "/community/login", http.StatusSeeOther)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		ConversationID int    `json:"conversation_id"`
+		GroupID        int    `json:"group_id"`
+		GroupTitle     string `json:"group_title"`
+		Title          string `json:"title"`
+		UserIDs        []int  `json:"user_ids"`
+		ManualMember   string `json:"manual_member"`
+		Username       string `json:"username"`
+	}
+
+	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
+	if isJSON {
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+	} else {
+		_ = r.ParseForm()
+		payload.ConversationID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+		if payload.ConversationID == 0 {
+			payload.ConversationID, _ = strconv.Atoi(r.FormValue("c"))
+		}
+		if payload.ConversationID == 0 {
+			payload.ConversationID, _ = strconv.Atoi(r.FormValue("group_id"))
+		}
+		payload.GroupTitle = r.FormValue("group_title")
+		if payload.GroupTitle == "" {
+			payload.GroupTitle = r.FormValue("title")
+		}
+		payload.ManualMember = r.FormValue("manual_member")
+		if payload.ManualMember == "" {
+			payload.ManualMember = r.FormValue("username")
+		}
+
+		for _, uVal := range r.Form["user_ids"] {
+			for _, idStr := range strings.Split(uVal, ",") {
+				if id, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil && id > 0 {
+					payload.UserIDs = append(payload.UserIDs, id)
+				}
+			}
+		}
+		if len(payload.UserIDs) == 0 {
+			if uStr := r.FormValue("user_ids"); uStr != "" {
+				for _, idStr := range strings.Split(uStr, ",") {
+					if id, err := strconv.Atoi(strings.TrimSpace(idStr)); err == nil && id > 0 {
+						payload.UserIDs = append(payload.UserIDs, id)
+					}
+				}
+			}
+		}
+		if len(payload.UserIDs) == 0 {
+			if uSingle, err := strconv.Atoi(r.FormValue("user_id")); err == nil && uSingle > 0 {
+				payload.UserIDs = append(payload.UserIDs, uSingle)
+			}
+		}
+	}
+
+	convID := payload.ConversationID
+	if convID == 0 {
+		convID = payload.GroupID
+	}
+	title := payload.GroupTitle
+	if title == "" {
+		title = payload.Title
+	}
+
+	// Resolve manual username / email input if specified
+	manualInput := strings.TrimSpace(payload.ManualMember)
+	if manualInput == "" {
+		manualInput = strings.TrimSpace(payload.Username)
+	}
+	if manualInput != "" {
+		cleanInput := strings.TrimPrefix(manualInput, "@")
+		cleanInput = strings.TrimSpace(cleanInput)
+		targetUser, uErr := repository.GetUserByUsername(cleanInput)
+		if uErr != nil || targetUser == nil || targetUser.ID <= 0 {
+			targetUser, uErr = repository.GetUserByEmail(cleanInput)
+		}
+
+		if uErr != nil || targetUser == nil || targetUser.ID <= 0 {
+			if len(payload.UserIDs) == 0 {
+				errMsg := fmt.Sprintf("User '%s' was not found. Please verify the username or email.", manualInput)
+				if isAJAX {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusBadRequest)
+					_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": errMsg, "message": errMsg})
+					return
+				}
+				http.Redirect(w, r, fmt.Sprintf("/messages?c=%d&error=%s", convID, url.QueryEscape(errMsg)), http.StatusSeeOther)
+				return
+			}
+		} else {
+			alreadyInList := false
+			for _, id := range payload.UserIDs {
+				if id == targetUser.ID {
+					alreadyInList = true
+					break
+				}
+			}
+			if !alreadyInList {
+				payload.UserIDs = append(payload.UserIDs, targetUser.ID)
+			}
+		}
+	}
+
+	if convID <= 0 || len(payload.UserIDs) == 0 {
+		errMsg := "Please select at least one registered member to add."
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": errMsg, "message": errMsg})
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", convID), http.StatusSeeOther)
+		return
+	}
+
+	updatedConv, err := services.ConvertDirectToGroupConversation(convID, currentUserID, payload.UserIDs, title)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusCode)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error(), "message": err.Error()})
+			return
+		}
+		http.Redirect(w, r, fmt.Sprintf("/messages?c=%d&error=%s", convID, url.QueryEscape(err.Error())), http.StatusSeeOther)
+		return
+	}
+
+	if isAJAX {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":         true,
+			"message":         "Group created successfully",
+			"conversation_id": updatedConv.ID,
+			"redirect_url":    fmt.Sprintf("/messages?c=%d", updatedConv.ID),
+		})
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", updatedConv.ID), http.StatusSeeOther)
 }
 
 // RemoveGroupMemberAPI removes a user from a group.

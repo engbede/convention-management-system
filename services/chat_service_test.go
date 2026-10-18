@@ -760,3 +760,115 @@ func TestGetUserInbox_AutoEnrollment(t *testing.T) {
 
 	_ = unread
 }
+
+func TestConvertDirectToGroupConversation(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Insert additional users
+	_, _ = database.DB.Exec(`
+		INSERT INTO users (id, full_name, username, password_hash)
+		VALUES 
+			(4, 'Fourth User', 'fourth', 'hash4'),
+			(5, 'Blocked User', 'blocked', 'hash5');
+	`)
+
+	// 1. Create direct conversation between user 1 and user 2
+	conv, err := StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+	if conv.Type != "direct" {
+		t.Fatalf("Expected direct conversation, got %s", conv.Type)
+	}
+
+	// 2. Send messages
+	msg1, err := SendMessage(conv.ID, 1, "Hello from user 1", "c1", nil)
+	if err != nil {
+		t.Fatalf("SendMessage 1 failed: %v", err)
+	}
+	msg2, err := SendMessage(conv.ID, 2, "Hello back from user 2", "c2", nil)
+	if err != nil {
+		t.Fatalf("SendMessage 2 failed: %v", err)
+	}
+
+	// 3. Unauthorized outsider cannot convert
+	_, err = ConvertDirectToGroupConversation(conv.ID, 4, []int{3}, "Hacked Group")
+	if err == nil {
+		t.Errorf("Expected error when non-participant tries to convert conversation, got nil")
+	}
+
+	// 4. Cannot convert with empty / non-existent user IDs
+	_, err = ConvertDirectToGroupConversation(conv.ID, 1, []int{99999}, "New Group")
+	if err == nil {
+		t.Errorf("Expected error when no valid registered users selected, got nil")
+	}
+
+	// 5. Convert direct conversation to group adding user 3 and user 4
+	updatedConv, err := ConvertDirectToGroupConversation(conv.ID, 1, []int{3, 4}, "Youth Fellowship Team")
+	if err != nil {
+		t.Fatalf("ConvertDirectToGroupConversation failed: %v", err)
+	}
+
+	if updatedConv.Type != "group" {
+		t.Errorf("Expected conversation type 'group', got %s", updatedConv.Type)
+	}
+	if updatedConv.Title != "Youth Fellowship Team" {
+		t.Errorf("Expected title 'Youth Fellowship Team', got %s", updatedConv.Title)
+	}
+
+	// 6. Verify membership roles
+	members, err := repository.GetConversationMembers(conv.ID)
+	if err != nil {
+		t.Fatalf("GetConversationMembers failed: %v", err)
+	}
+	if len(members) != 4 {
+		t.Fatalf("Expected 4 members in group, got %d", len(members))
+	}
+
+	roles := make(map[int]string)
+	for _, m := range members {
+		roles[m.UserID] = m.Role
+	}
+
+	if roles[1] != "owner" {
+		t.Errorf("Expected user 1 to be owner, got %s", roles[1])
+	}
+	if roles[2] != "member" {
+		t.Errorf("Expected user 2 to be member, got %s", roles[2])
+	}
+	if roles[3] != "member" {
+		t.Errorf("Expected user 3 to be member, got %s", roles[3])
+	}
+	if roles[4] != "member" {
+		t.Errorf("Expected user 4 to be member, got %s", roles[4])
+	}
+
+	// 7. Verify message history was preserved
+	msgs, err := GetConversationMessages(conv.ID, 1, 50, 0)
+	if err != nil {
+		t.Fatalf("GetConversationMessages failed: %v", err)
+	}
+
+	foundMsg1 := false
+	foundMsg2 := false
+	foundSysMsg := false
+	for _, m := range msgs {
+		if m.ID == msg1.ID && m.Body == "Hello from user 1" {
+			foundMsg1 = true
+		}
+		if m.ID == msg2.ID && m.Body == "Hello back from user 2" {
+			foundMsg2 = true
+		}
+		if m.MessageType == "system" && strings.Contains(m.Body, "converted this conversation into a group") {
+			foundSysMsg = true
+		}
+	}
+
+	if !foundMsg1 || !foundMsg2 {
+		t.Errorf("Historical direct chat messages were lost during conversion")
+	}
+	if !foundSysMsg {
+		t.Errorf("System announcement message not found after conversion")
+	}
+}
