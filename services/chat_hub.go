@@ -414,6 +414,19 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 				CallID:         event.CallID,
 			})
 		}
+	case "call_cancel":
+		if event.CallID > 0 {
+			_ = repository.UpdateCallLog(event.CallID, "missed", 0)
+		}
+		if event.TargetUserID > 0 {
+			h.BroadcastToUser(event.TargetUserID, WSEvent{
+				Type:           "call_cancel",
+				ConversationID: event.ConversationID,
+				UserID:         client.UserID,
+				TargetUserID:   event.TargetUserID,
+				CallID:         event.CallID,
+			})
+		}
 
 	case "call_end":
 		if event.CallID > 0 {

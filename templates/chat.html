@@ -15,14 +15,18 @@
     z-index: 10;
 }
 .chat-composer-input {
-    border-radius: 28px !important;
-    font-size: 1rem !important;
-    min-height: 48px !important;
-    padding: 0.65rem 1.25rem !important;
+    border-radius: 22px !important;
+    font-size: 0.95rem !important;
+    line-height: 1.45 !important;
+    min-height: 44px !important;
+    max-height: 160px !important;
+    padding: 0.55rem 1rem !important;
     background-color: #f8fafc !important;
     border: 1.5px solid #cbd5e1 !important;
     color: #1e293b !important;
-    transition: all 0.2s ease-in-out !important;
+    resize: none !important;
+    overflow-y: auto !important;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out !important;
 }
 .chat-composer-input:focus {
     background-color: #ffffff !important;
@@ -32,7 +36,7 @@
 }
 .chat-composer-input::placeholder {
     color: #64748b !important;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
 }
 .composer-action-btn {
     transition: transform 0.15s ease, background-color 0.15s ease;
@@ -40,6 +44,18 @@
 .composer-action-btn:hover {
     transform: scale(1.05);
     background-color: #e2e8f0 !important;
+}
+
+/* Chat Message Multiline Preservation */
+.message-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.45;
+}
+.message-content-box {
+    word-break: break-word;
+    overflow-wrap: break-word;
 }
 
 /* Chat Attachment World-Class Styling */
@@ -242,11 +258,11 @@
             <!-- LEFT PANEL: Conversations List -->
             <div class="col-12 col-md-4 col-lg-3 border-end d-flex flex-column h-100 bg-white {{if .ActiveConversation}}d-none d-md-flex{{end}}" id="conversationSidebar">
                 <!-- Sidebar Header -->
-                <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
-                    <h5 class="fw-bold mb-0 text-success">
+                <div class="p-3 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2 bg-light">
+                    <h5 class="fw-bold mb-0 text-success flex-shrink-0">
                         <i class="bi bi-chat-dots-fill me-1"></i> Youth Chat
                     </h5>
-                    <div class="d-flex align-items-center gap-1">
+                    <div class="d-flex align-items-center flex-wrap gap-1">
                         <button class="btn btn-sm btn-outline-secondary rounded-circle p-1 d-flex align-items-center justify-content-center shadow-sm" id="chatThemeToggleBtn" type="button" title="Switch Bright / Dark Theme" style="width: 32px; height: 32px;">
                             <i class="bi bi-moon-stars-fill" id="chatThemeIcon"></i>
                         </button>
@@ -928,19 +944,40 @@
                         <i class="bi bi-pencil-fill me-1 text-success"></i><span id="typingUser" class="fw-semibold"></span> is typing...
                     </div>
 
-                    <!-- Attachment Preview Bar -->
+                    <!-- Attachment / Voice Note Preview Bar -->
                     <div id="attachmentPreviewBar" class="px-3 py-2 bg-light border-top d-flex align-items-center justify-content-between gap-2 shadow-sm" style="display: none !important;">
-                        <div class="d-flex align-items-center gap-2 overflow-hidden">
+                        <div class="d-flex align-items-center gap-2 overflow-hidden flex-grow-1">
                             <span id="attachmentTypeBadge" class="badge bg-success rounded-pill px-2 py-1">File</span>
-                            <div class="d-flex align-items-center gap-1 overflow-hidden">
+                            <div class="d-flex align-items-center gap-1 overflow-hidden" id="attachmentMetaContainer">
                                 <i id="attachmentPreviewIcon" class="bi bi-paperclip text-muted"></i>
-                                <span id="attachmentFileName" class="small fw-semibold text-truncate text-dark" style="max-width: 320px;"></span>
+                                <span id="attachmentFileName" class="small fw-semibold text-truncate text-dark" style="max-width: 240px;"></span>
+                            </div>
+                            <!-- Live Voice Note Preview Player (shown for audio attachments) -->
+                            <div id="voicePreviewContainer" class="d-none align-items-center gap-2">
+                                <audio id="voicePreviewAudio" controls class="rounded-pill" style="height: 36px; max-width: 260px; outline: none;"></audio>
                             </div>
                             <span id="attachmentFileSize" class="badge bg-secondary-subtle text-secondary border rounded-pill small"></span>
                         </div>
-                        <button type="button" class="btn btn-sm btn-link text-danger p-0 text-decoration-none d-flex align-items-center gap-1" id="removeAttachmentBtn" title="Remove attachment">
-                            <i class="bi bi-x-circle-fill fs-5"></i>
+                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 d-flex align-items-center gap-1" id="removeAttachmentBtn" title="Remove attachment">
+                            <i class="bi bi-trash3"></i> <span class="d-none d-sm-inline small">Discard</span>
                         </button>
+                    </div>
+
+                    <!-- Voice Note Active Recording Status Bar -->
+                    <div id="voiceRecordingBar" class="px-3 py-2 bg-light border-top d-flex align-items-center justify-content-between gap-2 shadow-sm" style="display: none !important;">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="spinner-grow spinner-grow-sm text-danger" role="status" aria-hidden="true"></span>
+                            <span id="voiceRecordingTimer" class="fw-bold font-monospace text-danger" style="font-size: 1rem;">00:00</span>
+                            <span class="small text-muted ms-1 d-none d-sm-inline">Recording voice note...</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" id="cancelVoiceRecordBtn" class="btn btn-sm btn-outline-danger rounded-pill px-3 py-1 d-flex align-items-center gap-1" title="Discard recording">
+                                <i class="bi bi-x-circle"></i> Discard
+                            </button>
+                            <button type="button" id="stopVoiceRecordBtn" class="btn btn-sm btn-success rounded-pill px-3 py-1 d-flex align-items-center gap-1" title="Finish and preview recording">
+                                <i class="bi bi-check2-circle"></i> Finish
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Message Composer or Blocked Alert -->
@@ -973,28 +1010,28 @@
                     {{else}}
                         <!-- Message Composer Form -->
                         <div class="p-3 bg-white border-top shadow-sm chat-composer-container">
-                            <form id="chatMessageForm" action="/messages/send" method="POST" enctype="multipart/form-data" class="d-flex align-items-center gap-2 w-100">
+                            <form id="chatMessageForm" action="/messages/send" method="POST" enctype="multipart/form-data" class="d-flex align-items-end gap-2 w-100">
                                 <input type="hidden" name="conversation_id" id="activeConvID" value="{{.ActiveConversation.ID}}" data-conversation-type="{{.ActiveConversation.Type}}">
                                 <input type="hidden" name="client_message_id" id="clientMsgID" value="">
                                 <input type="file" id="attachmentFileInput" name="attachment" class="d-none" accept="image/*,audio/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.zip">
 
                                 <!-- Attachment Button -->
-                                <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0 composer-action-btn" id="attachBtn" title="Attach file, image, or document" style="width: 46px; height: 46px;">
+                                <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0 composer-action-btn" id="attachBtn" title="Attach file, image, or document" style="width: 44px; height: 44px; margin-bottom: 2px;">
                                     <i class="bi bi-paperclip fs-5 text-secondary"></i>
                                 </button>
 
                                 <!-- Voice Note Button -->
-                                <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0 composer-action-btn" id="voiceRecordBtn" title="Record voice note" style="width: 46px; height: 46px;">
+                                <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0 composer-action-btn" id="voiceRecordBtn" title="Record voice note" style="width: 44px; height: 44px; margin-bottom: 2px;">
                                     <i class="bi bi-mic fs-5 text-secondary" id="voiceMicIcon"></i>
                                 </button>
 
-                                <!-- Message Input Box -->
+                                <!-- Message Textarea Input Box -->
                                 <div class="flex-grow-1 position-relative" style="min-width: 0;">
-                                    <input type="text" name="body" id="messageInput" class="form-control rounded-pill bg-light border-0 px-4 py-2 w-100 chat-composer-input" placeholder="Type a message or attach a file... (Press Enter to send)" autocomplete="off" maxlength="2000" style="min-height: 48px; font-size: 1rem; border: 1.5px solid #cbd5e1 !important; background-color: #f8fafc !important;">
+                                    <textarea name="body" id="messageInput" rows="1" class="form-control bg-light px-3 py-2 w-100 chat-composer-input" placeholder="Type a message or attach a file... (Enter to send, Shift+Enter for new line)" maxlength="3000" style="min-height: 44px; max-height: 160px; font-size: 0.95rem; line-height: 1.45; border-radius: 22px; border: 1.5px solid #cbd5e1 !important; background-color: #f8fafc !important; resize: none; overflow-y: auto;"></textarea>
                                 </div>
 
                                 <!-- Send Button -->
-                                <button type="submit" id="sendBtn" class="btn btn-success rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0" title="Send message" style="width: 46px; height: 46px;">
+                                <button type="submit" id="sendBtn" class="btn btn-success rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0" title="Send message" style="width: 44px; height: 44px; margin-bottom: 2px;">
                                     <i class="bi bi-send-fill text-white fs-6"></i>
                                 </button>
                             </form>
@@ -2445,6 +2482,26 @@ document.addEventListener("DOMContentLoaded", function () {
     let isCurrentlyTyping = false;
     let typingDebounceTimeout = null;
     let typingHideTimeout = null;
+    const activeTypingMembers = new Map();
+    const activeTypingTimeouts = new Map();
+
+    function updateTypingDisplay() {
+        if (!typingIndicator) return;
+        const count = activeTypingMembers.size;
+        if (count === 0) {
+            typingIndicator.style.display = "none";
+            return;
+        }
+        const names = Array.from(activeTypingMembers.values());
+        if (count === 1) {
+            typingIndicator.innerHTML = `<i class="bi bi-pencil-fill me-1 text-success"></i><span class="fw-semibold">${escapeHtml(names[0])}</span> is typing...`;
+        } else if (count === 2) {
+            typingIndicator.innerHTML = `<i class="bi bi-pencil-fill me-1 text-success"></i><span class="fw-semibold">${escapeHtml(names[0])}</span> and <span class="fw-semibold">${escapeHtml(names[1])}</span> are typing...`;
+        } else {
+            typingIndicator.innerHTML = `<i class="bi bi-pencil-fill me-1 text-success"></i>Several members are typing...`;
+        }
+        typingIndicator.style.display = "block";
+    }
 
     // Attachment and Voice recording state
     const attachBtn = document.getElementById("attachBtn");
@@ -2456,11 +2513,20 @@ document.addEventListener("DOMContentLoaded", function () {
     const removeAttachmentBtn = document.getElementById("removeAttachmentBtn");
     const voiceRecordBtn = document.getElementById("voiceRecordBtn");
     const voiceMicIcon = document.getElementById("voiceMicIcon");
+    const voiceRecordingBar = document.getElementById("voiceRecordingBar");
+    const voiceRecordingTimer = document.getElementById("voiceRecordingTimer");
+    const cancelVoiceRecordBtn = document.getElementById("cancelVoiceRecordBtn");
+    const stopVoiceRecordBtn = document.getElementById("stopVoiceRecordBtn");
+    const voicePreviewContainer = document.getElementById("voicePreviewContainer");
+    const voicePreviewAudio = document.getElementById("voicePreviewAudio");
 
     let pendingAttachmentFile = null;
     let mediaRecorder = null;
     let audioChunks = [];
     let isRecordingVoice = false;
+    let voiceRecordTimerInterval = null;
+    let voiceRecordElapsedSeconds = 0;
+    let voiceRecordStream = null;
 
     // Helper: Update left panel conversation item preview
     function updateConversationItemPreview(cId, msg) {
@@ -2749,7 +2815,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function handleFileSelected(file) {
         if (!file) return;
         if (file.size > 10 * 1024 * 1024) {
-            alert("Attachment size must not exceed 10 MB.");
+            showChatNotification("Attachment size must not exceed 10 MB.", false);
             if (attachmentFileInput) attachmentFileInput.value = "";
             return;
         }
@@ -2759,12 +2825,14 @@ document.addEventListener("DOMContentLoaded", function () {
         if (attachmentFileSize) attachmentFileSize.textContent = formatBytes(file.size);
 
         const iconEl = document.getElementById("attachmentPreviewIcon");
+        const isAudio = file.type.startsWith("audio/") || file.name.endsWith(".webm") || file.name.endsWith(".ogg") || file.name.endsWith(".mp3") || file.name.endsWith(".wav") || file.name.endsWith(".m4a");
+
         if (attachmentTypeBadge) {
             if (file.type.startsWith("image/")) {
                 attachmentTypeBadge.className = "badge bg-info text-dark rounded-pill px-2 py-1";
                 attachmentTypeBadge.textContent = "Image";
                 if (iconEl) iconEl.className = "bi bi-image text-info me-1";
-            } else if (file.type.startsWith("audio/")) {
+            } else if (isAudio) {
                 attachmentTypeBadge.className = "badge bg-warning text-dark rounded-pill px-2 py-1";
                 attachmentTypeBadge.textContent = "Voice Note";
                 if (iconEl) iconEl.className = "bi bi-mic text-warning me-1";
@@ -2773,6 +2841,22 @@ document.addEventListener("DOMContentLoaded", function () {
                 attachmentTypeBadge.textContent = "Document";
                 if (iconEl) iconEl.className = getFileIconClass(file.name) + " me-1";
             }
+        }
+
+        if (isAudio && voicePreviewContainer && voicePreviewAudio) {
+            try {
+                const audioUrl = URL.createObjectURL(file);
+                voicePreviewAudio.src = audioUrl;
+                voicePreviewContainer.classList.remove("d-none");
+                voicePreviewContainer.style.display = "flex";
+            } catch (e) {
+                console.error("Audio preview URL error:", e);
+            }
+        } else if (voicePreviewContainer && voicePreviewAudio) {
+            voicePreviewAudio.pause();
+            voicePreviewAudio.removeAttribute("src");
+            voicePreviewContainer.classList.add("d-none");
+            voicePreviewContainer.style.display = "none";
         }
 
         if (attachmentPreviewBar) {
@@ -2793,51 +2877,125 @@ document.addEventListener("DOMContentLoaded", function () {
         removeAttachmentBtn.addEventListener("click", function () {
             pendingAttachmentFile = null;
             if (attachmentFileInput) attachmentFileInput.value = "";
+            if (voicePreviewAudio) {
+                voicePreviewAudio.pause();
+                voicePreviewAudio.removeAttribute("src");
+            }
+            if (voicePreviewContainer) {
+                voicePreviewContainer.classList.add("d-none");
+                voicePreviewContainer.style.display = "none";
+            }
             if (attachmentPreviewBar) attachmentPreviewBar.style.setProperty("display", "none", "important");
         });
     }
 
-    // Voice note recording logic
-    if (voiceRecordBtn && voiceMicIcon) {
-        voiceRecordBtn.addEventListener("click", async function () {
-            if (!isRecordingVoice) {
-                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                    alert("Voice recording is not supported in this browser.");
+    // Voice note recording lifecycle
+    function stopVoiceTimer() {
+        if (voiceRecordTimerInterval) {
+            clearInterval(voiceRecordTimerInterval);
+            voiceRecordTimerInterval = null;
+        }
+    }
+
+    function cancelVoiceRecording() {
+        stopVoiceTimer();
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.onstop = null;
+            try { mediaRecorder.stop(); } catch (_) {}
+        }
+        if (voiceRecordStream) {
+            voiceRecordStream.getTracks().forEach(t => t.stop());
+            voiceRecordStream = null;
+        }
+        audioChunks = [];
+        isRecordingVoice = false;
+        if (voiceMicIcon) voiceMicIcon.className = "bi bi-mic fs-5 text-secondary";
+        if (voiceRecordBtn) voiceRecordBtn.title = "Record voice note";
+        if (voiceRecordingBar) voiceRecordingBar.style.setProperty("display", "none", "important");
+        showChatNotification("Voice recording discarded", false);
+    }
+
+    function finishVoiceRecording() {
+        stopVoiceTimer();
+        if (voiceRecordElapsedSeconds < 1) {
+            cancelVoiceRecording();
+            showChatNotification("Recording was too short (< 1s). Discarded.", false);
+            return;
+        }
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+            mediaRecorder.stop();
+        }
+        isRecordingVoice = false;
+        if (voiceMicIcon) voiceMicIcon.className = "bi bi-mic fs-5 text-secondary";
+        if (voiceRecordBtn) voiceRecordBtn.title = "Record voice note";
+        if (voiceRecordingBar) voiceRecordingBar.style.setProperty("display", "none", "important");
+    }
+
+    async function startVoiceRecording() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showChatNotification("Voice recording is not supported in this browser.", false);
+            return;
+        }
+        try {
+            voiceRecordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(voiceRecordStream);
+            audioChunks = [];
+            voiceRecordElapsedSeconds = 0;
+            if (voiceRecordingTimer) voiceRecordingTimer.textContent = "00:00";
+
+            mediaRecorder.ondataavailable = e => {
+                if (e.data && e.data.size > 0) audioChunks.push(e.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                if (voiceRecordStream) {
+                    voiceRecordStream.getTracks().forEach(track => track.stop());
+                    voiceRecordStream = null;
+                }
+                const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+                if (audioBlob.size <= 0) {
+                    showChatNotification("Empty recording discarded.", false);
                     return;
                 }
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream);
-                    audioChunks = [];
+                const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: "audio/webm" });
+                handleFileSelected(audioFile);
+                showChatNotification("Voice note recorded! You can listen below or send.", true);
+            };
 
-                    mediaRecorder.ondataavailable = e => {
-                        if (e.data.size > 0) audioChunks.push(e.data);
-                    };
+            mediaRecorder.start();
+            isRecordingVoice = true;
+            if (voiceMicIcon) voiceMicIcon.className = "bi bi-stop-circle-fill fs-5 text-danger";
+            if (voiceRecordBtn) voiceRecordBtn.title = "Finish recording voice note";
+            if (voiceRecordingBar) voiceRecordingBar.style.setProperty("display", "flex", "important");
 
-                    mediaRecorder.onstop = () => {
-                        stream.getTracks().forEach(track => track.stop());
-                        const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
-                        const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: "audio/webm" });
-                        handleFileSelected(audioFile);
-                    };
+            voiceRecordTimerInterval = setInterval(() => {
+                voiceRecordElapsedSeconds++;
+                const mins = String(Math.floor(voiceRecordElapsedSeconds / 60)).padStart(2, "0");
+                const secs = String(voiceRecordElapsedSeconds % 60).padStart(2, "0");
+                if (voiceRecordingTimer) voiceRecordingTimer.textContent = `${mins}:${secs}`;
+            }, 1000);
+        } catch (err) {
+            console.error("Microphone access error:", err);
+            showChatNotification("Could not access microphone: " + (err.message || "Permission denied"), false);
+        }
+    }
 
-                    mediaRecorder.start();
-                    isRecordingVoice = true;
-                    voiceMicIcon.className = "bi bi-stop-circle-fill fs-5 text-danger";
-                    voiceRecordBtn.title = "Stop recording voice note";
-                } catch (err) {
-                    console.error("Microphone access error:", err);
-                    alert("Could not access microphone: " + err.message);
-                }
+    if (voiceRecordBtn) {
+        voiceRecordBtn.addEventListener("click", function () {
+            if (!isRecordingVoice) {
+                startVoiceRecording();
             } else {
-                if (mediaRecorder && mediaRecorder.state !== "inactive") {
-                    mediaRecorder.stop();
-                }
-                isRecordingVoice = false;
-                voiceMicIcon.className = "bi bi-mic fs-5 text-secondary";
-                voiceRecordBtn.title = "Record voice note";
+                finishVoiceRecording();
             }
         });
+    }
+
+    if (cancelVoiceRecordBtn) {
+        cancelVoiceRecordBtn.addEventListener("click", cancelVoiceRecording);
+    }
+
+    if (stopVoiceRecordBtn) {
+        stopVoiceRecordBtn.addEventListener("click", finishVoiceRecording);
     }
 
     // Connect WebSocket
@@ -2913,17 +3071,26 @@ document.addEventListener("DOMContentLoaded", function () {
                     break;
 
                 case "typing":
-                    if (data.conversation_id === convId && data.user_id !== currentUserId && typingIndicator && typingUser) {
+                    if (data.conversation_id === convId && data.user_id !== currentUserId && typingIndicator) {
+                        const uid = data.user_id;
                         if (data.is_typing) {
-                            typingUser.textContent = data.username || "Someone";
-                            typingIndicator.style.display = "block";
-                            clearTimeout(typingHideTimeout);
-                            typingHideTimeout = setTimeout(() => {
-                                typingIndicator.style.display = "none";
-                            }, 3500);
+                            activeTypingMembers.set(uid, data.username || "Member");
+                            if (activeTypingTimeouts.has(uid)) {
+                                clearTimeout(activeTypingTimeouts.get(uid));
+                            }
+                            activeTypingTimeouts.set(uid, setTimeout(() => {
+                                activeTypingMembers.delete(uid);
+                                activeTypingTimeouts.delete(uid);
+                                updateTypingDisplay();
+                            }, 3000));
                         } else {
-                            typingIndicator.style.display = "none";
+                            activeTypingMembers.delete(uid);
+                            if (activeTypingTimeouts.has(uid)) {
+                                clearTimeout(activeTypingTimeouts.get(uid));
+                                activeTypingTimeouts.delete(uid);
+                            }
                         }
+                        updateTypingDisplay();
                     }
                     break;
 
@@ -2962,9 +3129,27 @@ document.addEventListener("DOMContentLoaded", function () {
                         }
                     }
                     if (incomingCallModal) incomingCallModal.show();
+
+                    // 35s incoming ring timeout
+                    clearTimeout(incomingCallRingTimeout);
+                    incomingCallRingTimeout = setTimeout(() => {
+                        if (pendingOfferData && pendingOfferData.call_id === data.call_id) {
+                            if (incomingCallModal) incomingCallModal.hide();
+                            pendingOfferData = null;
+                            showChatNotification("Missed call from " + (data.caller_name || "Member"), false);
+                        }
+                    }, 35000);
+                    break;
+
+                case "call_cancel":
+                    clearTimeout(incomingCallRingTimeout);
+                    if (incomingCallModal) incomingCallModal.hide();
+                    pendingOfferData = null;
+                    showChatNotification("Call cancelled by caller", false);
                     break;
 
                 case "call_answer":
+                    clearTimeout(outgoingCallRingTimeout);
                     activeCallId = data.call_id;
                     if (peerConnection && data.sdp) {
                         peerConnection.setRemoteDescription(new RTCSessionDescription({
@@ -2984,22 +3169,26 @@ document.addEventListener("DOMContentLoaded", function () {
                     break;
 
                 case "call_decline":
-                    alert("Call was declined.");
+                    clearTimeout(outgoingCallRingTimeout);
+                    showChatNotification("Call was declined.", false);
                     handleCallEnded();
                     break;
 
                 case "call_end":
-                    alert(`Call ended. Duration: ${data.duration || 0}s`);
+                    clearTimeout(outgoingCallRingTimeout);
+                    showChatNotification(`Call ended. Duration: ${data.duration || 0}s`, true);
                     handleCallEnded(data.duration);
                     break;
 
                 case "call_busy":
-                    alert("Contact is currently busy on another call.");
+                    clearTimeout(outgoingCallRingTimeout);
+                    showChatNotification("Contact is currently busy on another call.", false);
                     handleCallEnded();
                     break;
 
                 case "call_unavailable":
-                    alert(data.error || "Contact is currently offline / unavailable.");
+                    clearTimeout(outgoingCallRingTimeout);
+                    showChatNotification(data.error || "Contact is currently offline / unavailable.", false);
                     handleCallEnded();
                     break;
 
@@ -3135,6 +3324,8 @@ document.addEventListener("DOMContentLoaded", function () {
     let pendingOfferData = null;
     let isMicMuted = false;
     let isCamOff = false;
+    let outgoingCallRingTimeout = null;
+    let incomingCallRingTimeout = null;
 
     // Fetch STUN server configuration
     fetch("/messages/call/ice-servers")
@@ -3195,6 +3386,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function cleanupCallMedia() {
         stopTimer();
+        clearTimeout(outgoingCallRingTimeout);
+        clearTimeout(incomingCallRingTimeout);
         stopScreenShare();
         if (localStream) {
             localStream.getTracks().forEach(t => t.stop());
@@ -3258,6 +3451,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         peerConnection.onconnectionstatechange = function () {
             if (peerConnection.connectionState === "connected") {
+                clearTimeout(outgoingCallRingTimeout);
                 if (callStatusText) callStatusText.textContent = "Connected";
                 startTimer();
             } else if (peerConnection.connectionState === "disconnected" || peerConnection.connectionState === "failed" || peerConnection.connectionState === "closed") {
@@ -3268,12 +3462,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
     async function initiateCall(type) {
         if (!socket || !socketConnected) {
-            alert("Chat connection not active. Please refresh.");
+            showChatNotification("Chat connection not active. Please refresh.", false);
             return;
         }
         const activeRecipientInput = {{if .ActiveRecipient}}{{.ActiveRecipient.ID}}{{else}}0{{end}};
         if (!activeRecipientInput || !convId) {
-            alert("No active contact selected.");
+            showChatNotification("No active contact selected.", false);
             return;
         }
 
@@ -3315,10 +3509,28 @@ document.addEventListener("DOMContentLoaded", function () {
                 call_type: activeCallType,
                 sdp: offer.sdp
             }));
+
+            // 35s outgoing ring timeout
+            clearTimeout(outgoingCallRingTimeout);
+            outgoingCallRingTimeout = setTimeout(() => {
+                if (callStatusText && callStatusText.textContent === "Calling...") {
+                    showChatNotification("No answer from contact", false);
+                    if (socket && socketConnected && activeCallPeerId) {
+                        socket.send(JSON.stringify({
+                            type: "call_cancel",
+                            conversation_id: activeCallConvId,
+                            target_user_id: activeCallPeerId,
+                            call_id: activeCallId,
+                            duration: 0
+                        }));
+                    }
+                    handleCallEnded();
+                }
+            }, 35000);
         } catch (err) {
             console.error("Camera/Mic error:", err);
             cleanupCallMedia();
-            alert("Could not access media devices: " + (err.message || err.name));
+            showChatNotification("Could not access media devices: " + (err.message || err.name), false);
         }
     }
 
@@ -3452,9 +3664,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (hangupCallBtn) {
         hangupCallBtn.addEventListener("click", function () {
+            clearTimeout(outgoingCallRingTimeout);
             if (socket && socketConnected && activeCallPeerId) {
+                const isStillCalling = (callStatusText && callStatusText.textContent === "Calling...");
                 socket.send(JSON.stringify({
-                    type: "call_end",
+                    type: isStillCalling ? "call_cancel" : "call_end",
                     conversation_id: activeCallConvId,
                     target_user_id: activeCallPeerId,
                     call_id: activeCallId,
@@ -3467,6 +3681,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (acceptCallBtn) {
         acceptCallBtn.addEventListener("click", async function () {
+            clearTimeout(incomingCallRingTimeout);
             if (!pendingOfferData) return;
             const offer = pendingOfferData;
             pendingOfferData = null;
@@ -3517,13 +3732,14 @@ document.addEventListener("DOMContentLoaded", function () {
             } catch (err) {
                 console.error("Error accepting call:", err);
                 cleanupCallMedia();
-                alert("Could not access camera/microphone to accept call.");
+                showChatNotification("Could not access camera/microphone to accept call.", false);
             }
         });
     }
 
     if (declineCallBtn) {
         declineCallBtn.addEventListener("click", function () {
+            clearTimeout(incomingCallRingTimeout);
             if (!pendingOfferData) return;
             const offer = pendingOfferData;
             pendingOfferData = null;
@@ -4466,10 +4682,20 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // Typing listener on composer input
-    if (input && convId > 0) {
+    function adjustComposerHeight() {
+        if (!input) return;
+        input.style.height = "auto";
+        const maxHeight = 160;
+        const minHeight = 44;
+        const scrollHeight = input.scrollHeight;
+        input.style.height = Math.min(Math.max(scrollHeight, minHeight), maxHeight) + "px";
+    }
+
+    // Typing listener and multiline auto-expand on composer input
+    if (input) {
         input.addEventListener("input", function () {
-            if (socketConnected && socket && socket.readyState === WebSocket.OPEN) {
+            adjustComposerHeight();
+            if (convId > 0 && socketConnected && socket && socket.readyState === WebSocket.OPEN) {
                 if (!isCurrentlyTyping) {
                     isCurrentlyTyping = true;
                     socket.send(JSON.stringify({
@@ -4490,6 +4716,15 @@ document.addEventListener("DOMContentLoaded", function () {
                         }));
                     }
                 }, 2500);
+            }
+        });
+
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                if (form) {
+                    form.dispatchEvent(new Event("submit", { cancelable: true }));
+                }
             }
         });
     }
@@ -4558,8 +4793,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 })
                 .then(data => {
                     input.value = "";
+                    adjustComposerHeight();
                     pendingAttachmentFile = null;
                     if (attachmentFileInput) attachmentFileInput.value = "";
+                    if (voicePreviewAudio) {
+                        voicePreviewAudio.pause();
+                        voicePreviewAudio.removeAttribute("src");
+                    }
+                    if (voicePreviewContainer) {
+                        voicePreviewContainer.classList.add("d-none");
+                        voicePreviewContainer.style.display = "none";
+                    }
                     if (attachmentPreviewBar) attachmentPreviewBar.style.setProperty("display", "none", "important");
 
                     if (container && data.message) {
@@ -4582,7 +4826,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 })
                 .catch(err => {
                     console.error("Upload error:", err);
-                    alert(err.message || "Failed to upload attachment. Please try again.");
+                    showChatNotification(err.message || "Failed to upload attachment. Please try again.", false);
                 })
                 .finally(() => {
                     isSubmittingMessage = false;
@@ -4623,6 +4867,7 @@ document.addEventListener("DOMContentLoaded", function () {
             .then(data => {
                 // Clear input ONLY upon successful submission
                 input.value = "";
+                adjustComposerHeight();
 
                 if (container && data.message) {
                     const emptyNotice = container.querySelector(".h-100.d-flex");
@@ -4644,7 +4889,7 @@ document.addEventListener("DOMContentLoaded", function () {
             })
             .catch(err => {
                 console.error("Message send error:", err);
-                alert(err.message || "Failed to send message. Please try again.");
+                showChatNotification(err.message || "Failed to send message. Please try again.", false);
             })
             .finally(() => {
                 isSubmittingMessage = false;

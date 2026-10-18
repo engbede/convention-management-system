@@ -68,6 +68,10 @@ func SaveUploadedFile(
 
 	filename := hex.EncodeToString(random) + ext
 
+	if err := os.MkdirAll(destination, 0755); err != nil {
+		return "", err
+	}
+
 	path := filepath.Join(
 		destination,
 		filename,
@@ -136,6 +140,9 @@ func SaveChatAttachment(
 	defer file.Close()
 
 	const maxFileSize = 10 * 1024 * 1024 // 10 MB
+	if header.Size <= 0 {
+		return "", "", "", errors.New("attachment file is empty")
+	}
 	if header.Size > maxFileSize {
 		return "", "", "", errors.New("attachment size must not exceed 10 MB")
 	}
@@ -152,6 +159,29 @@ func SaveChatAttachment(
 		return "", "", "", err
 	}
 	detectedType := http.DetectContentType(buffer)
+
+	// Browser recorded audio in webm container often reports video/webm or application/octet-stream.
+	// Normalize voice notes to standard audio MIME types so audio players load cleanly.
+	if msgType == "voice" {
+		if !strings.HasPrefix(detectedType, "audio/") {
+			switch ext {
+			case ".webm":
+				detectedType = "audio/webm"
+			case ".ogg":
+				detectedType = "audio/ogg"
+			case ".mp3":
+				detectedType = "audio/mpeg"
+			case ".wav":
+				detectedType = "audio/wav"
+			case ".m4a":
+				detectedType = "audio/mp4"
+			case ".aac":
+				detectedType = "audio/aac"
+			default:
+				detectedType = "audio/webm"
+			}
+		}
+	}
 
 	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {
@@ -184,3 +214,4 @@ func SaveChatAttachment(
 
 	return filename, msgType, detectedType, nil
 }
+

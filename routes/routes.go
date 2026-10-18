@@ -545,6 +545,15 @@ func RegisterRoutes(mux *http.ServeMux) {
 		handlers.CommunityLogout,
 	)
 
+	mux.HandleFunc(
+		"/community/prayer/submit",
+		middleware.RequireLogin(handlers.SubmitCommunityPrayerRequest),
+	)
+	mux.HandleFunc(
+		"/community/prayer/pray",
+		middleware.RequireLogin(handlers.TogglePrayerIntercessionAPI),
+	)
+
 	// Public Policy & Community Guidelines
 	mux.HandleFunc(
 		"/community/guidelines",
@@ -865,6 +874,9 @@ func RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/admin/login", handlers.AdminLogin)
 	mux.HandleFunc("/login", handlers.AdminLogin)
+	mux.HandleFunc("/admin/forgot-password", handlers.AdminForgotPassword)
+	mux.HandleFunc("/admin/reset-password", handlers.AdminResetPassword)
+	mux.HandleFunc("/admin/change-password", middleware.RequireAuth(handlers.AdminChangePassword))
 
 	mux.HandleFunc("/healthz", handlers.Health)
 

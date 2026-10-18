@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 
 	"convention-management-system/database"
@@ -352,3 +353,144 @@ func TestGroupCallPermissionsAdminsOnly(t *testing.T) {
 	_, _ = GlobalGroupCallManager.EndGroupCall(convID, 2)
 	_ = room
 }
+
+func TestGroupCall_300SimultaneousParticipantsAndActiveSpeaker(t *testing.T) {
+	testDBPath := "test_group_call_300.db"
+	_ = os.Remove(testDBPath)
+
+	db, err := sql.Open("sqlite3", testDBPath)
+	if err != nil {
+		t.Fatalf("Failed to open test db: %v", err)
+	}
+	defer func() {
+		db.Close()
+		_ = os.Remove(testDBPath)
+	}()
+	database.DB = db
+
+	if err := database.MigrateSQLite(); err != nil {
+		t.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// Insert 300 users in a single transaction for high performance
+	tx, err := db.Begin()
+	if err != nil {
+		t.Fatalf("Failed to begin tx: %v", err)
+	}
+	stmt, err := tx.Prepare(`INSERT INTO users (id, full_name, username, password_hash) VALUES (?, ?, ?, 'hash')`)
+	if err != nil {
+		t.Fatalf("Failed to prepare user insert: %v", err)
+	}
+	for i := 1; i <= 300; i++ {
+		_, _ = stmt.Exec(i, fmt.Sprintf("Delegate %d", i), fmt.Sprintf("delegate_%d", i))
+	}
+	_ = stmt.Close()
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("Failed to commit user inserts: %v", err)
+	}
+
+	// Create group conversation with user 1 as owner and users 2..300 as members
+	var memberIDs []int
+	for i := 2; i <= 300; i++ {
+		memberIDs = append(memberIDs, i)
+	}
+	conv, err := CreateGroup(1, "Plenary Convention Hall", "general", "General convention fellowship", "all", true, memberIDs)
+	if err != nil {
+		t.Fatalf("Failed to create group: %v", err)
+	}
+
+	defer func() {
+		GlobalGroupCallManager.mu.Lock()
+		delete(GlobalGroupCallManager.rooms, conv.ID)
+		GlobalGroupCallManager.mu.Unlock()
+	}()
+
+	// Verify maximum participants limit is at least 300
+	if GlobalGroupCallManager.GetMaxParticipants() < 300 {
+		t.Fatalf("Expected room limit >= 300, got %d", GlobalGroupCallManager.GetMaxParticipants())
+	}
+
+	// 1. Initiator (User 1) starts call
+	room, err := GlobalGroupCallManager.StartGroupCall(conv.ID, 1, "video")
+	if err != nil {
+		t.Fatalf("Failed to start group call: %v", err)
+	}
+
+	// 2. Concurrently join remaining 299 participants (User 2 to User 300)
+	var wg sync.WaitGroup
+	errChan := make(chan error, 300)
+
+	for i := 2; i <= 300; i++ {
+		wg.Add(1)
+		go func(uid int) {
+			defer wg.Done()
+			_, _, jErr := GlobalGroupCallManager.JoinGroupCall(conv.ID, uid)
+			if jErr != nil {
+				errChan <- fmt.Errorf("user %d failed to join: %w", uid, jErr)
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(errChan)
+
+	for err := range errChan {
+		t.Fatalf("Concurrent join error: %v", err)
+	}
+
+	// 3. Verify exactly 300 participants are actively enrolled in the room
+	room, exists := GlobalGroupCallManager.GetActiveGroupCall(conv.ID)
+	if !exists {
+		t.Fatalf("Expected active group call to exist")
+	}
+
+	GlobalGroupCallManager.mu.RLock()
+	totalParticipants := len(room.Participants)
+	GlobalGroupCallManager.mu.RUnlock()
+
+	if totalParticipants != 300 {
+		t.Fatalf("Expected 300 simultaneous participants, got %d", totalParticipants)
+	}
+
+	// 4. Test Active-Speaker Detection & Highlighting
+	// Delegate 42 starts speaking
+	_, err = GlobalGroupCallManager.UpdateParticipantMediaState(conv.ID, 42, false, false, true)
+	if err != nil {
+		t.Fatalf("Failed updating active speaker state: %v", err)
+	}
+
+	GlobalGroupCallManager.mu.RLock()
+	p42 := room.Participants[42]
+	GlobalGroupCallManager.mu.RUnlock()
+
+	if p42 == nil || !p42.IsSpeaking {
+		t.Errorf("Expected participant 42 to have IsSpeaking=true")
+	}
+
+	// Delegate 42 stops speaking, Delegate 105 begins speaking
+	_, _ = GlobalGroupCallManager.UpdateParticipantMediaState(conv.ID, 42, false, false, false)
+	_, _ = GlobalGroupCallManager.UpdateParticipantMediaState(conv.ID, 105, false, false, true)
+
+	GlobalGroupCallManager.mu.RLock()
+	p42After := room.Participants[42]
+	p105 := room.Participants[105]
+	GlobalGroupCallManager.mu.RUnlock()
+
+	if p42After.IsSpeaking {
+		t.Errorf("Expected participant 42 to have IsSpeaking=false after ceasing speech")
+	}
+	if p105 == nil || !p105.IsSpeaking {
+		t.Errorf("Expected participant 105 to be active highlighted speaker")
+	}
+
+	// 5. End group call cleanly
+	_, err = GlobalGroupCallManager.EndGroupCall(conv.ID, 1)
+	if err != nil {
+		t.Fatalf("Failed to end group call: %v", err)
+	}
+
+	_, stillExists := GlobalGroupCallManager.GetActiveGroupCall(conv.ID)
+	if stillExists {
+		t.Errorf("Expected group call to be removed after end")
+	}
+}
+

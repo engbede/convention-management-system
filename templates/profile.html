@@ -57,57 +57,22 @@
         </div>
 
         <div class="card-body text-center">
-            
-            <div
-    class="profile-avatar position-relative d-inline-block"
-    style="margin-top:-80px; z-index:10;">
+            <div class="profile-avatar position-relative d-inline-block" style="margin-top:-80px; z-index:10;">
+                <button type="button" class="btn p-0 border-0 bg-transparent position-relative" data-bs-toggle="modal" data-bs-target="#facialVerificationModal" title="Update and Verify Profile Photo">
+                    {{if .User.ProfilePhoto}}
+                    <img src="/uploads/profiles/{{.User.ProfilePhoto}}" class="rounded-circle border border-4 border-white shadow-sm" style="width:160px;height:160px;object-fit:cover;">
+                    {{else}}
+                    <div class="rounded-circle bg-success text-white border border-4 border-white shadow-sm d-flex justify-content-center align-items-center fw-bold" style="width:160px;height:160px;font-size:56px;">
+                        {{.User.Initials}}
+                    </div>
+                    {{end}}
 
-    <form
-        action="/profile/upload-photo"
-        method="POST"
-        enctype="multipart/form-data">
-
-        <label style="cursor:pointer;">
-
-    {{if .User.ProfilePhoto}}
-
-    <img
-        src="/uploads/profiles/{{.User.ProfilePhoto}}"
-        class="rounded-circle border border-4 border-white"
-        style="width:160px;height:160px;object-fit:cover;">
-
-    {{else}}
-
-    <div
-        class="rounded-circle bg-success text-white border border-4 border-white d-flex justify-content-center align-items-center fw-bold"
-        style="width:160px;height:160px;font-size:56px;">
-
-        {{.User.Initials}}
-
-    </div>
-
-    {{end}}
-
-    <!-- CAMERA BUTTON -->
-
-    <span class="camera-btn">
-
-        <i class="bi bi-camera-fill"></i>
-
-    </span>
-
-    <input
-        type="file"
-        name="profile_photo"
-        accept="image/*"
-        onchange="this.form.submit()"
-        hidden>
-
-</label>
-
-    </form>
-
-</div>
+                    <!-- CAMERA BADGE -->
+                    <span class="camera-btn position-absolute bottom-0 end-0 bg-primary text-white rounded-circle shadow" style="width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;">
+                        <i class="bi bi-camera-fill"></i>
+                    </span>
+                </button>
+            </div>
 
     <h2 class="fw-bold mt-4">
 
@@ -355,5 +320,384 @@
     </div>
 
 </div>
+
+<!-- FACIAL IDENTITY VERIFICATION & PROFILE PHOTO ONBOARDING MODAL -->
+<div class="modal fade" id="facialVerificationModal" tabindex="-1" aria-labelledby="facialVerificationModalLabel" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header bg-dark text-white border-0 py-3 px-4">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-warning text-dark rounded-pill px-3 py-1 fw-bold small">
+                        <i class="bi bi-shield-check me-1"></i> Identity Onboarding
+                    </span>
+                    <h5 class="modal-title fw-bold text-white mb-0" id="facialVerificationModalLabel">
+                        Facial Identity Verification & Profile Photo
+                    </h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close" id="closeFaceModalBtn"></button>
+            </div>
+
+            <div class="modal-body p-4">
+                <!-- STEP 1: INFORMED CONSENT & PRIVACY NOTICE -->
+                <div id="faceStepConsent">
+                    <div class="alert alert-info border-0 rounded-3 p-3 mb-3">
+                        <h6 class="fw-bold mb-1"><i class="bi bi-info-circle-fill me-1"></i> Nigeria Data Protection Act (NDPA 2023) Notice</h6>
+                        <p class="small text-muted mb-0">
+                            The Methodist Church Nigeria, Diocese of Apa Youth Fellowship platform collects your verified facial profile photo strictly for member identification, authentic fellowship interactions, anti-impersonation protection, and incoming video call authentication. Your image data is stored securely and is never sold, leased, or shared with third-party advertisers.
+                        </p>
+                    </div>
+
+                    <div class="card bg-light border-0 rounded-3 p-3 mb-3">
+                        <h6 class="fw-bold text-dark mb-2">How Assisted Verification Works</h6>
+                        <ul class="small text-secondary mb-0 ps-3">
+                            <li class="mb-1"><strong>Center your face:</strong> Look directly into your camera inside the oval guide.</li>
+                            <li class="mb-1"><strong>Liveness prompts:</strong> Follow brief head-turn cues (left, right, gentle smile) to confirm vitality.</li>
+                            <li class="mb-1"><strong>Review & Confirm:</strong> Preview your photo before it is saved to your fellowship profile.</li>
+                        </ul>
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" id="consentCheckbox">
+                        <label class="form-check-label small fw-semibold text-dark" for="consentCheckbox">
+                            I consent to assisted facial verification and photo capture for my Youth Community account in accordance with community guidelines.
+                        </label>
+                    </div>
+
+                    <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-2 pt-2 border-top">
+                        <button type="button" class="btn btn-link text-decoration-none text-muted small p-0" id="switchToUploadFallbackBtn">
+                            <i class="bi bi-upload me-1"></i> Upload standard image file instead (Accessible fallback)
+                        </button>
+                        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" id="startCameraFlowBtn" disabled>
+                            <i class="bi bi-camera me-1"></i> Start Camera Verification
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STEP 2: CAMERA CAPTURE WITH LIVENESS CUES -->
+                <div id="faceStepCamera" class="d-none text-center">
+                    <div id="cameraAlert" class="alert alert-warning py-2 px-3 small rounded-3 mb-3 d-none"></div>
+
+                    <!-- Video & Canvas Container with Oval Guide -->
+                    <div class="position-relative mx-auto rounded-4 overflow-hidden shadow-sm bg-black" style="max-width: 440px; height: 380px;">
+                        <video id="faceVideo" autoplay playsinline muted class="w-100 h-100" style="object-fit: cover; transform: scaleX(-1);"></video>
+                        
+                        <!-- Semi-transparent Oval Face Guide -->
+                        <div class="position-absolute top-0 start-0 w-100 h-100 d-flex flex-column justify-content-center align-items-center pointer-events-none" style="pointer-events: none;">
+                            <div id="faceGuideOval" style="width: 220px; height: 280px; border: 3px dashed rgba(255, 255, 255, 0.85); border-radius: 50%; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.45); transition: border-color 0.3s ease;"></div>
+                        </div>
+
+                        <!-- Live Cue Banner -->
+                        <div class="position-absolute bottom-0 start-0 end-0 p-3 bg-dark bg-opacity-75 text-white">
+                            <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
+                                <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
+                                <span class="fw-bold small" id="livenessPromptText">Step 1: Center your face inside the oval guide</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div id="livenessProgressBar" class="progress-bar bg-warning" role="progressbar" style="width: 25%;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="d-flex justify-content-center gap-2 mt-3">
+                        <button type="button" class="btn btn-outline-secondary rounded-pill px-3" id="cancelCameraBtn">
+                            Cancel
+                        </button>
+                        <button type="button" class="btn btn-success rounded-pill px-4 fw-bold" id="manualSnapBtn">
+                            <i class="bi bi-camera-fill me-1"></i> Capture Photo
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STEP 3: PREVIEW & CONFIRMATION -->
+                <div id="faceStepPreview" class="d-none text-center">
+                    <h6 class="fw-bold text-dark mb-3">Review Your Verified Profile Photo</h6>
+                    
+                    <div class="mb-3">
+                        <img id="facePreviewImg" src="" alt="Captured Profile Photo" class="rounded-circle border border-4 border-success shadow" style="width: 180px; height: 180px; object-fit: cover;">
+                    </div>
+
+                    <p class="small text-muted mb-4">
+                        <i class="bi bi-check-circle-fill text-success me-1"></i> Liveness verification completed. Photo ready to save.
+                    </p>
+
+                    <div class="d-flex justify-content-center gap-2">
+                        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" id="retakePhotoBtn">
+                            <i class="bi bi-arrow-repeat me-1"></i> Retake
+                        </button>
+                        <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" id="saveVerifiedPhotoBtn">
+                            <i class="bi bi-check2-circle me-1"></i> Save & Confirm Profile Photo
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STEP 4: ACCESSIBLE FALLBACK FILE UPLOAD -->
+                <div id="faceStepFallback" class="d-none">
+                    <h6 class="fw-bold text-dark mb-2">Standard Profile Photo Upload</h6>
+                    <p class="small text-muted mb-3">
+                        For devices without a camera, accessibility reasons, or cultural/religious head coverings, you can select and upload a clear portrait image.
+                    </p>
+
+                    <form id="fallbackUploadForm" action="/profile/upload-photo" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold text-secondary">Choose Image (JPEG, PNG, WebP — max 5MB)</label>
+                            <input type="file" name="profile_photo" id="fallbackFileInput" class="form-control" accept="image/*" required>
+                        </div>
+
+                        <div id="fallbackPreviewContainer" class="text-center d-none mb-3">
+                            <img id="fallbackPreviewImg" src="" class="rounded-circle border border-3 border-primary shadow-sm" style="width: 140px; height: 140px; object-fit: cover;">
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center pt-2 border-top">
+                            <button type="button" class="btn btn-link text-decoration-none text-muted small p-0" id="returnToConsentBtn">
+                                <i class="bi bi-arrow-left me-1"></i> Return to Camera Option
+                            </button>
+                            <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold" id="submitFallbackBtn">
+                                <i class="bi bi-upload me-1"></i> Upload Photo
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hidden Canvas for Frame Processing -->
+<canvas id="hiddenFaceCanvas" width="400" height="400" style="display: none;"></canvas>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const consentCheckbox = document.getElementById('consentCheckbox');
+    const startCameraBtn = document.getElementById('startCameraFlowBtn');
+    const switchToFallbackBtn = document.getElementById('switchToUploadFallbackBtn');
+    const returnToConsentBtn = document.getElementById('returnToConsentBtn');
+    const closeFaceModalBtn = document.getElementById('closeFaceModalBtn');
+    
+    const stepConsent = document.getElementById('faceStepConsent');
+    const stepCamera = document.getElementById('faceStepCamera');
+    const stepPreview = document.getElementById('faceStepPreview');
+    const stepFallback = document.getElementById('faceStepFallback');
+
+    const videoElem = document.getElementById('faceVideo');
+    const canvasElem = document.getElementById('hiddenFaceCanvas');
+    const faceGuideOval = document.getElementById('faceGuideOval');
+    const promptText = document.getElementById('livenessPromptText');
+    const progressBar = document.getElementById('livenessProgressBar');
+    const previewImg = document.getElementById('facePreviewImg');
+    const retakeBtn = document.getElementById('retakePhotoBtn');
+    const saveBtn = document.getElementById('saveVerifiedPhotoBtn');
+    const manualSnapBtn = document.getElementById('manualSnapBtn');
+    const cancelCameraBtn = document.getElementById('cancelCameraBtn');
+
+    let stream = null;
+    let livenessTimer = null;
+    let capturedBase64 = '';
+
+    // Consent Checkbox Enablement
+    if (consentCheckbox && startCameraBtn) {
+        consentCheckbox.addEventListener('change', function() {
+            startCameraBtn.disabled = !this.checked;
+        });
+    }
+
+    // Switch to Accessible Fallback
+    if (switchToFallbackBtn) {
+        switchToFallbackBtn.addEventListener('click', function() {
+            stopCamera();
+            stepConsent.classList.add('d-none');
+            stepCamera.classList.add('d-none');
+            stepPreview.classList.add('d-none');
+            stepFallback.classList.remove('d-none');
+        });
+    }
+
+    if (returnToConsentBtn) {
+        returnToConsentBtn.addEventListener('click', function() {
+            stepFallback.classList.add('d-none');
+            stepConsent.classList.remove('d-none');
+        });
+    }
+
+    // Fallback file preview
+    const fallbackInput = document.getElementById('fallbackFileInput');
+    const fallbackPreviewContainer = document.getElementById('fallbackPreviewContainer');
+    const fallbackPreviewImg = document.getElementById('fallbackPreviewImg');
+    if (fallbackInput && fallbackPreviewContainer && fallbackPreviewImg) {
+        fallbackInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    fallbackPreviewImg.src = e.target.result;
+                    fallbackPreviewContainer.classList.remove('d-none');
+                };
+                reader.readAsDataURL(this.files[0]);
+            }
+        });
+    }
+
+    // Start Camera Flow
+    if (startCameraBtn) {
+        startCameraBtn.addEventListener('click', async function() {
+            stepConsent.classList.add('d-none');
+            stepCamera.classList.remove('d-none');
+            await startCameraAndLiveness();
+        });
+    }
+
+    if (cancelCameraBtn) {
+        cancelCameraBtn.addEventListener('click', function() {
+            stopCamera();
+            stepCamera.classList.add('d-none');
+            stepConsent.classList.remove('d-none');
+        });
+    }
+
+    if (closeFaceModalBtn) {
+        closeFaceModalBtn.addEventListener('click', function() {
+            stopCamera();
+        });
+    }
+
+    async function startCameraAndLiveness() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+                audio: false
+            });
+            videoElem.srcObject = stream;
+            await videoElem.play();
+            runLivenessSequence();
+        } catch (err) {
+            console.error('Camera access error:', err);
+            const cameraAlert = document.getElementById('cameraAlert');
+            if (cameraAlert) {
+                cameraAlert.textContent = 'Unable to access camera (' + (err.message || 'Permission denied') + '). Please use standard photo upload.';
+                cameraAlert.classList.remove('d-none');
+            }
+            setTimeout(() => {
+                switchToFallbackBtn.click();
+            }, 1800);
+        }
+    }
+
+    function stopCamera() {
+        if (livenessTimer) {
+            clearTimeout(livenessTimer);
+            livenessTimer = null;
+        }
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = null;
+        }
+    }
+
+    function runLivenessSequence() {
+        // Step 1: Center
+        promptText.textContent = "Step 1: Center your face inside the oval guide";
+        progressBar.style.width = "25%";
+        faceGuideOval.style.borderColor = "#c59b27";
+
+        livenessTimer = setTimeout(() => {
+            // Step 2: Turn left
+            promptText.textContent = "Step 2: Turn your head gently to the left";
+            progressBar.style.width = "50%";
+            faceGuideOval.style.borderColor = "#198754";
+
+            livenessTimer = setTimeout(() => {
+                // Step 3: Turn right
+                promptText.textContent = "Step 3: Turn your head gently to the right";
+                progressBar.style.width = "75%";
+                faceGuideOval.style.borderColor = "#0d6efd";
+
+                livenessTimer = setTimeout(() => {
+                    // Step 4: Smile and hold
+                    promptText.textContent = "Step 4: Look straight and smile warmly!";
+                    progressBar.style.width = "100%";
+                    faceGuideOval.style.borderColor = "#20c997";
+
+                    livenessTimer = setTimeout(() => {
+                        captureFrame();
+                    }, 1800);
+                }, 2200);
+            }, 2200);
+        }, 2200);
+    }
+
+    if (manualSnapBtn) {
+        manualSnapBtn.addEventListener('click', function() {
+            captureFrame();
+        });
+    }
+
+    function captureFrame() {
+        stopCamera();
+        const ctx = canvasElem.getContext('2d');
+        const vW = videoElem.videoWidth || 640;
+        const vH = videoElem.videoHeight || 480;
+
+        // Square crop centered
+        const size = Math.min(vW, vH);
+        const sX = (vW - size) / 2;
+        const sY = (vH - size) / 2;
+
+        // Mirror horizontal to match selfie
+        ctx.save();
+        ctx.translate(400, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(videoElem, sX, sY, size, size, 0, 0, 400, 400);
+        ctx.restore();
+
+        capturedBase64 = canvasElem.toDataURL('image/jpeg', 0.92);
+        previewImg.src = capturedBase64;
+
+        stepCamera.classList.add('d-none');
+        stepPreview.classList.remove('d-none');
+    }
+
+    if (retakeBtn) {
+        retakeBtn.addEventListener('click', function() {
+            stepPreview.classList.add('d-none');
+            stepCamera.classList.remove('d-none');
+            startCameraAndLiveness();
+        });
+    }
+
+    if (saveBtn) {
+        saveBtn.addEventListener('click', async function() {
+            if (!capturedBase64) return;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Saving...';
+
+            try {
+                const res = await fetch('/profile/upload-photo', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: JSON.stringify({
+                        photo_base64: capturedBase64,
+                        consent: true
+                    })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to save photo.'));
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Save & Confirm Profile Photo';
+                }
+            } catch (err) {
+                console.error('Save photo error:', err);
+                alert('Network error. Please try again.');
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="bi bi-check2-circle me-1"></i> Save & Confirm Profile Photo';
+            }
+        });
+    }
+});
+</script>
 
 {{template "footer" .}}

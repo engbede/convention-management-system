@@ -1312,5 +1312,43 @@ func migrateGroupGovernanceAndModeration() error {
 		}
 	}
 
+	// 6. Add email column to admins table for password recovery
+	_ = addColumn(`ALTER TABLE admins ADD COLUMN email TEXT DEFAULT ''`)
+
+	// 7. Community Prayer Requests and Intercession Tables
+	communityPrayerQueries := []string{
+		`CREATE TABLE IF NOT EXISTS community_prayer_requests (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			title TEXT NOT NULL,
+			description TEXT NOT NULL,
+			privacy_scope TEXT NOT NULL DEFAULT 'public',
+			pray_count INTEGER DEFAULT 0,
+			status TEXT NOT NULL DEFAULT 'active',
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_comm_prayer_user ON community_prayer_requests(user_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_comm_prayer_scope ON community_prayer_requests(privacy_scope);`,
+		`CREATE INDEX IF NOT EXISTS idx_comm_prayer_status ON community_prayer_requests(status);`,
+		`CREATE TABLE IF NOT EXISTS prayer_request_prayers (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			prayer_request_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE(prayer_request_id, user_id),
+			FOREIGN KEY(prayer_request_id) REFERENCES community_prayer_requests(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_pr_prayers_req ON prayer_request_prayers(prayer_request_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_pr_prayers_user ON prayer_request_prayers(user_id);`,
+	}
+
+	for _, q := range communityPrayerQueries {
+		if err := execMigration(q); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

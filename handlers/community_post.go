@@ -3,10 +3,12 @@ package handlers
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"convention-management-system/models"
 	"convention-management-system/repository"
 	"convention-management-system/sessions"
+	"convention-management-system/utils"
 )
 
 func CreateCommunityPost(
@@ -36,18 +38,38 @@ func CreateCommunityPost(
 		return
 	}
 
-	content := r.FormValue("content")
+	_ = r.ParseMultipartForm(10 << 20) // 10 MB
 
-	log.Println("UserID:", userID)
-	log.Println("Content:", content)
+	content := strings.TrimSpace(r.FormValue("content"))
+	visibility := strings.TrimSpace(r.FormValue("visibility"))
+	if visibility == "" {
+		visibility = "public"
+	}
+
+	var imageName string
+	file, header, err := r.FormFile("image")
+	if err == nil && file != nil && header != nil {
+		savedName, saveErr := utils.SaveUploadedFile(file, header, "uploads/posts")
+		if saveErr != nil {
+			log.Println("Image upload warning:", saveErr)
+		} else {
+			imageName = "posts/" + savedName
+		}
+	}
+
+	if content == "" && imageName == "" {
+		http.Redirect(w, r, "/community", http.StatusSeeOther)
+		return
+	}
 
 	post := models.Post{
 		UserID:     userID,
 		Content:    content,
-		Visibility: "public",
+		Image:      imageName,
+		Visibility: visibility,
 	}
 
-	err := repository.CreatePost(&post)
+	err = repository.CreatePost(&post)
 	if err != nil {
 		log.Println("CreatePost error:", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

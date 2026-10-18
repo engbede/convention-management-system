@@ -655,6 +655,41 @@ WHERE c.type = 'group'
 		return err
 	}
 
+	// ----------------------------
+	// Admin Password Recovery & Community Prayer Requests
+	// ----------------------------
+	if err := execPostgresMigration("community_prayer_and_admin_recovery", `
+ALTER TABLE admins ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS community_prayer_requests (
+	id BIGSERIAL PRIMARY KEY,
+	user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	title TEXT NOT NULL,
+	description TEXT NOT NULL,
+	privacy_scope TEXT NOT NULL DEFAULT 'public',
+	pray_count INTEGER DEFAULT 0,
+	status TEXT NOT NULL DEFAULT 'active',
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_comm_prayer_user ON community_prayer_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_pg_comm_prayer_scope ON community_prayer_requests(privacy_scope);
+CREATE INDEX IF NOT EXISTS idx_pg_comm_prayer_status ON community_prayer_requests(status);
+
+CREATE TABLE IF NOT EXISTS prayer_request_prayers (
+	id BIGSERIAL PRIMARY KEY,
+	prayer_request_id BIGINT NOT NULL REFERENCES community_prayer_requests(id) ON DELETE CASCADE,
+	user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE(prayer_request_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_pr_prayers_req ON prayer_request_prayers(prayer_request_id);
+CREATE INDEX IF NOT EXISTS idx_pg_pr_prayers_user ON prayer_request_prayers(user_id);
+`); err != nil {
+		return err
+	}
+
 	return nil
 }
 

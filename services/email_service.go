@@ -18,6 +18,11 @@ import (
 // EmailSenderFunc defines the function type for sending emails (can be overridden in tests)
 var EmailSenderFunc func(to, subject, body string) error = defaultSendEmail
 
+// SendEmail dispatches an email using the configured EmailSenderFunc
+func SendEmail(to, subject, body string) error {
+	return EmailSenderFunc(to, subject, body)
+}
+
 func defaultSendEmail(to, subject, body string) error {
 	smtpHost := os.Getenv("SMTP_HOST")
 	smtpPort := os.Getenv("SMTP_PORT")

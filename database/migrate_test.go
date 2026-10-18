@@ -45,6 +45,8 @@ var expectedTables = []string{
 	"programme_prayer_requests",
 	"programme_notifications_log",
 	"group_membership_requests",
+	"community_prayer_requests",
+	"prayer_request_prayers",
 }
 
 // setupTestDB creates an isolated SQLite database file for testing and restores original DB when done.
@@ -153,6 +155,11 @@ func TestFreshDatabaseMigration(t *testing.T) {
 	}
 	if !hasColumn(t, db, "messages", "deleted_at") {
 		t.Errorf("expected column messages.deleted_at was not found")
+	}
+
+	// Verify required column on admins
+	if !hasColumn(t, db, "admins", "email") {
+		t.Errorf("expected column admins.email was not found")
 	}
 }
 

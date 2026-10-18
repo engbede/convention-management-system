@@ -24,31 +24,20 @@ body {
     border-radius: 12px;
     box-shadow: 0 0 30px rgba(0,0,0,.2);
 }
-input,
-select{
-
-    border-radius:8px !important;
-
-    padding:10px;
-
-}
-h1 {
-    text-align: center;
+.form-container input,
+.form-container select {
+    border-radius: 8px !important;
+    padding: 10px;
+    width: 100%;
+    margin-top: 5px;
 }
 
-label {
+.form-container label {
     display: block;
     margin-top: 10px;
 }
 
-input,
-select {
-    width: 100%;
-    padding: 10px;
-    margin-top: 5px;
-}
-
-button {
+.form-container button {
     margin-top: 20px;
     padding: 12px;
     cursor: pointer;
@@ -97,4 +86,17 @@ table th {
 
     transform:scale(1.05);
 
+}
+
+/* Chat Message Multiline and Layout Rules */
+.message-content {
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.45;
+}
+
+.message-content-box {
+    word-break: break-word;
+    overflow-wrap: break-word;
 }

@@ -338,20 +338,27 @@ func HasOlderMessages(conversationID, currentCount int) bool {
 
 // GetEligibleDirectChatUsers returns a list of candidate users to chat with, excluding blocked members.
 func GetEligibleDirectChatUsers(currentUserID int) ([]models.User, error) {
+	seen := make(map[int]bool)
 	var candidates []models.User
 
-	// First try to get existing friends
+	// First add existing friends
 	friends, err := GetFriends(currentUserID)
 	if err == nil && len(friends) > 0 {
 		for _, f := range friends {
-			if f.User.ID != currentUserID && f.User.ID != 0 {
+			if f.User.ID != currentUserID && f.User.ID != 0 && !seen[f.User.ID] {
+				seen[f.User.ID] = true
 				candidates = append(candidates, f.User)
 			}
 		}
 	}
 
-	if len(candidates) == 0 {
-		candidates, _ = repository.GetDiscoverUsers(currentUserID)
+	// Also include all other registered community members
+	discoverUsers, _ := repository.GetDiscoverUsers(currentUserID)
+	for _, u := range discoverUsers {
+		if u.ID != currentUserID && u.ID != 0 && !seen[u.ID] {
+			seen[u.ID] = true
+			candidates = append(candidates, u)
+		}
 	}
 
 	// Filter out blocked users

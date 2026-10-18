@@ -1,183 +1,293 @@
 {{define "right_sidebar"}}
 
-<div class="col-lg-3">
+<div class="col-lg-3 right-sidebar">
 
-    <!-- Community Statistics -->
-
+    <!-- 1. Community Statistics -->
     <div class="card shadow-sm border-0 rounded-4 mb-3">
-
         <div class="card-body">
-
-            <h5 class="fw-bold">
-
-                📊 Community Statistics
-
-            </h5>
-
-            <hr>
-
-            <div class="d-flex justify-content-between mb-2">
-
-                <span>👥 Members</span>
-
-                <strong>0</strong>
-
+            <h6 class="fw-bold text-dark mb-3 d-flex align-items-center">
+                <i class="bi bi-bar-chart-line text-primary me-2"></i> Community Statistics
+            </h6>
+            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-light">
+                <span class="text-secondary small"><i class="bi bi-people me-1"></i> Registered Members</span>
+                <span class="badge bg-primary rounded-pill px-2 py-1">{{if .Sidebar.Stats}}{{.Sidebar.Stats.MembersCount}}{{else}}0{{end}}</span>
             </div>
-
-            <div class="d-flex justify-content-between mb-2">
-
-                <span>📝 Posts</span>
-
-                <strong>{{len .Posts}}</strong>
-
+            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-light">
+                <span class="text-secondary small"><i class="bi bi-chat-left-quote me-1"></i> Fellowship Posts</span>
+                <span class="badge bg-success rounded-pill px-2 py-1">{{if .Sidebar.Stats}}{{.Sidebar.Stats.PostsCount}}{{else}}{{len .Posts}}{{end}}</span>
             </div>
-
-            <div class="d-flex justify-content-between mb-2">
-
-                <span>❤️ Reactions</span>
-
-                <strong>0</strong>
-
+            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom border-light">
+                <span class="text-secondary small"><i class="bi bi-heart me-1"></i> Post Reactions</span>
+                <span class="badge bg-danger rounded-pill px-2 py-1">{{if .Sidebar.Stats}}{{.Sidebar.Stats.ReactionsCount}}{{else}}0{{end}}</span>
             </div>
-
-            <div class="d-flex justify-content-between">
-
-                <span>💬 Comments</span>
-
-                <strong>0</strong>
-
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="text-secondary small"><i class="bi bi-chat-dots me-1"></i> Discussions & Comments</span>
+                <span class="badge bg-info rounded-pill px-2 py-1">{{if .Sidebar.Stats}}{{.Sidebar.Stats.CommentsCount}}{{else}}0{{end}}</span>
             </div>
-
         </div>
-
     </div>
 
-    <!-- Upcoming Events -->
-
+    <!-- 2. Upcoming Events -->
     <div class="card shadow-sm border-0 rounded-4 mb-3">
-
         <div class="card-body">
-
-            <h5 class="fw-bold">
-
-                📅 Upcoming Events
-
-            </h5>
-
-            <hr>
-
-            <p class="text-muted mb-2">
-
-                No upcoming events.
-
-            </p>
-
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <i class="bi bi-calendar-event text-warning me-2"></i> Upcoming Events
+                </h6>
+                <a href="/programmes" class="small text-decoration-none text-muted">View all</a>
+            </div>
+            {{if and .Sidebar .Sidebar.UpcomingEvents}}
+                <div class="list-group list-group-flush">
+                    {{range .Sidebar.UpcomingEvents}}
+                    <div class="list-group-item px-0 py-2 border-0 border-bottom border-light">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1 small fw-bold text-dark">
+                                    <a href="/programmes/view?id={{.ID}}" class="text-decoration-none text-dark">{{.Title}}</a>
+                                </h6>
+                                <p class="text-muted small mb-1">
+                                    <i class="bi bi-clock me-1"></i>{{.StartTime.Format "Jan 02, 3:04 PM"}}
+                                </p>
+                                {{if .Venue}}
+                                <p class="text-muted small mb-0">
+                                    <i class="bi bi-geo-alt me-1"></i>{{.Venue}}
+                                </p>
+                                {{end}}
+                            </div>
+                            <span class="badge bg-warning bg-opacity-25 text-dark rounded-pill small">{{.Category}}</span>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            {{else}}
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-calendar-check me-1"></i> No upcoming events scheduled right now.
+                </p>
+            {{end}}
         </div>
-
     </div>
 
-    <!-- Prayer Requests -->
-
+    <!-- 3. Prayer Requests -->
     <div class="card shadow-sm border-0 rounded-4 mb-3">
-
         <div class="card-body">
-
-            <h5 class="fw-bold">
-
-                🙏 Prayer Requests
-
-            </h5>
-
-            <hr>
-
-            <p class="text-muted">
-
-                No prayer requests yet.
-
-            </p>
-
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <i class="bi bi-heart-pulse text-danger me-2"></i> Prayer Requests
+                </h6>
+                <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0 small" data-bs-toggle="modal" data-bs-target="#submitPrayerModal">
+                    <i class="bi bi-plus-lg"></i> Share
+                </button>
+            </div>
+            {{if and .Sidebar .Sidebar.PrayerRequests}}
+                <div class="list-group list-group-flush">
+                    {{range .Sidebar.PrayerRequests}}
+                    <div class="list-group-item px-0 py-2 border-0 border-bottom border-light">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="fw-bold small text-dark">{{.Title}}</span>
+                            {{if eq .PrivacyScope "public"}}
+                            <span class="badge bg-success bg-opacity-10 text-success rounded-pill small">Public</span>
+                            {{else if eq .PrivacyScope "fellowship"}}
+                            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill small">Fellowship</span>
+                            {{else if eq .PrivacyScope "pastoral"}}
+                            <span class="badge bg-warning bg-opacity-15 text-dark rounded-pill small">Pastoral</span>
+                            {{else}}
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill small">Private</span>
+                            {{end}}
+                        </div>
+                        <p class="text-muted small mb-2 text-truncate" style="max-height: 2.8rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                            {{.Description}}
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="small text-muted">
+                                <i class="bi bi-person me-1"></i>{{.AuthorName}}
+                            </span>
+                            <button class="btn btn-sm {{if .HasPrayed}}btn-primary{{else}}btn-outline-primary{{end}} rounded-pill px-2 py-0 small btn-pray" data-id="{{.ID}}">
+                                <i class="bi {{if .HasPrayed}}bi-heart-fill{{else}}bi-heart{{end}} me-1"></i> Prayed (<span class="pray-count">{{.PrayCount}}</span>)
+                            </button>
+                        </div>
+                    </div>
+                    {{end}}
+                </div>
+            {{else}}
+                <p class="text-muted small mb-0">
+                    <i class="bi bi-hands me-1"></i> No active prayer requests yet. Be the first to share an intercession need with the fellowship.
+                </p>
+            {{end}}
         </div>
-
     </div>
 
-    <!-- Bible Study -->
+    <!-- 4. Weekly Bible Study -->
+    <div class="card shadow-sm border-0 rounded-4 mb-3 border-start border-4 border-success">
+        <div class="card-body">
+            <h6 class="fw-bold text-dark mb-2 d-flex align-items-center">
+                <i class="bi bi-book text-success me-2"></i> Weekly Bible Study
+            </h6>
+            {{if and .Sidebar .Sidebar.BibleStudy}}
+                <div class="p-2 rounded-3 bg-success bg-opacity-10 mb-2">
+                    <span class="badge bg-success text-white mb-1">Theme</span>
+                    <h6 class="fw-bold text-dark small mb-1">{{.Sidebar.BibleStudy.Theme}}</h6>
+                    <small class="text-muted d-block"><i class="bi bi-journal-bookmark me-1"></i>{{.Sidebar.BibleStudy.ScripturePassage}}</small>
+                </div>
+                <div class="mb-2">
+                    <small class="fw-bold text-secondary d-block mb-1">Memory Verse: {{.Sidebar.BibleStudy.MemoryVerse}}</small>
+                    <p class="small text-muted fst-italic mb-2 bg-light p-2 rounded-2">
+                        {{.Sidebar.BibleStudy.MemoryVerseText}}
+                    </p>
+                </div>
+                <div class="d-grid">
+                    <a href="{{.Sidebar.BibleStudy.StudyGroupLink}}" class="btn btn-sm btn-outline-success rounded-pill">
+                        <i class="bi bi-chat-quote me-1"></i> Join Study Discussion
+                    </a>
+                </div>
+            {{else}}
+                <p class="text-muted small mb-0">Weekly scripture guide is being prepared.</p>
+            {{end}}
+        </div>
+    </div>
 
+    <!-- 5. Announcements -->
     <div class="card shadow-sm border-0 rounded-4 mb-3">
-
         <div class="card-body">
-
-            <h5 class="fw-bold">
-
-                📖 Bible Study
-
-            </h5>
-
-            <hr>
-
-            <p class="mb-1">
-
-                <strong>Weekly Topic</strong>
-
-            </p>
-
-            <small class="text-muted">
-
-                Content coming soon.
-
-            </small>
-
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <i class="bi bi-megaphone text-info me-2"></i> Announcements
+                </h6>
+                <a href="/announcements" class="small text-decoration-none text-muted">All</a>
+            </div>
+            {{if and .Sidebar .Sidebar.Announcements}}
+                <div class="list-group list-group-flush">
+                    {{range .Sidebar.Announcements}}
+                    <div class="list-group-item px-0 py-2 border-0 border-bottom border-light">
+                        <div class="d-flex justify-content-between align-items-start mb-1">
+                            <span class="fw-bold small text-dark">{{.Title}}</span>
+                            {{if .Pinned}}
+                            <span class="badge bg-danger rounded-pill small"><i class="bi bi-pin-angle-fill"></i></span>
+                            {{end}}
+                        </div>
+                        <p class="text-muted small mb-0 text-truncate" style="max-height: 2.5rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                            {{.Message}}
+                        </p>
+                    </div>
+                    {{end}}
+                </div>
+            {{else}}
+                <p class="text-muted small mb-0">No active notices.</p>
+            {{end}}
         </div>
-
     </div>
 
-    <!-- Announcements -->
-
-    <div class="card shadow-sm border-0 rounded-4 mb-3">
-
-        <div class="card-body">
-
-            <h5 class="fw-bold">
-
-                📢 Announcements
-
-            </h5>
-
-            <hr>
-
-            <p class="text-muted">
-
-                No announcements.
-
-            </p>
-
-        </div>
-
-    </div>
-
-    <!-- Publications -->
-
+    <!-- 6. Publications -->
     <div class="card shadow-sm border-0 rounded-4">
-
         <div class="card-body">
-
-            <h5 class="fw-bold">
-
-                📰 Publications
-
-            </h5>
-
-            <hr>
-
-            <p class="text-muted">
-
-                Latest publications will appear here.
-
-            </p>
-
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <i class="bi bi-journal-album text-primary me-2"></i> Publications
+                </h6>
+                <a href="/documents" class="small text-decoration-none text-muted">Library</a>
+            </div>
+            {{if and .Sidebar .Sidebar.Publications}}
+                <div class="list-group list-group-flush">
+                    {{range .Sidebar.Publications}}
+                    <div class="list-group-item px-0 py-2 border-0 border-bottom border-light">
+                        <h6 class="small fw-bold mb-1 text-dark">{{.Title}}</h6>
+                        <small class="text-muted d-block mb-1">{{.Category}}</small>
+                        <a href="/documents" class="btn btn-sm btn-link p-0 text-decoration-none small">
+                            <i class="bi bi-arrow-down-circle me-1"></i> Access Document
+                        </a>
+                    </div>
+                    {{end}}
+                </div>
+            {{else}}
+                <p class="text-muted small mb-0">Latest diocesan publications will appear here.</p>
+            {{end}}
         </div>
-
     </div>
 
 </div>
+
+<!-- SUBMIT PRAYER MODAL -->
+<div class="modal fade" id="submitPrayerModal" tabindex="-1" aria-labelledby="submitPrayerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 rounded-4 shadow">
+            <div class="modal-header border-bottom py-3">
+                <h5 class="modal-title fw-bold text-dark" id="submitPrayerModalLabel">
+                    <i class="bi bi-heart-pulse-fill text-danger me-2"></i> Submit Prayer Request
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="submitPrayerForm" method="POST" action="/community/prayer/submit">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-secondary">Title or Prayer Focus</label>
+                        <input type="text" name="title" class="form-control" placeholder="e.g., Healing and Strength, Examination Success" required minlength="3">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-secondary">Prayer Description</label>
+                        <textarea name="description" class="form-control" rows="4" placeholder="Share your prayer need or thanksgiving praise report..." required minlength="10"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-secondary">Privacy & Sharing Scope</label>
+                        <select name="privacy_scope" class="form-select">
+                            <option value="public" selected>Public (Visible to all convention youth)</option>
+                            <option value="fellowship">Fellowship (Visible to registered community members)</option>
+                            <option value="pastoral">Pastoral (Pastors & Prayer Intercessors only)</option>
+                            <option value="private">Private (Personal prayer journal)</option>
+                        </select>
+                        <div class="form-text small">You can restrict sensitive prayer needs to pastoral intercessors or keep them private.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-top py-2">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold">
+                        <i class="bi bi-send me-1"></i> Submit Request
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Prayer intercession toggle
+    document.querySelectorAll('.btn-pray').forEach(function(btn) {
+        btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const reqId = this.dataset.id;
+            const countSpan = this.querySelector('.pray-count');
+            const icon = this.querySelector('i');
+
+            try {
+                const res = await fetch('/community/prayer/pray', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: new URLSearchParams({'request_id': reqId})
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        countSpan.textContent = data.pray_count;
+                        if (data.has_prayed) {
+                            btn.classList.remove('btn-outline-primary');
+                            btn.classList.add('btn-primary');
+                            icon.className = 'bi bi-heart-fill me-1';
+                        } else {
+                            btn.classList.remove('btn-primary');
+                            btn.classList.add('btn-outline-primary');
+                            icon.className = 'bi bi-heart me-1';
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to toggle prayer intercession:', err);
+            }
+        });
+    });
+});
+</script>
 
 {{end}}

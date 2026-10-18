@@ -80,19 +80,20 @@
 <hr>
 
         <!-- Content -->
-
-        <p class="fs-5">
-
-            {{.Content}}
-
-        </p>
+        <div class="post-content-wrapper mb-3" data-post-id="{{.ID}}">
+            <div class="post-content-text fs-5 text-break" style="white-space: pre-line; word-break: break-word;">{{.Content}}</div>
+        </div>
 
         {{if .Image}}
-
-        <img
-            src="/uploads/{{.Image}}"
-            class="img-fluid rounded-4 mb-3">
-
+        <div class="post-image-container rounded-4 overflow-hidden mb-3 bg-light text-center border" style="max-height: 520px;">
+            <img
+                src="/uploads/{{.Image}}"
+                alt="Post photo"
+                class="img-fluid w-100"
+                style="max-height: 520px; object-fit: contain; background-color: rgba(0,0,0,0.02);"
+                loading="lazy"
+                onerror="this.closest('.post-image-container').style.display='none';">
+        </div>
         {{end}}
 
         {{if .Video}}
@@ -730,10 +731,56 @@
         });
     }
 
+    function initExpandablePosts() {
+        document.querySelectorAll('.post-content-wrapper').forEach(wrapper => {
+            if (wrapper.dataset.expandInit) return;
+            wrapper.dataset.expandInit = "true";
+
+            const textEl = wrapper.querySelector('.post-content-text');
+            if (!textEl) return;
+
+            const rawText = textEl.textContent ? textEl.textContent.trim() : "";
+            const charLimit = 220;
+
+            if (rawText.length > charLimit || (rawText.match(/\n/g) || []).length > 3) {
+                const shortText = rawText.slice(0, charLimit) + "...";
+                const fullText = rawText;
+
+                let isExpanded = false;
+                textEl.textContent = shortText;
+
+                const toggleBtn = document.createElement('button');
+                toggleBtn.type = 'button';
+                toggleBtn.className = 'btn btn-link p-0 text-success fw-semibold text-decoration-none mt-1 d-inline-block post-expand-btn';
+                toggleBtn.textContent = 'Read more';
+                toggleBtn.style.fontSize = '0.95rem';
+
+                toggleBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    isExpanded = !isExpanded;
+                    if (isExpanded) {
+                        textEl.textContent = fullText;
+                        toggleBtn.textContent = 'Show less';
+                    } else {
+                        textEl.textContent = shortText;
+                        toggleBtn.textContent = 'Read more';
+                        wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                });
+
+                wrapper.appendChild(toggleBtn);
+            }
+        });
+    }
+
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initPostReactions);
+        document.addEventListener('DOMContentLoaded', function() {
+            initPostReactions();
+            initExpandablePosts();
+        });
     } else {
         initPostReactions();
+        initExpandablePosts();
     }
 })();
 </script>

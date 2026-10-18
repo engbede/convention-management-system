@@ -109,6 +109,52 @@ func UpdateUserPasswordAndInvalidateReset(userID int, newPasswordHash string, to
 	return tx.Commit()
 }
 
+func UpdateAdminPasswordAndInvalidateReset(adminID int, newPasswordHash string, tokenHash string) error {
+	tx, err := database.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. Verify token is still unused and not expired in transaction
+	var resetID int
+	var used int
+	var expiresAt time.Time
+	err = tx.QueryRow(`
+		SELECT id, used, expires_at 
+		FROM password_resets 
+		WHERE token_hash = $1
+	`, tokenHash).Scan(&resetID, &used, &expiresAt)
+	if err != nil {
+		return err
+	}
+	if used == 1 || time.Now().After(expiresAt) {
+		return sql.ErrNoRows
+	}
+
+	// 2. Mark token used
+	_, err = tx.Exec(`
+		UPDATE password_resets 
+		SET used = 1 
+		WHERE id = $1
+	`, resetID)
+	if err != nil {
+		return err
+	}
+
+	// 3. Update admin password
+	_, err = tx.Exec(`
+		UPDATE admins
+		SET password = $1
+		WHERE id = $2
+	`, newPasswordHash, adminID)
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func CountRecentResetsByEmail(email string, window time.Duration) (int, error) {
 	since := time.Now().Add(-window)
 	query := `
@@ -123,3 +169,4 @@ func CountRecentResetsByEmail(email string, window time.Duration) (int, error) {
 	}
 	return count, nil
 }
+
