@@ -239,3 +239,30 @@ func TestRouteAccessibility_UnknownPathReturns404(t *testing.T) {
 		t.Errorf("Expected status 404 Not Found for unregistered route, got %d", rr.Code)
 	}
 }
+
+func TestRouteAccessibility_ServiceWorker(t *testing.T) {
+	mux, cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodGet, "/sw.js", nil)
+	rr := httptest.NewRecorder()
+	mux.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected status 200 OK for /sw.js, got %d", rr.Code)
+	}
+
+	if ctype := rr.Header().Get("Content-Type"); !strings.Contains(ctype, "application/javascript") {
+		t.Errorf("Expected Content-Type to contain application/javascript, got %s", ctype)
+	}
+
+	if allowed := rr.Header().Get("Service-Worker-Allowed"); allowed != "/" {
+		t.Errorf("Expected Service-Worker-Allowed: /, got %q", allowed)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "notificationclick") || !strings.Contains(body, "Youth Community") {
+		t.Errorf("Expected sw.js body to contain call notification logic, got: %s", body)
+	}
+}
+

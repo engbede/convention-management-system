@@ -2,9 +2,12 @@ package routes
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"convention-management-system/handlers"
 	"convention-management-system/middleware"
+	"convention-management-system/utils"
 )
 
 func RegisterRoutes(mux *http.ServeMux) {
@@ -980,15 +983,31 @@ func RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/healthz", handlers.Health)
 
-	fs := http.FileServer(http.Dir("static"))
+	// Service Worker for incoming call notifications and mobile responsiveness
+	mux.HandleFunc("/sw.js", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript")
+		w.Header().Set("Service-Worker-Allowed", "/")
+		swPath := filepath.Join("static", "sw.js")
+		if _, err := os.Stat(swPath); os.IsNotExist(err) {
+			swPath = filepath.Join("..", "static", "sw.js")
+		}
+		http.ServeFile(w, r, swPath)
+	})
 
+	fs := http.FileServer(http.Dir("static"))
 	mux.Handle(
 		"/static/",
 		http.StripPrefix("/static/", fs),
 	)
 
-	uploads := http.FileServer(http.Dir("uploads"))
+	uploadDir := utils.GetUploadBaseDir()
+	_ = os.MkdirAll(filepath.Join(uploadDir, "posts"), 0755)
+	_ = os.MkdirAll(filepath.Join(uploadDir, "profiles"), 0755)
+	_ = os.MkdirAll(filepath.Join(uploadDir, "covers"), 0755)
+	_ = os.MkdirAll(filepath.Join(uploadDir, "documents"), 0755)
+	_ = os.MkdirAll(filepath.Join(uploadDir, "chat"), 0755)
 
+	uploads := http.FileServer(http.Dir(uploadDir))
 	mux.Handle(
 		"/uploads/",
 		http.StripPrefix("/uploads/", uploads),

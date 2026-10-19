@@ -38,18 +38,18 @@ func GetAllPosts() ([]models.Post, error) {
 		p.id,
 		p.user_id,
 		p.content,
-		p.image,
-		p.video,
-		p.visibility,
-		p.likes,
-		p.comments,
-		p.shares,
-		p.is_edited,
+		COALESCE(p.image, ''),
+		COALESCE(p.video, ''),
+		COALESCE(p.visibility, 'public'),
+		COALESCE(p.likes, 0),
+		COALESCE(p.comments, 0),
+		COALESCE(p.shares, 0),
+		COALESCE(p.is_edited, FALSE),
 		p.created_at,
 		p.updated_at,
 		u.full_name,
 		u.username,
-		u.profile_photo
+		COALESCE(u.profile_photo, '')
 	FROM posts p
 	INNER JOIN users u
 		ON p.user_id = u.id
@@ -85,13 +85,13 @@ func GetAllPosts() ([]models.Post, error) {
 			&post.User.Username,
 			&post.User.ProfilePhoto,
 		)
+		if err != nil {
+			return nil, err
+		}
 
 		post.User.Initials = utils.Initials(
 			post.User.FullName,
 		)
-		if err != nil {
-			return nil, err
-		}
 		// Load reaction summary
 		summary, err := GetReactionSummary(post.ID)
 		if err == nil {
@@ -128,18 +128,18 @@ func GetPostsByUser(userID int) ([]models.Post, error) {
 		p.id,
 		p.user_id,
 		p.content,
-		p.image,
-		p.video,
-		p.visibility,
-		p.likes,
-		p.comments,
-		p.shares,
-		p.is_edited,
+		COALESCE(p.image, ''),
+		COALESCE(p.video, ''),
+		COALESCE(p.visibility, 'public'),
+		COALESCE(p.likes, 0),
+		COALESCE(p.comments, 0),
+		COALESCE(p.shares, 0),
+		COALESCE(p.is_edited, FALSE),
 		p.created_at,
 		p.updated_at,
 		u.full_name,
 		u.username,
-		u.profile_photo
+		COALESCE(u.profile_photo, '')
 	FROM posts p
 	INNER JOIN users u
 		ON p.user_id = u.id

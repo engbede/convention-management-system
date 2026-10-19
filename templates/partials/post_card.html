@@ -87,12 +87,11 @@
         {{if .Image}}
         <div class="post-image-container rounded-4 overflow-hidden mb-3 bg-light text-center border" style="max-height: 520px;">
             <img
-                src="/uploads/{{.Image}}"
+                src="{{.ImageURL}}"
                 alt="Post photo"
                 class="img-fluid w-100"
                 style="max-height: 520px; object-fit: contain; background-color: rgba(0,0,0,0.02);"
-                loading="lazy"
-                onerror="this.closest('.post-image-container').style.display='none';">
+                loading="lazy">
         </div>
         {{end}}
 

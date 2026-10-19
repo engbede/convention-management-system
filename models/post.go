@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Post struct {
 	ID int
@@ -50,3 +53,16 @@ type ReactionCountItem struct {
 	Label string `json:"label"`
 	Count int    `json:"count"`
 }
+
+// ImageURL returns the full, browser-loadable URL for the post image.
+// Supports external URLs (Cloudinary/S3), already-prefixed paths, and local upload paths.
+func (p Post) ImageURL() string {
+	if p.Image == "" {
+		return ""
+	}
+	if strings.HasPrefix(p.Image, "http://") || strings.HasPrefix(p.Image, "https://") || strings.HasPrefix(p.Image, "/uploads/") {
+		return p.Image
+	}
+	return "/uploads/" + p.Image
+}
+

@@ -19,11 +19,45 @@ var allowedExtensions = map[string]bool{
 	".webp": true,
 }
 
+// GetUploadBaseDir returns the configured upload root directory (default: "uploads").
+// Supports Render persistent disks or environment variables UPLOADS_DIR / STORAGE_PATH.
+func GetUploadBaseDir() string {
+	if dir := strings.TrimSpace(os.Getenv("UPLOADS_DIR")); dir != "" {
+		return dir
+	}
+	if dir := strings.TrimSpace(os.Getenv("STORAGE_PATH")); dir != "" {
+		return dir
+	}
+	if fi, err := os.Stat("/var/data/uploads"); err == nil && fi.IsDir() {
+		return "/var/data/uploads"
+	}
+	return "uploads"
+}
+
+func resolveDestination(destination string) string {
+	base := GetUploadBaseDir()
+	if base == "uploads" {
+		return destination
+	}
+	if destination == "uploads" {
+		return base
+	}
+	if strings.HasPrefix(destination, "uploads/") {
+		return filepath.Join(base, strings.TrimPrefix(destination, "uploads/"))
+	}
+	if strings.HasPrefix(destination, "uploads\\") {
+		return filepath.Join(base, strings.TrimPrefix(destination, "uploads\\"))
+	}
+	return destination
+}
+
 func SaveUploadedFile(
 	file multipart.File,
 	header *multipart.FileHeader,
 	destination string,
 ) (string, error) {
+	destination = resolveDestination(destination)
+
 
 	defer file.Close()
 
@@ -97,6 +131,7 @@ func DeleteFile(path string) error {
 	if path == "" {
 		return nil
 	}
+	path = resolveDestination(path)
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil
@@ -142,6 +177,7 @@ func SaveChatAttachment(
 	header *multipart.FileHeader,
 	destination string,
 ) (filename string, messageType string, contentType string, err error) {
+	destination = resolveDestination(destination)
 	defer file.Close()
 
 	const maxFileSize = 10 * 1024 * 1024 // 10 MB

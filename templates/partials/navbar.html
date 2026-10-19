@@ -250,6 +250,112 @@
         }
     }
 
+    let globalNotification = null;
+    let globalTitleInterval = null;
+    const globalBaseDocTitle = document.title;
+
+    function startGlobalBackgroundAlert(callerName, callType, avatarUrl, callId, convId) {
+        if (!globalTitleInterval) {
+            let alt = false;
+            const alertText = `(1) 📞 ${callerName || "Incoming"} Call!`;
+            globalTitleInterval = setInterval(() => {
+                document.title = alt ? alertText : globalBaseDocTitle;
+                alt = !alt;
+            }, 1000);
+        }
+
+        if ("Notification" in window) {
+            if (Notification.permission === "granted") {
+                triggerGlobalSysNotification(callerName, callType, avatarUrl, callId, convId);
+            } else if (Notification.permission === "default") {
+                Notification.requestPermission().then(perm => {
+                    if (perm === "granted") {
+                        triggerGlobalSysNotification(callerName, callType, avatarUrl, callId, convId);
+                    }
+                }).catch(() => {});
+            }
+        }
+    }
+
+    async function triggerGlobalSysNotification(callerName, callType, avatarUrl, callId, convId) {
+        const title = `${callerName || "Member"} is calling you...`;
+        const body = `Incoming ${callType === "video" ? "Video" : "Audio"} Call on Youth Community. Tap to answer.`;
+        const icon = avatarUrl ? (avatarUrl.startsWith("http") ? avatarUrl : `/uploads/profiles/${avatarUrl}`) : "/static/img/call-icon.png";
+        const targetUrl = convId ? `/messages?c=${convId}&autocall=${callType || 'audio'}` : '/messages';
+
+        if ("serviceWorker" in navigator) {
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                if (reg && reg.showNotification) {
+                    await reg.showNotification(title, {
+                        body: body,
+                        icon: icon,
+                        tag: `call-${callId || convId || 'global'}`,
+                        renotify: true,
+                        requireInteraction: true,
+                        vibrate: [250, 100, 250, 100, 500],
+                        data: { url: targetUrl, callId: callId }
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.warn("SW showNotification error:", e);
+            }
+        }
+
+        try {
+            const notif = new Notification(title, {
+                body: body,
+                icon: icon,
+                tag: `call-${callId || convId || 'global'}`,
+                requireInteraction: true,
+                data: { url: targetUrl }
+            });
+            notif.onclick = function() {
+                window.focus();
+                this.close();
+            };
+            globalNotification = notif;
+        } catch (e) {
+            console.warn("Notification fallback failed:", e);
+        }
+    }
+
+    async function stopGlobalBackgroundAlert() {
+        if (globalTitleInterval) {
+            clearInterval(globalTitleInterval);
+            globalTitleInterval = null;
+            document.title = globalBaseDocTitle;
+        }
+
+        if (globalNotification) {
+            try { globalNotification.close(); } catch(e) {}
+            globalNotification = null;
+        }
+
+        if ("serviceWorker" in navigator) {
+            try {
+                const reg = await navigator.serviceWorker.ready;
+                if (reg && reg.getNotifications) {
+                    const notifs = await reg.getNotifications();
+                    notifs.forEach(n => {
+                        if (n.tag && n.tag.startsWith("call-")) {
+                            n.close();
+                        }
+                    });
+                }
+            } catch(e) {}
+        }
+    }
+
+    document.addEventListener("visibilitychange", function() {
+        if (!document.hidden && globalTitleInterval) {
+            clearInterval(globalTitleInterval);
+            globalTitleInterval = null;
+            document.title = globalBaseDocTitle;
+        }
+    });
+
     function connectGlobalSocket() {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
@@ -280,18 +386,21 @@
                         }
 
                         playGlobalChime();
+                        startGlobalBackgroundAlert(data.caller_name, data.call_type, data.caller_avatar, data.call_id, data.conversation_id);
                         const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
                         bsModal.show();
 
                         clearTimeout(globalCallTimeout);
                         globalCallTimeout = setTimeout(() => {
                             stopGlobalChime();
+                            stopGlobalBackgroundAlert();
                             bsModal.hide();
                             globalCallOfferData = null;
                         }, 35000);
                     } else if (data.type === "call_cancel") {
                         clearTimeout(globalCallTimeout);
                         stopGlobalChime();
+                        stopGlobalBackgroundAlert();
                         const modalEl = document.getElementById("globalIncomingCallModal");
                         if (modalEl && typeof bootstrap !== "undefined") {
                             const bsModal = bootstrap.Modal.getInstance(modalEl);
@@ -319,12 +428,13 @@
             acceptBtn.addEventListener("click", function() {
                 clearTimeout(globalCallTimeout);
                 stopGlobalChime();
+                stopGlobalBackgroundAlert();
                 if (modalEl && typeof bootstrap !== "undefined") {
                     const bsModal = bootstrap.Modal.getInstance(modalEl);
                     if (bsModal) bsModal.hide();
                 }
                 if (globalCallOfferData) {
-                    window.location.href = `/messages?c=${globalCallOfferData.conversation_id}&auto_call=${globalCallOfferData.call_type || 'audio'}`;
+                    window.location.href = `/messages?c=${globalCallOfferData.conversation_id}&autocall=${globalCallOfferData.call_type || 'audio'}`;
                 }
             });
         }
@@ -333,6 +443,7 @@
             declineBtn.addEventListener("click", function() {
                 clearTimeout(globalCallTimeout);
                 stopGlobalChime();
+                stopGlobalBackgroundAlert();
                 if (modalEl && typeof bootstrap !== "undefined") {
                     const bsModal = bootstrap.Modal.getInstance(modalEl);
                     if (bsModal) bsModal.hide();
