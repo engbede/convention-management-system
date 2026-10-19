@@ -78,7 +78,12 @@
             </div>
         </div>
         <h1 class="display-6 fw-bold mt-2">Terms of Use</h1>
-        <p class="lead mb-0 text-white-50">Terms governing member participation in the Youth Community & Convention platform</p>
+        <p class="lead mb-2 text-white-50">Terms governing member participation in the Youth Community & Convention platform</p>
+        <div>
+            <span class="badge bg-warning text-dark px-3 py-1.5 fw-bold rounded-pill shadow-sm" style="font-size: 0.85rem;">
+                <i class="bi bi-shield-check me-1"></i>Active Version: {{if .ActiveVersion}}{{.ActiveVersion}}{{else}}v1.0{{end}} (Effective October 2026)
+            </span>
+        </div>
     </div>
 </header>
 
@@ -86,6 +91,30 @@
 <main class="container my-5">
     <div class="row justify-content-center">
         <div class="col-lg-10">
+            {{if .Declined}}
+            <div class="alert alert-info border-0 rounded-4 shadow-sm mb-4 p-3 d-flex align-items-center gap-3">
+                <i class="bi bi-info-circle fs-3 text-primary"></i>
+                <div>
+                    <h6 class="fw-bold mb-1">Terms Update Declined</h6>
+                    <p class="mb-0 small text-secondary">
+                        You have gracefully declined the updated Platform Terms of Use. You have been safely signed out. You may continue reviewing our public convention resources or sign in whenever you are ready to accept the terms.
+                    </p>
+                </div>
+            </div>
+            {{end}}
+
+            {{if .Prompt}}
+            <div class="alert alert-warning border-0 rounded-4 shadow-sm mb-4 p-3 d-flex align-items-center gap-3">
+                <i class="bi bi-shield-exclamation fs-3 text-warning"></i>
+                <div>
+                    <h6 class="fw-bold mb-1">Action Required: Review Platform Terms</h6>
+                    <p class="mb-0 small text-secondary">
+                        A new version of our Platform Terms of Use ({{if .ActiveVersion}}{{.ActiveVersion}}{{else}}v1.0{{end}}) has been released. Please review the terms below, then return to sign in or accept via your community account.
+                    </p>
+                </div>
+            </div>
+            {{end}}
+
             <div class="policy-card">
 
                 <section class="mb-4">

@@ -1,10 +1,15 @@
 package services
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
+	"regexp"
 	"strings"
+	"time"
 
 	"convention-management-system/models"
 	"convention-management-system/repository"
@@ -155,6 +160,13 @@ func SendMessage(conversationID, senderID int, body, clientMsgID string, replyTo
 		msg.Sender = sender
 	}
 
+	// Hydrate quoted reply if present
+	if msg.ReplyToMessageID != nil && *msg.ReplyToMessageID > 0 {
+		if rep, rErr := repository.GetMessageByID(*msg.ReplyToMessageID); rErr == nil {
+			msg.ReplyToMessage = rep
+		}
+	}
+
 	// Send notification to the other participant if direct conversation and not muted
 	if conv != nil && conv.Type == "direct" && otherUser != nil {
 		if !repository.IsConversationMutedBy(conversationID, otherUser.ID) {
@@ -167,6 +179,9 @@ func SendMessage(conversationID, senderID int, body, clientMsgID string, replyTo
 			_ = CreateNotification(notification)
 		}
 	}
+
+	// Process @mentions for conversation members
+	processMentions(conversationID, senderID, msg.Sender.FullName, conv, msg.Body)
 
 	// Broadcast new message to all active WebSocket clients in real-time
 	GlobalHub.BroadcastToConversation(conversationID, WSEvent{
@@ -238,6 +253,13 @@ func SendAttachmentMessage(
 		msg.Sender = sender
 	}
 
+	// Hydrate quoted reply if present
+	if msg.ReplyToMessageID != nil && *msg.ReplyToMessageID > 0 {
+		if rep, rErr := repository.GetMessageByID(*msg.ReplyToMessageID); rErr == nil {
+			msg.ReplyToMessage = rep
+		}
+	}
+
 	// Send notification if not muted
 	if conv != nil && conv.Type == "direct" && otherUser != nil {
 		if !repository.IsConversationMutedBy(conversationID, otherUser.ID) {
@@ -250,6 +272,9 @@ func SendAttachmentMessage(
 			_ = CreateNotification(notification)
 		}
 	}
+
+	// Process @mentions for conversation members
+	processMentions(conversationID, senderID, msg.Sender.FullName, conv, msg.Body)
 
 	// Broadcast to active WebSocket clients
 	GlobalHub.BroadcastToConversation(conversationID, WSEvent{
@@ -298,6 +323,18 @@ func MarkConversationAsRead(conversationID, userID int) error {
 	return err
 }
 
+// SetConversationMute sets the mute preference for a user in a conversation with duration options ("1h", "8h", "1w", "indefinite", "unmute").
+func SetConversationMute(conversationID, userID int, option string) (*time.Time, bool, error) {
+	isMember, err := repository.IsConversationMember(conversationID, userID)
+	if err != nil {
+		return nil, false, err
+	}
+	if !isMember {
+		return nil, false, errors.New("access denied: not a member of conversation")
+	}
+	return repository.SetConversationMute(conversationID, userID, option)
+}
+
 // ToggleMuteConversation toggles the mute state for the user in the specified conversation.
 func ToggleMuteConversation(conversationID, userID int) (bool, error) {
 	isMember, err := repository.IsConversationMember(conversationID, userID)
@@ -308,6 +345,113 @@ func ToggleMuteConversation(conversationID, userID int) (bool, error) {
 		return false, errors.New("access denied: not a member of conversation")
 	}
 	return repository.ToggleMuteConversation(conversationID, userID)
+}
+
+// SetDisappearingMessages updates the disappearing message timer for a conversation and creates a system notice.
+func SetDisappearingMessages(actingUserID, conversationID, durationSeconds int) (*models.Conversation, error) {
+	// 1. Verify membership
+	isMember, err := repository.IsConversationMember(conversationID, actingUserID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
+		return nil, errors.New("access denied: not a participant in this conversation")
+	}
+
+	// 2. Validate duration: 0 (off), 86400 (24h), 604800 (7d), 7776000 (90d)
+	validDurations := map[int]bool{
+		0:       true,
+		86400:   true,
+		604800:  true,
+		7776000: true,
+	}
+	if !validDurations[durationSeconds] {
+		return nil, errors.New("invalid disappearing duration: must be 0, 86400 (24h), 604800 (7d), or 7776000 (90d)")
+	}
+
+	// 3. Fetch conversation
+	conv, err := repository.GetConversationByID(conversationID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 4. Role validation
+	if conv.Type == "group" {
+		member, err := repository.GetConversationMember(conversationID, actingUserID)
+		if err != nil || member == nil {
+			return nil, errors.New("access denied: member record not found")
+		}
+		actingUser, _ := repository.GetUserByID(actingUserID)
+		isAdminOrMod := member.Role == "owner" || member.Role == "admin" || member.Role == "moderator" || actingUser.Role == "admin"
+		if !isAdminOrMod {
+			return nil, errors.New("permission denied: only group administrators can change disappearing message settings")
+		}
+	} else {
+		// Direct conversation: verify not blocked
+		otherUser, err := repository.GetConversationOtherParticipant(conversationID, actingUserID)
+		if err == nil && otherUser != nil {
+			blocked, bErr := repository.IsCommunicationBlocked(actingUserID, otherUser.ID)
+			if bErr == nil && blocked {
+				return nil, errors.New("cannot change settings: communication between these members is blocked")
+			}
+		}
+	}
+
+	// 5. Update database
+	if err := repository.UpdateConversationDisappearingMessages(conversationID, durationSeconds); err != nil {
+		return nil, err
+	}
+	conv.DisappearingDuration = durationSeconds
+
+	// 6. Generate human-readable label
+	var label string
+	switch durationSeconds {
+	case 86400:
+		label = "24 hours"
+	case 604800:
+		label = "7 days"
+	case 7776000:
+		label = "90 days"
+	default:
+		label = "Off"
+	}
+
+	// 7. Post system message into conversation
+	actingUser, _ := repository.GetUserByID(actingUserID)
+	userName := actingUser.FullName
+	if strings.TrimSpace(userName) == "" {
+		userName = actingUser.Username
+	}
+	if strings.TrimSpace(userName) == "" {
+		userName = "A member"
+	}
+
+	var noticeText string
+	if durationSeconds == 0 {
+		noticeText = fmt.Sprintf("%s turned off disappearing messages.", userName)
+	} else {
+		noticeText = fmt.Sprintf("%s set messages to disappear after %s.", userName, label)
+	}
+
+	systemMsg := &models.Message{
+		ConversationID: conversationID,
+		SenderID:       actingUserID,
+		MessageType:    "system",
+		Body:           noticeText,
+	}
+	_ = repository.SaveMessage(systemMsg)
+	systemMsg.Sender = actingUser
+
+	// 8. Broadcast realtime WebSocket event
+	GlobalHub.BroadcastToConversation(conversationID, WSEvent{
+		Type:                 "disappearing_messages_updated",
+		ConversationID:       conversationID,
+		DisappearingDuration: durationSeconds,
+		FormattedDuration:    label,
+		Message:              systemMsg,
+	})
+
+	return conv, nil
 }
 
 // ToggleArchiveConversation toggles the archive state for the user in the specified conversation.
@@ -322,8 +466,8 @@ func ToggleArchiveConversation(conversationID, userID int) (bool, error) {
 	return repository.ToggleArchiveConversation(conversationID, userID)
 }
 
-// GetConversationMemberSettings gets mute and archive states for a member.
-func GetConversationMemberSettings(conversationID, userID int) (bool, bool, error) {
+// GetConversationMemberSettings gets mute, archive, and pin states for a member.
+func GetConversationMemberSettings(conversationID, userID int) (bool, bool, bool, error) {
 	return repository.GetConversationMemberSettings(conversationID, userID)
 }
 
@@ -414,10 +558,36 @@ func GetBlockedUsers(blockerID int) ([]models.User, error) {
 	return repository.GetBlockedUsers(blockerID)
 }
 
-// ReportAbuse records an abuse report against a member or message.
+// ReportAbuse records an abuse report against a member or message with evidence preservation and spam protection.
 func ReportAbuse(reporterID, reportedUserID int, convID, msgID *int, reason, details string) (*models.ChatReport, error) {
-	if reporterID <= 0 || reportedUserID <= 0 {
-		return nil, errors.New("invalid user ID")
+	if reporterID <= 0 {
+		return nil, errors.New("invalid reporter user ID")
+	}
+
+	var evidenceText string
+	var evidenceURL string
+
+	if msgID != nil && *msgID > 0 {
+		msg, err := repository.GetMessageByID(*msgID)
+		if err != nil || msg == nil {
+			return nil, errors.New("reported message not found")
+		}
+		// If reportedUserID was not set accurately, ensure it points to the message author
+		if reportedUserID <= 0 || (reportedUserID != msg.SenderID && msg.SenderID > 0) {
+			reportedUserID = msg.SenderID
+		}
+		if reporterID == reportedUserID {
+			return nil, errors.New("cannot report your own message")
+		}
+		if convID == nil || *convID <= 0 {
+			convID = &msg.ConversationID
+		}
+		evidenceText = msg.Body
+		evidenceURL = msg.AttachmentURL
+	}
+
+	if reportedUserID <= 0 {
+		return nil, errors.New("invalid reported user ID")
 	}
 	if reporterID == reportedUserID {
 		return nil, errors.New("cannot report yourself")
@@ -428,6 +598,15 @@ func ReportAbuse(reporterID, reportedUserID int, convID, msgID *int, reason, det
 		return nil, errors.New("report reason is required")
 	}
 
+	// Prevent duplicate / spam reports while an existing report is pending
+	hasPending, err := repository.HasPendingChatReport(reporterID, reportedUserID, msgID)
+	if err != nil {
+		return nil, err
+	}
+	if hasPending {
+		return nil, errors.New("a report for this member or message is already pending moderation review")
+	}
+
 	report := &models.ChatReport{
 		ReporterID:     reporterID,
 		ReportedUserID: reportedUserID,
@@ -435,6 +614,8 @@ func ReportAbuse(reporterID, reportedUserID int, convID, msgID *int, reason, det
 		MessageID:      msgID,
 		Reason:         reason,
 		Details:        strings.TrimSpace(details),
+		EvidenceText:   evidenceText,
+		EvidenceURL:    evidenceURL,
 		Status:         "pending",
 	}
 
@@ -442,6 +623,79 @@ func ReportAbuse(reporterID, reportedUserID int, convID, msgID *int, reason, det
 		return nil, err
 	}
 	return report, nil
+}
+
+// GetChatReportsForModeration returns abuse reports if the requesting user is an admin or moderator.
+func GetChatReportsForModeration(reviewerUserID int, status string, limit, offset int) ([]models.ChatReport, int, error) {
+	reviewer, err := repository.GetUserByID(reviewerUserID)
+	if err != nil || reviewer.ID == 0 {
+		return nil, 0, errors.New("user not found")
+	}
+	if reviewer.Role != "admin" && reviewer.Role != "moderator" {
+		return nil, 0, errors.New("access denied: only administrators and moderators can view chat reports")
+	}
+
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	return repository.GetChatReports(status, limit, offset)
+}
+
+// ResolveChatReport updates a report with resolution decision, notes, and executes moderation actions.
+func ResolveChatReport(reviewerUserID, reportID int, status, resolutionAction, notes string) error {
+	reviewer, err := repository.GetUserByID(reviewerUserID)
+	if err != nil || reviewer.ID == 0 {
+		return errors.New("user not found")
+	}
+	if reviewer.Role != "admin" && reviewer.Role != "moderator" {
+		return errors.New("access denied: only administrators and moderators can resolve chat reports")
+	}
+
+	report, err := repository.GetChatReportByID(reportID)
+	if err != nil || report == nil {
+		return errors.New("chat report not found")
+	}
+
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status != "resolved" && status != "dismissed" {
+		status = "resolved"
+	}
+
+	resolutionAction = strings.ToLower(strings.TrimSpace(resolutionAction))
+	notes = strings.TrimSpace(notes)
+
+	// Execute moderation actions based on decision
+	switch resolutionAction {
+	case "delete_message":
+		if report.MessageID != nil && *report.MessageID > 0 {
+			_ = repository.SoftDeleteMessage(*report.MessageID, reviewerUserID)
+			if report.ConversationID != nil && *report.ConversationID > 0 {
+				GlobalHub.BroadcastToConversation(*report.ConversationID, WSEvent{
+					Type:           "message_deleted",
+					ConversationID: *report.ConversationID,
+					Message: &models.Message{
+						ID:             *report.MessageID,
+						ConversationID: *report.ConversationID,
+						IsDeleted:      true,
+						Body:           "This message was removed by a moderator following an abuse report.",
+					},
+				})
+			}
+		}
+	case "warn_user":
+		_ = CreateNotification(models.Notification{
+			SenderID:   reviewerUserID,
+			ReceiverID: report.ReportedUserID,
+			Type:       "system_warning",
+			Message:    "You have received an official moderation warning regarding community guidelines compliance.",
+		})
+	}
+
+	return repository.ResolveChatReport(reportID, reviewerUserID, status, resolutionAction, notes)
 }
 
 // SearchMessages searches messages containing query.
@@ -459,6 +713,14 @@ func SearchMessages(userID int, query string, convID *int, limit, offset int) ([
 		if !isMember {
 			return nil, errors.New("access denied: you are not a participant in this conversation")
 		}
+
+		conv, otherUser, err := GetConversationDetails(*convID, userID)
+		if err == nil && conv != nil && conv.Type == "direct" && otherUser != nil {
+			blocked, bErr := repository.IsCommunicationBlocked(userID, otherUser.ID)
+			if bErr == nil && blocked {
+				return []*models.Message{}, nil
+			}
+		}
 	}
 
 	return repository.SearchMessages(userID, query, convID, limit, offset)
@@ -466,6 +728,11 @@ func SearchMessages(userID int, query string, convID *int, limit, offset int) ([
 
 // GetSharedMedia retrieves media and attachments for a conversation.
 func GetSharedMedia(conversationID, userID int) ([]models.Message, error) {
+	return GetSharedMediaCategorized(conversationID, userID, "", 50, 0)
+}
+
+// GetSharedMediaCategorized retrieves media and attachments for a conversation by category with pagination.
+func GetSharedMediaCategorized(conversationID, userID int, category string, limit, offset int) ([]models.Message, error) {
 	isMember, err := repository.IsConversationMember(conversationID, userID)
 	if err != nil {
 		return nil, err
@@ -474,7 +741,44 @@ func GetSharedMedia(conversationID, userID int) ([]models.Message, error) {
 		return nil, errors.New("access denied: you are not a participant in this conversation")
 	}
 
-	return repository.GetConversationSharedMedia(conversationID, 20)
+	return repository.GetConversationSharedMediaCategorized(conversationID, category, limit, offset)
+}
+
+// GetSharedMediaOverview groups attachments for a conversation into the 4 core categories.
+func GetSharedMediaOverview(conversationID, userID int) (*models.SharedMediaOverview, error) {
+	isMember, err := repository.IsConversationMember(conversationID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !isMember {
+		return nil, errors.New("access denied: you are not a participant in this conversation")
+	}
+
+	items, err := repository.GetConversationSharedMediaCategorized(conversationID, "", 100, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	overview := &models.SharedMediaOverview{
+		Photos:    make([]models.Message, 0),
+		Videos:    make([]models.Message, 0),
+		Documents: make([]models.Message, 0),
+		Voice:     make([]models.Message, 0),
+		Total:     len(items),
+	}
+
+	for _, m := range items {
+		if m.IsImage() {
+			overview.Photos = append(overview.Photos, m)
+		} else if m.IsVideo() {
+			overview.Videos = append(overview.Videos, m)
+		} else if m.IsVoice() {
+			overview.Voice = append(overview.Voice, m)
+		} else {
+			overview.Documents = append(overview.Documents, m)
+		}
+	}
+	return overview, nil
 }
 
 // CreateCallLog creates and persists a new call session.
@@ -824,10 +1128,25 @@ func LeaveGroup(userID, groupID int) error {
 	}
 	_ = repository.SaveMessage(sysMsg)
 
+	// Disconnect from active group call room if participating
+	if GlobalGroupCallManager != nil {
+		_, _, _ = GlobalGroupCallManager.LeaveGroupCall(groupID, userID)
+	}
+
 	GlobalHub.BroadcastToConversation(groupID, WSEvent{
 		Type:           "new_message",
 		ConversationID: groupID,
 		Message:        sysMsg,
+	})
+
+	GlobalHub.BroadcastToConversation(groupID, WSEvent{
+		Type:           "member_left",
+		ConversationID: groupID,
+		UserID:         userID,
+		Data: map[string]interface{}{
+			"user_id":         userID,
+			"conversation_id": groupID,
+		},
 	})
 
 	return nil
@@ -1059,11 +1378,28 @@ func RemoveGroupMember(actingUserID, groupID, targetUserID int) error {
 	}
 	_ = repository.SaveMessage(sysMsg)
 
+	// Disconnect target user from active call if participating
+	if GlobalGroupCallManager != nil {
+		_, _, _ = GlobalGroupCallManager.LeaveGroupCall(groupID, targetUserID)
+	}
+
 	GlobalHub.BroadcastToConversation(groupID, WSEvent{
 		Type:           "new_message",
 		ConversationID: groupID,
 		Message:        sysMsg,
 	})
+
+	removalEvt := WSEvent{
+		Type:           "member_removed",
+		ConversationID: groupID,
+		UserID:         targetUserID,
+		Data: map[string]interface{}{
+			"user_id":         targetUserID,
+			"conversation_id": groupID,
+		},
+	}
+	GlobalHub.BroadcastToConversation(groupID, removalEvt)
+	GlobalHub.BroadcastToUser(targetUserID, removalEvt)
 
 	_ = CreateNotification(models.Notification{
 		SenderID:   actingUserID,
@@ -1263,7 +1599,12 @@ func ModerateDeleteMessage(actingUserID, messageID int) error {
 		return errors.New("access denied: insufficient permissions to delete this message")
 	}
 
-	if err := repository.SoftDeleteMessage(messageID, actingUserID); err != nil {
+	deletionText := "This message was deleted."
+	if !isAuthor && isGroupAdminOrMod {
+		deletionText = "This message was removed by a moderator."
+	}
+
+	if err := repository.SoftDeleteMessage(messageID, actingUserID, deletionText); err != nil {
 		return err
 	}
 
@@ -1275,7 +1616,7 @@ func ModerateDeleteMessage(actingUserID, messageID int) error {
 			ID:             msg.ID,
 			ConversationID: msg.ConversationID,
 			IsDeleted:      true,
-			Body:           "This message was removed by a moderator.",
+			Body:           deletionText,
 		},
 	})
 
@@ -1329,4 +1670,306 @@ func CanUserCallInGroup(convID, userID int) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// GenerateCallInvitation creates an unpredictable, cryptographically random call invitation token valid for 24 hours.
+func GenerateCallInvitation(conversationID, userID int, callType string) (*models.CallInvitation, string, error) {
+	if conversationID <= 0 || userID <= 0 {
+		return nil, "", errors.New("invalid conversation or user ID")
+	}
+
+	// Verify conversation exists and user is a member
+	isMember, err := repository.IsConversationMember(conversationID, userID)
+	if err != nil || !isMember {
+		return nil, "", errors.New("access denied: you are not a participant in this conversation")
+	}
+
+	conv, err := repository.GetConversationByID(conversationID)
+	if err != nil || conv == nil {
+		return nil, "", errors.New("conversation not found")
+	}
+
+	// In groups, verify call permissions if restricted
+	if conv.Type == "group" {
+		canCall, _ := CanUserCallInGroup(conversationID, userID)
+		if !canCall {
+			return nil, "", errors.New("access denied: only group administrators can initiate calls")
+		}
+	} else if conv.Type == "direct" {
+		otherUser, err := repository.GetConversationOtherParticipant(conversationID, userID)
+		if err == nil && otherUser != nil {
+			blocked, _ := repository.IsCommunicationBlocked(userID, otherUser.ID)
+			if blocked {
+				return nil, "", errors.New("cannot create call link: communication is blocked between participants")
+			}
+		}
+	}
+
+	callType = strings.ToLower(strings.TrimSpace(callType))
+	if callType != "video" {
+		callType = "audio"
+	}
+
+	randBytes := make([]byte, 16)
+	if _, err := rand.Read(randBytes); err != nil {
+		return nil, "", fmt.Errorf("failed generating invitation token: %w", err)
+	}
+	token := hex.EncodeToString(randBytes)
+
+	inv := &models.CallInvitation{
+		ConversationID: conversationID,
+		Token:          token,
+		CallType:       callType,
+		CreatedBy:      userID,
+		ExpiresAt:      time.Now().Add(24 * time.Hour),
+	}
+
+	if err := repository.CreateCallInvitation(inv); err != nil {
+		return nil, "", err
+	}
+
+	inviteURL := fmt.Sprintf("/messages/call/join?token=%s", token)
+	return inv, inviteURL, nil
+}
+
+// ValidateCallInvitation validates a call invitation token, checking expiration and membership access.
+func ValidateCallInvitation(token string, currentUserID int) (*models.CallInvitation, *models.Conversation, error) {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, nil, errors.New("invalid or empty call invitation token")
+	}
+
+	inv, err := repository.GetCallInvitationByToken(token)
+	if err != nil || inv == nil {
+		return nil, nil, errors.New("call invitation not found or invalid")
+	}
+
+	if time.Now().After(inv.ExpiresAt) {
+		return nil, nil, errors.New("call invitation has expired")
+	}
+
+	conv, err := repository.GetConversationByID(inv.ConversationID)
+	if err != nil || conv == nil {
+		return nil, nil, errors.New("conversation associated with this invitation was not found")
+	}
+
+	// Validate authorization for current user
+	if conv.Type == "direct" {
+		isMember, err := repository.IsConversationMember(conv.ID, currentUserID)
+		if err != nil || !isMember {
+			return nil, nil, errors.New("access denied: this call link is private to the participants of this conversation")
+		}
+		// Check block
+		otherUser, _ := repository.GetConversationOtherParticipant(conv.ID, currentUserID)
+		if otherUser != nil {
+			blocked, _ := repository.IsCommunicationBlocked(currentUserID, otherUser.ID)
+			if blocked {
+				return nil, nil, errors.New("cannot join call: communication is blocked")
+			}
+		}
+	} else if conv.Type == "group" {
+		isMember, err := repository.IsConversationMember(conv.ID, currentUserID)
+		if err != nil || !isMember {
+			// If not a member, check if open group to auto-join
+			if conv.JoinPolicy == "open" {
+				_ = repository.AddConversationMember(conv.ID, currentUserID, "member")
+			} else {
+				return nil, nil, errors.New("access denied: you must be an approved member of this group to join this call")
+			}
+		}
+	}
+
+	return inv, conv, nil
+}
+
+func extractMentions(text string) []string {
+	re := regexp.MustCompile(`@([a-zA-Z0-9_]+)`)
+	matches := re.FindAllStringSubmatch(text, -1)
+	var usernames []string
+	seen := make(map[string]bool)
+	for _, m := range matches {
+		if len(m) > 1 {
+			u := strings.ToLower(m[1])
+			if !seen[u] {
+				seen[u] = true
+				usernames = append(usernames, u)
+			}
+		}
+	}
+	return usernames
+}
+
+func processMentions(conversationID, senderID int, senderName string, conv *models.Conversation, body string) {
+	usernames := extractMentions(body)
+	if len(usernames) == 0 {
+		return
+	}
+
+	members, err := repository.GetConversationMembers(conversationID)
+	if err != nil {
+		return
+	}
+
+	convTitle := "the chat"
+	if conv != nil && conv.Title != "" {
+		convTitle = conv.Title
+	}
+
+	for _, member := range members {
+		if member.UserID == senderID {
+			continue
+		}
+		memUsername := strings.ToLower(member.User.Username)
+		for _, u := range usernames {
+			if u == memUsername {
+				// Verify not blocked
+				if blocked, _ := repository.IsCommunicationBlocked(senderID, member.UserID); blocked {
+					break
+				}
+				// Verify not muted
+				if repository.IsConversationMutedBy(conversationID, member.UserID) {
+					break
+				}
+
+				_ = CreateNotification(models.Notification{
+					SenderID:   senderID,
+					ReceiverID: member.UserID,
+					Type:       "mention",
+					Message:    fmt.Sprintf("%s mentioned you in %s", senderName, convTitle),
+				})
+				break
+			}
+		}
+	}
+}
+
+// ClearChat clears message history for a user in a conversation.
+func ClearChat(conversationID, userID int) error {
+	return repository.ClearConversationHistory(conversationID, userID)
+}
+
+// TogglePinConversation toggles the pinned state of a conversation for a user.
+func TogglePinConversation(conversationID, userID int) (bool, error) {
+	return repository.ToggleConversationPin(conversationID, userID)
+}
+
+// DeleteMessageForMe hides a message specifically for the requesting user.
+func DeleteMessageForMe(userID, messageID int) error {
+	return repository.DeleteMessageForMe(messageID, userID)
+}
+
+func truncateText(s string, maxLen int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.TrimSpace(s)
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+// ExportChat generates an authorized transcript in "txt" or "json" format.
+func ExportChat(conversationID, userID int, format string) (string, []byte, error) {
+	conv, messages, err := repository.GetConversationMessagesForExport(conversationID, userID)
+	if err != nil {
+		return "", nil, err
+	}
+
+	timestamp := time.Now().Format("20060102150405")
+	format = strings.ToLower(strings.TrimSpace(format))
+
+	convTitle := conv.Title
+	if convTitle == "" {
+		if conv.Type == "direct" {
+			convTitle = "Direct Chat"
+		} else {
+			convTitle = fmt.Sprintf("Conversation #%d", conversationID)
+		}
+	}
+
+	if format == "json" {
+		type ExportedSender struct {
+			ID       int    `json:"id"`
+			FullName string `json:"full_name"`
+			Username string `json:"username"`
+		}
+		type ExportedMessage struct {
+			ID               int            `json:"id"`
+			Sender           ExportedSender `json:"sender"`
+			MessageType      string         `json:"message_type"`
+			Body             string         `json:"body"`
+			ReplyToMessageID *int           `json:"reply_to_message_id,omitempty"`
+			AttachmentURL    string         `json:"attachment_url,omitempty"`
+			AttachmentName   string         `json:"attachment_name,omitempty"`
+			AttachmentSize   int64          `json:"attachment_size,omitempty"`
+			CreatedAt        string         `json:"created_at"`
+		}
+		type ExportPayload struct {
+			ConversationID int               `json:"conversation_id"`
+			Title          string            `json:"title"`
+			Type           string            `json:"type"`
+			ExportedAt     string            `json:"exported_at"`
+			TotalMessages  int               `json:"total_messages"`
+			Messages       []ExportedMessage `json:"messages"`
+		}
+
+		exportMsgs := make([]ExportedMessage, len(messages))
+		for i, m := range messages {
+			exportMsgs[i] = ExportedMessage{
+				ID: m.ID,
+				Sender: ExportedSender{
+					ID:       m.Sender.ID,
+					FullName: m.Sender.FullName,
+					Username: m.Sender.Username,
+				},
+				MessageType:      m.MessageType,
+				Body:             m.Body,
+				ReplyToMessageID: m.ReplyToMessageID,
+				AttachmentURL:    m.AttachmentURL,
+				AttachmentName:   m.AttachmentName,
+				AttachmentSize:   m.AttachmentSize,
+				CreatedAt:        m.CreatedAt.Format(time.RFC3339),
+			}
+		}
+
+		payload := ExportPayload{
+			ConversationID: conversationID,
+			Title:          convTitle,
+			Type:           conv.Type,
+			ExportedAt:     time.Now().Format(time.RFC3339),
+			TotalMessages:  len(messages),
+			Messages:       exportMsgs,
+		}
+
+		data, err := json.MarshalIndent(payload, "", "  ")
+		if err != nil {
+			return "", nil, err
+		}
+		filename := fmt.Sprintf("chat-export-%d-%s.json", conversationID, timestamp)
+		return filename, data, nil
+	}
+
+	// Default to plain text format
+	var buf strings.Builder
+	buf.WriteString("================================================================================\n")
+	buf.WriteString(fmt.Sprintf("Chat Transcript: %s\n", convTitle))
+	buf.WriteString(fmt.Sprintf("Conversation ID: %d\n", conversationID))
+	buf.WriteString(fmt.Sprintf("Export Date: %s\n", time.Now().Format("2006-01-02 15:04:05 MST")))
+	buf.WriteString(fmt.Sprintf("Total Messages: %d\n", len(messages)))
+	buf.WriteString("================================================================================\n\n")
+
+	for _, m := range messages {
+		timeStr := m.CreatedAt.Format("2006-01-02 15:04:05")
+		replyInfo := ""
+		if m.ReplyToMessage != nil {
+			replyInfo = fmt.Sprintf(" (replying to %s: \"%s\")", m.ReplyToMessage.Sender.FullName, truncateText(m.ReplyToMessage.Body, 30))
+		}
+		attachInfo := ""
+		if m.AttachmentURL != "" {
+			attachInfo = fmt.Sprintf(" [Attachment: %s (%s)]", m.AttachmentName, m.AttachmentURL)
+		}
+		buf.WriteString(fmt.Sprintf("[%s] %s%s: %s%s\n", timeStr, m.Sender.FullName, replyInfo, m.Body, attachInfo))
+	}
+
+	filename := fmt.Sprintf("chat-export-%d-%s.txt", conversationID, timestamp)
+	return filename, []byte(buf.String()), nil
 }

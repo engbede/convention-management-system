@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"convention-management-system/models"
 	"convention-management-system/repository"
@@ -73,12 +74,13 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 		activeConvID = conversations[0].ID
 	}
 
+	var isActivePinned bool
 	if activeConvID > 0 {
 		conv, recipient, err := services.GetConversationDetails(activeConvID, currentUserID)
 		if err == nil {
 			activeConv = conv
 			activeRecipient = recipient
-			isActiveMuted, isActiveArchived, _ = services.GetConversationMemberSettings(activeConvID, currentUserID)
+			isActiveMuted, isActiveArchived, isActivePinned, _ = services.GetConversationMemberSettings(activeConvID, currentUserID)
 			msgs, err := services.GetConversationMessages(activeConvID, currentUserID, 50, 0)
 			if err == nil {
 				messages = msgs
@@ -103,6 +105,7 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 	var isActiveOnline bool
 	var isRecipientBlocked, isBlockedByRecipient bool
 	var sharedMedia []models.Message
+	var sharedMediaOverview *models.SharedMediaOverview
 	var callLogs []models.CallLog
 	var activeGroupMembers []models.ConversationMember
 	var activeUserRole string
@@ -118,8 +121,21 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 		canStartCall = !isRecipientBlocked && !isBlockedByRecipient
 	}
 
+	var activeMutedUntil *time.Time
+	var activeDisappearingDuration int
+	var activeDisappearingLabel string
+
 	if activeConv != nil {
+		activeDisappearingDuration = activeConv.DisappearingDuration
+		activeDisappearingLabel = activeConv.FormattedDisappearingDuration()
+		if activeMember, mErr := repository.GetConversationMember(activeConv.ID, currentUserID); mErr == nil && activeMember != nil {
+			activeMutedUntil = activeMember.MutedUntil
+			isActiveMuted = activeMember.IsActiveMuted()
+			isActivePinned = activeMember.IsPinned
+		}
+
 		sharedMedia, _ = services.GetSharedMedia(activeConv.ID, currentUserID)
+		sharedMediaOverview, _ = services.GetSharedMediaOverview(activeConv.ID, currentUserID)
 		callLogs, _ = services.GetConversationCallLogs(activeConv.ID, currentUserID)
 
 		if activeConv.Type == "group" {
@@ -146,33 +162,49 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 	}
 
 	discoverableGroups, _ := services.GetDiscoverableGroups(currentUserID, "")
+	blockedUsers, _ := services.GetBlockedUsers(currentUserID)
+	var pendingReportsCount int
+	if currentUser.Role == "admin" || currentUser.Role == "moderator" {
+		pendingReportsCount, _ = repository.CountPendingChatReports()
+	}
+
+	hasAcceptedTerms, activeTermsVer, _, _ := services.CheckTermsAcceptance(currentUserID)
 
 	data := models.ChatViewData{
-		CurrentUser:          currentUser,
-		Error:                inboxError,
-		Conversations:        conversations,
-		ActiveConversation:   activeConv,
-		ActiveRecipient:      activeRecipient,
-		ActiveGroupMembers:   activeGroupMembers,
-		ActiveUserRole:       activeUserRole,
-		CanStartCall:         canStartCall,
-		CanManageMembers:     canManageMembers,
-		PendingRequestsCount: pendingRequestsCount,
-		PendingRequests:      pendingRequests,
-		DiscoverableGroups:   discoverableGroups,
-		Messages:             messages,
-		EligibleFriends:      eligibleFriends,
-		UnreadCount:          unreadNotifications,
-		UnreadMessagesCount:  unreadMsgs,
-		IsActiveMuted:        isActiveMuted,
-		IsActiveArchived:     isActiveArchived,
-		HasOlderMessages:     hasOlder,
-		IsActiveOnline:       isActiveOnline,
-		IsRecipientBlocked:   isRecipientBlocked,
-		IsBlockedByRecipient: isBlockedByRecipient,
-		SharedMedia:          sharedMedia,
-		CallLogs:             callLogs,
-		ActiveGroupCall:      activeGroupCall,
+		CurrentUser:                currentUser,
+		Error:                      inboxError,
+		Conversations:              conversations,
+		ActiveConversation:         activeConv,
+		ActiveRecipient:            activeRecipient,
+		ActiveGroupMembers:         activeGroupMembers,
+		ActiveUserRole:             activeUserRole,
+		CanStartCall:               canStartCall,
+		CanManageMembers:           canManageMembers,
+		PendingRequestsCount:       pendingRequestsCount,
+		PendingRequests:            pendingRequests,
+		DiscoverableGroups:         discoverableGroups,
+		Messages:                   messages,
+		EligibleFriends:            eligibleFriends,
+		UnreadCount:                unreadNotifications,
+		UnreadMessagesCount:        unreadMsgs,
+		IsActiveMuted:              isActiveMuted,
+		ActiveMutedUntil:           activeMutedUntil,
+		ActiveDisappearingDuration: activeDisappearingDuration,
+		ActiveDisappearingLabel:    activeDisappearingLabel,
+		IsActiveArchived:           isActiveArchived,
+		IsActivePinned:             isActivePinned,
+		HasOlderMessages:           hasOlder,
+		IsActiveOnline:             isActiveOnline,
+		IsRecipientBlocked:         isRecipientBlocked,
+		IsBlockedByRecipient:       isBlockedByRecipient,
+		BlockedUsers:               blockedUsers,
+		PendingReportsCount:        pendingReportsCount,
+		HasAcceptedTerms:           hasAcceptedTerms,
+		ActiveTermsVersion:         activeTermsVer,
+		SharedMedia:                sharedMedia,
+		SharedMediaOverview:        sharedMediaOverview,
+		CallLogs:                   callLogs,
+		ActiveGroupCall:            activeGroupCall,
 	}
 
 	Render(w, "chat.html", data)
@@ -216,6 +248,18 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	termsAccepted, reqVersion, _, _ := services.CheckTermsAcceptance(currentUserID)
+	if !termsAccepted {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":            "terms_acceptance_required",
+			"message":          "You must review and accept the latest platform terms of use before sending messages.",
+			"required_version": reqVersion,
+		})
 		return
 	}
 
@@ -402,7 +446,7 @@ func MarkReadAPI(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
 }
 
-// ToggleMuteAPI toggles mute for a conversation.
+// ToggleMuteAPI toggles mute or sets a specific mute duration for a conversation.
 func ToggleMuteAPI(w http.ResponseWriter, r *http.Request) {
 	currentUserID := getCurrentUserID(r)
 	if currentUserID == 0 {
@@ -420,12 +464,39 @@ func ToggleMuteAPI(w http.ResponseWriter, r *http.Request) {
 		convID, _ = strconv.Atoi(r.FormValue("conversation_id"))
 	}
 
+	duration := r.FormValue("duration")
+	if duration == "" {
+		duration = r.URL.Query().Get("duration")
+	}
+
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var req struct {
+			ConversationID int    `json:"conversation_id"`
+			Duration       string `json:"duration"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			if req.ConversationID > 0 {
+				convID = req.ConversationID
+			}
+			if req.Duration != "" {
+				duration = req.Duration
+			}
+		}
+	}
+
 	if convID <= 0 {
 		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
 		return
 	}
 
-	isMuted, err := services.ToggleMuteConversation(convID, currentUserID)
+	var isMuted bool
+	var mutedUntil *time.Time
+	if duration != "" {
+		mutedUntil, isMuted, err = services.SetConversationMute(convID, currentUserID, duration)
+	} else {
+		isMuted, err = services.ToggleMuteConversation(convID, currentUserID)
+	}
+
 	if err != nil {
 		if strings.Contains(err.Error(), "access denied") {
 			http.Error(w, err.Error(), http.StatusForbidden)
@@ -438,8 +509,108 @@ func ToggleMuteAPI(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.Header.Get("Accept"), "application/json") || strings.Contains(r.Header.Get("Content-Type"), "application/json") {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
-			"success":  true,
-			"is_muted": isMuted,
+			"success":     true,
+			"is_muted":    isMuted,
+			"muted_until": mutedUntil,
+			"duration":    duration,
+		})
+		return
+	}
+
+	http.Redirect(w, r, fmt.Sprintf("/messages?c=%d", convID), http.StatusSeeOther)
+}
+
+// SetDisappearingMessagesAPI updates the disappearing message timer for a conversation.
+func SetDisappearingMessagesAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var convID int
+	var durationStr string
+	var durationSec int
+
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var req struct {
+			ConversationID int `json:"conversation_id"`
+			Duration       any `json:"duration"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			convID = req.ConversationID
+			switch v := req.Duration.(type) {
+			case float64:
+				durationSec = int(v)
+			case int:
+				durationSec = v
+			case string:
+				durationStr = v
+			}
+		}
+	} else {
+		convID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+		if convID <= 0 {
+			convID, _ = strconv.Atoi(r.URL.Query().Get("conversation_id"))
+		}
+		durationStr = r.FormValue("duration")
+	}
+
+	if durationStr != "" {
+		switch strings.ToLower(strings.TrimSpace(durationStr)) {
+		case "off", "none", "0":
+			durationSec = 0
+		case "24h", "24_hours", "24 hours", "1d", "86400":
+			durationSec = 86400
+		case "7d", "7_days", "7 days", "1w", "604800":
+			durationSec = 604800
+		case "90d", "90_days", "90 days", "3m", "7776000":
+			durationSec = 7776000
+		default:
+			if sec, err := strconv.Atoi(durationStr); err == nil {
+				durationSec = sec
+			}
+		}
+	}
+
+	if convID <= 0 {
+		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+		return
+	}
+
+	conv, err := services.SetDisappearingMessages(currentUserID, convID, durationSec)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if strings.Contains(err.Error(), "permission denied") || strings.Contains(err.Error(), "access denied") {
+			status = http.StatusForbidden
+		} else if strings.Contains(err.Error(), "invalid disappearing duration") {
+			status = http.StatusBadRequest
+		}
+		if strings.Contains(r.Header.Get("Accept"), "application/json") || strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	if strings.Contains(r.Header.Get("Accept"), "application/json") || strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":               true,
+			"conversation_id":       convID,
+			"disappearing_duration": conv.DisappearingDuration,
+			"formatted_duration":    conv.FormattedDisappearingDuration(),
 		})
 		return
 	}
@@ -673,6 +844,10 @@ func ReportAbuseAPI(w http.ResponseWriter, r *http.Request) {
 
 	report, err := services.ReportAbuse(currentUserID, reportedUserID, convID, msgID, reason, details)
 	if err != nil {
+		if strings.Contains(err.Error(), "already pending") {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -690,6 +865,130 @@ func ReportAbuseAPI(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/messages", http.StatusSeeOther)
 }
 
+// GetBlockedUsersAPI returns the list of users blocked by the authenticated member.
+func GetBlockedUsersAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	blockedUsers, err := services.GetBlockedUsers(currentUserID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":       true,
+		"blocked_users": blockedUsers,
+	})
+}
+
+// GetModerationReportsAPI returns pending/all abuse reports for administrative/moderation review.
+func GetModerationReportsAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	status := r.URL.Query().Get("status")
+	limitStr := r.URL.Query().Get("limit")
+	offsetStr := r.URL.Query().Get("offset")
+
+	limit := 50
+	offset := 0
+	if limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			limit = l
+		}
+	}
+	if offsetStr != "" {
+		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	reports, total, err := services.GetChatReportsForModeration(currentUserID, status, limit, offset)
+	if err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"reports": reports,
+		"total":   total,
+	})
+}
+
+// ResolveModerationReportAPI handles moderation review and decision taking on a reported message or member.
+func ResolveModerationReportAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var reportID int
+	var status string
+	var action string
+	var notes string
+
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var payload struct {
+			ReportID int    `json:"report_id"`
+			Status   string `json:"status"`
+			Action   string `json:"action"`
+			Notes    string `json:"notes"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err == nil {
+			reportID = payload.ReportID
+			status = payload.Status
+			action = payload.Action
+			notes = payload.Notes
+		}
+	} else {
+		_ = r.ParseForm()
+		reportID, _ = strconv.Atoi(r.FormValue("report_id"))
+		status = r.FormValue("status")
+		action = r.FormValue("action")
+		notes = r.FormValue("notes")
+	}
+
+	if reportID <= 0 {
+		http.Error(w, "Invalid report ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := services.ResolveChatReport(currentUserID, reportID, status, action, notes); err != nil {
+		if strings.Contains(err.Error(), "access denied") {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": "Report resolved successfully",
+	})
+}
+
 // SearchMessagesAPI returns JSON array of matching messages.
 func SearchMessagesAPI(w http.ResponseWriter, r *http.Request) {
 	currentUserID := getCurrentUserID(r)
@@ -700,15 +999,24 @@ func SearchMessagesAPI(w http.ResponseWriter, r *http.Request) {
 
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	var convID *int
-	if cStr := r.URL.Query().Get("conversation_id"); cStr != "" {
-		if id, err := strconv.Atoi(cStr); err == nil && id > 0 {
-			convID = &id
+	cStr := r.URL.Query().Get("conversation_id")
+	if cStr == "" {
+		cStr = r.URL.Query().Get("c")
+	}
+	if cStr != "" {
+		id, err := strconv.Atoi(cStr)
+		if err != nil || id <= 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid conversation ID"})
+			return
 		}
+		convID = &id
 	}
 
 	limit := 30
 	if lStr := r.URL.Query().Get("limit"); lStr != "" {
-		if l, err := strconv.Atoi(lStr); err == nil && l > 0 {
+		if l, err := strconv.Atoi(lStr); err == nil && l > 0 && l <= 100 {
 			limit = l
 		}
 	}
@@ -722,20 +1030,87 @@ func SearchMessagesAPI(w http.ResponseWriter, r *http.Request) {
 
 	messages, err := services.SearchMessages(currentUserID, query, convID, limit, offset)
 	if err != nil {
-		if strings.Contains(err.Error(), "access denied") {
-			http.Error(w, err.Error(), http.StatusForbidden)
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
 			return
 		}
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"success":  true,
-		"query":    query,
-		"messages": messages,
-		"count":    len(messages),
+		"success":         true,
+		"query":           query,
+		"conversation_id": convID,
+		"messages":        messages,
+		"count":           len(messages),
+		"limit":           limit,
+		"offset":          offset,
+	})
+}
+
+// GetSharedMediaAPI returns paginated shared media attachments for a conversation as JSON.
+func GetSharedMediaAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	cStr := r.URL.Query().Get("conversation_id")
+	if cStr == "" {
+		cStr = r.URL.Query().Get("c")
+	}
+	convID, err := strconv.Atoi(cStr)
+	if err != nil || convID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid conversation ID"})
+		return
+	}
+
+	category := r.URL.Query().Get("category")
+
+	limit := 50
+	if lStr := r.URL.Query().Get("limit"); lStr != "" {
+		if l, err := strconv.Atoi(lStr); err == nil && l > 0 && l <= 100 {
+			limit = l
+		}
+	}
+
+	offset := 0
+	if oStr := r.URL.Query().Get("offset"); oStr != "" {
+		if o, err := strconv.Atoi(oStr); err == nil && o >= 0 {
+			offset = o
+		}
+	}
+
+	media, err := services.GetSharedMediaCategorized(convID, currentUserID, category, limit, offset)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":         true,
+		"conversation_id": convID,
+		"category":        category,
+		"media":           media,
+		"count":           len(media),
+		"limit":           limit,
+		"offset":          offset,
 	})
 }
 
@@ -799,6 +1174,103 @@ func LogCallAPI(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"success": true,
 	})
+}
+
+// GenerateCallLinkAPI creates a new invitation token for a call session.
+func GenerateCallLinkAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var convID int
+	callType := "audio"
+
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var req struct {
+			ConversationID int    `json:"conversation_id"`
+			CallType       string `json:"call_type"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			convID = req.ConversationID
+			if req.CallType != "" {
+				callType = req.CallType
+			}
+		}
+	} else {
+		_ = r.ParseForm()
+		convID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+		if r.FormValue("call_type") != "" {
+			callType = r.FormValue("call_type")
+		}
+	}
+
+	if convID <= 0 {
+		http.Error(w, "Invalid conversation ID", http.StatusBadRequest)
+		return
+	}
+
+	inv, inviteURL, err := services.GenerateCallInvitation(convID, currentUserID, callType)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	proto := "https"
+	if r.TLS == nil && !strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
+		proto = "http"
+	}
+	host := r.Host
+	if host == "" {
+		host = "convention-management-system.onrender.com"
+	}
+	fullURL := fmt.Sprintf("%s://%s%s", proto, host, inviteURL)
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":    true,
+		"token":      inv.Token,
+		"call_type":  inv.CallType,
+		"invite_url": fullURL,
+		"path":       inviteURL,
+		"expires_at": inv.ExpiresAt.Format(time.RFC3339),
+	})
+}
+
+// JoinCallLinkHandler verifies an invitation token and admits the user to the active call session.
+func JoinCallLinkHandler(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Redirect(w, r, fmt.Sprintf("/user/login?redirect=%s", url.QueryEscape(r.RequestURI)), http.StatusSeeOther)
+		return
+	}
+
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		http.Error(w, "Missing call invitation token", http.StatusBadRequest)
+		return
+	}
+
+	inv, conv, err := services.ValidateCallInvitation(token, currentUserID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	redirectURL := fmt.Sprintf("/messages?c=%d&autocall=%s", conv.ID, inv.CallType)
+	http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 }
 
 // CreateGroupAPI handles creating a new community group chat.
@@ -1776,6 +2248,53 @@ func GetActiveGroupCallAPI(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// MuteGroupCallParticipantAPI remotely mutes a member in a live group call (host, admin, or moderator privilege required).
+func MuteGroupCallParticipantAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var payload struct {
+		ConversationID int `json:"conversation_id"`
+		UserID         int `json:"user_id"`
+	}
+
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+	} else {
+		_ = r.ParseForm()
+		payload.ConversationID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+		payload.UserID, _ = strconv.Atoi(r.FormValue("user_id"))
+	}
+
+	if payload.ConversationID <= 0 || payload.UserID <= 0 {
+		http.Error(w, "Invalid parameters", http.StatusBadRequest)
+		return
+	}
+
+	if err := services.GlobalGroupCallManager.MuteParticipantInGroupCall(payload.ConversationID, currentUserID, payload.UserID); err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"message": "Participant muted successfully",
+	})
+}
+
 // KickGroupCallParticipantAPI removes a member from a live group call (admin privilege required).
 func KickGroupCallParticipantAPI(w http.ResponseWriter, r *http.Request) {
 	currentUserID := getCurrentUserID(r)
@@ -2094,22 +2613,43 @@ func DeleteMessageAPI(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var messageID int
+	var mode string
 	isJSON := strings.Contains(r.Header.Get("Content-Type"), "application/json")
 	if isJSON {
 		var payload struct {
-			MessageID int `json:"message_id"`
+			MessageID int    `json:"message_id"`
+			Mode      string `json:"mode"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&payload)
 		messageID = payload.MessageID
+		mode = payload.Mode
 	} else {
 		_ = r.ParseForm()
 		messageID, _ = strconv.Atoi(r.FormValue("message_id"))
+		mode = r.FormValue("mode")
 	}
 
 	if messageID <= 0 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid message ID"})
+		return
+	}
+
+	if mode == "for_me" {
+		if err := services.DeleteMessageForMe(currentUserID, messageID); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":    true,
+			"message_id": messageID,
+			"mode":       "for_me",
+			"message":    "Message deleted for you",
+		})
 		return
 	}
 
@@ -2128,6 +2668,226 @@ func DeleteMessageAPI(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"success":    true,
 		"message_id": messageID,
+		"mode":       "for_everyone",
 		"message":    "Message has been deleted successfully",
+	})
+}
+
+// ClearChatAPI clears message history for the current user in a conversation.
+func ClearChatAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Unauthorized"})
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var conversationID int
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var payload struct {
+			ConversationID int `json:"conversation_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		conversationID = payload.ConversationID
+	} else {
+		_ = r.ParseForm()
+		conversationID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+	}
+
+	if conversationID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid conversation ID"})
+		return
+	}
+
+	if err := services.ClearChat(conversationID, currentUserID); err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "not a member") || strings.Contains(strings.ToLower(err.Error()), "unauthorized") {
+			status = http.StatusForbidden
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":         true,
+		"conversation_id": conversationID,
+		"message":         "Conversation history cleared successfully",
+	})
+}
+
+// TogglePinAPI toggles the is_pinned state for the user in a conversation.
+func TogglePinAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Unauthorized"})
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var conversationID int
+	if strings.Contains(r.Header.Get("Content-Type"), "application/json") {
+		var payload struct {
+			ConversationID int `json:"conversation_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&payload)
+		conversationID = payload.ConversationID
+	} else {
+		_ = r.ParseForm()
+		conversationID, _ = strconv.Atoi(r.FormValue("conversation_id"))
+	}
+
+	if conversationID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid conversation ID"})
+		return
+	}
+
+	newPinned, err := services.TogglePinConversation(conversationID, currentUserID)
+	if err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "not a member") || strings.Contains(strings.ToLower(err.Error()), "unauthorized") {
+			status = http.StatusForbidden
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	msgText := "Conversation pinned"
+	if !newPinned {
+		msgText = "Conversation unpinned"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":         true,
+		"conversation_id": conversationID,
+		"is_pinned":       newPinned,
+		"message":         msgText,
+	})
+}
+
+// ExportChatAPI exports conversation history as txt or json transcript for authorized members.
+func ExportChatAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Unauthorized"})
+		return
+	}
+
+	conversationID, _ := strconv.Atoi(r.URL.Query().Get("conversation_id"))
+	if conversationID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid conversation ID"})
+		return
+	}
+
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "txt"
+	}
+
+	filename, data, err := services.ExportChat(conversationID, currentUserID, format)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "unauthorized") || strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	if strings.HasSuffix(filename, ".json") {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	} else {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	}
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
+// GetConversationMembersAPI returns member list for @mention autocomplete.
+func GetConversationMembersAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Unauthorized"})
+		return
+	}
+
+	conversationID, _ := strconv.Atoi(r.URL.Query().Get("conversation_id"))
+	if conversationID <= 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid conversation ID"})
+		return
+	}
+
+	// Verify current user is a member
+	isMember, err := repository.IsConversationMember(conversationID, currentUserID)
+	if err != nil || !isMember {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Access denied"})
+		return
+	}
+
+	members, err := repository.GetConversationMembers(conversationID)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error()})
+		return
+	}
+
+	type MemberInfo struct {
+		ID        int    `json:"id"`
+		Username  string `json:"username"`
+		FullName  string `json:"full_name"`
+		AvatarURL string `json:"avatar_url"`
+		Role      string `json:"role"`
+	}
+
+	result := make([]MemberInfo, 0, len(members))
+	for _, m := range members {
+		result = append(result, MemberInfo{
+			ID:        m.User.ID,
+			Username:  m.User.Username,
+			FullName:  m.User.FullName,
+			AvatarURL: m.User.ProfilePhoto,
+			Role:      m.Role,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"members": result,
 	})
 }

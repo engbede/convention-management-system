@@ -130,6 +130,8 @@ func TestRouteAccessibility_CommunityProtection(t *testing.T) {
 		"/prayer",
 		"/bible-study",
 		"/saved",
+		"/terms/status",
+		"/terms/accept",
 	}
 
 	for _, path := range communityProtectedRoutes {

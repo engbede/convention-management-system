@@ -331,6 +331,65 @@ func (m *GroupCallManager) UpdateParticipantMediaState(convID, userID int, isMut
 	return p, nil
 }
 
+// MuteParticipantInGroupCall remotely mutes an active participant (host, admin, or moderator permission required).
+func (m *GroupCallManager) MuteParticipantInGroupCall(convID, actorUserID, targetUserID int) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	room, exists := m.rooms[convID]
+	if !exists {
+		return errors.New("no active call in this group")
+	}
+
+	actorMember, err := repository.GetConversationMember(convID, actorUserID)
+	isAuthorized := actorUserID == room.InitiatorID ||
+		(err == nil && actorMember != nil && (actorMember.Role == "owner" || actorMember.Role == "admin" || actorMember.Role == "moderator"))
+	if !isAuthorized {
+		return errors.New("access denied: only group administrators, moderators, or the call host can mute participants")
+	}
+
+	targetMember, _ := repository.GetConversationMember(convID, targetUserID)
+	if targetMember != nil && actorMember != nil {
+		if targetMember.Role == "owner" && actorMember.Role != "owner" {
+			return errors.New("access denied: cannot remotely mute the group owner")
+		}
+		if targetMember.Role == "admin" && actorMember.Role != "owner" && actorMember.Role != "admin" {
+			return errors.New("access denied: cannot remotely mute a higher-ranking administrator")
+		}
+	}
+
+	p, ok := room.Participants[targetUserID]
+	if !ok {
+		return errors.New("participant not found in active call")
+	}
+
+	p.IsMuted = true
+	p.IsSpeaking = false
+
+	// Broadcast state update to everyone in conversation
+	go GlobalHub.BroadcastToConversation(convID, WSEvent{
+		Type:           "group_call_state_updated",
+		ConversationID: convID,
+		CallID:         room.CallID,
+		UserID:         targetUserID,
+		IsMuted:        true,
+		IsCamOff:       p.IsCamOff,
+		IsSpeaking:     false,
+		Participant:    p,
+	})
+
+	// Direct notification to target user so their local microphone is disabled
+	go GlobalHub.BroadcastToUser(targetUserID, WSEvent{
+		Type:           "group_call_remote_muted",
+		ConversationID: convID,
+		CallID:         room.CallID,
+		UserID:         targetUserID,
+		Error:          "You were muted by a host or administrator",
+	})
+
+	return nil
+}
+
 // KickParticipantFromGroupCall removes a user from an active call (owner or admin permission required).
 func (m *GroupCallManager) KickParticipantFromGroupCall(convID, actorUserID, targetUserID int) error {
 	actorMember, err := repository.GetConversationMember(convID, actorUserID)

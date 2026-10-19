@@ -38,6 +38,8 @@ var expectedTables = []string{
 	"chat_reports",
 	"call_logs",
 	"call_participants",
+	"call_invitations",
+	"message_deletions",
 	"password_resets",
 	"programmes",
 	"programme_moderators",
@@ -47,6 +49,7 @@ var expectedTables = []string{
 	"group_membership_requests",
 	"community_prayer_requests",
 	"prayer_request_prayers",
+	"terms_acceptances",
 }
 
 // setupTestDB creates an isolated SQLite database file for testing and restores original DB when done.
@@ -148,6 +151,20 @@ func TestFreshDatabaseMigration(t *testing.T) {
 	if !hasColumn(t, db, "conversations", "join_policy") {
 		t.Errorf("expected column conversations.join_policy was not found")
 	}
+	if !hasColumn(t, db, "conversations", "disappearing_duration") {
+		t.Errorf("expected column conversations.disappearing_duration was not found")
+	}
+
+	// Verify required columns on conversation_members
+	if !hasColumn(t, db, "conversation_members", "muted_until") {
+		t.Errorf("expected column conversation_members.muted_until was not found")
+	}
+	if !hasColumn(t, db, "conversation_members", "is_pinned") {
+		t.Errorf("expected column conversation_members.is_pinned was not found")
+	}
+	if !hasColumn(t, db, "conversation_members", "cleared_at") {
+		t.Errorf("expected column conversation_members.cleared_at was not found")
+	}
 
 	// Verify required columns on messages
 	if !hasColumn(t, db, "messages", "deleted_by") {
@@ -156,10 +173,21 @@ func TestFreshDatabaseMigration(t *testing.T) {
 	if !hasColumn(t, db, "messages", "deleted_at") {
 		t.Errorf("expected column messages.deleted_at was not found")
 	}
+	if !hasColumn(t, db, "messages", "expires_at") {
+		t.Errorf("expected column messages.expires_at was not found")
+	}
 
 	// Verify required column on admins
 	if !hasColumn(t, db, "admins", "email") {
 		t.Errorf("expected column admins.email was not found")
+	}
+
+	// Verify required columns on terms_acceptances
+	termsCols := []string{"id", "user_id", "terms_version", "accepted_at", "ip_address", "user_agent"}
+	for _, col := range termsCols {
+		if !hasColumn(t, db, "terms_acceptances", col) {
+			t.Errorf("expected column terms_acceptances.%s was not found", col)
+		}
 	}
 }
 
@@ -275,9 +303,19 @@ func TestSchemaUpgrade_OlderDatabase(t *testing.T) {
 		t.Errorf("expected join_policy default 'approval', got %q", joinPolicy)
 	}
 
+	var disappearingDuration int
+	err = db.QueryRow("SELECT COALESCE(disappearing_duration, 0) FROM conversations WHERE id = 1").Scan(&disappearingDuration)
+	if err != nil {
+		t.Fatalf("failed querying upgraded conversation disappearing_duration: %v", err)
+	}
+	if disappearingDuration != 0 {
+		t.Errorf("expected disappearing_duration default 0, got %d", disappearingDuration)
+	}
+
 	var msgBody string
 	var deletedBy sql.NullInt64
-	err = db.QueryRow("SELECT body, deleted_by FROM messages WHERE id = 1").Scan(&msgBody, &deletedBy)
+	var expiresAt sql.NullTime
+	err = db.QueryRow("SELECT body, deleted_by, expires_at FROM messages WHERE id = 1").Scan(&msgBody, &deletedBy, &expiresAt)
 	if err != nil {
 		t.Fatalf("failed querying upgraded message: %v", err)
 	}
@@ -286,6 +324,9 @@ func TestSchemaUpgrade_OlderDatabase(t *testing.T) {
 	}
 	if deletedBy.Valid {
 		t.Errorf("expected deleted_by to be NULL, got %d", deletedBy.Int64)
+	}
+	if expiresAt.Valid {
+		t.Errorf("expected message expires_at to be NULL by default, got %v", expiresAt.Time)
 	}
 
 	var regName, qrCode sql.NullString

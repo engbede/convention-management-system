@@ -571,6 +571,22 @@ func RegisterRoutes(mux *http.ServeMux) {
 		"/terms",
 		handlers.TermsOfUseHandler,
 	)
+	mux.HandleFunc(
+		"/terms/status",
+		middleware.RequireLogin(
+			handlers.TermsStatusAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/terms/accept",
+		middleware.RequireLogin(
+			handlers.AcceptTermsAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/terms/decline",
+		handlers.DeclineTermsAPI,
+	)
 
 	// Youth Community Chat & Messaging
 	mux.HandleFunc(
@@ -616,6 +632,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/disappearing",
+		middleware.RequireLogin(
+			handlers.SetDisappearingMessagesAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/archive",
 		middleware.RequireLogin(
 			handlers.ToggleArchiveAPI,
@@ -646,9 +668,33 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/blocked",
+		middleware.RequireLogin(
+			handlers.GetBlockedUsersAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/moderation/reports",
+		middleware.RequireLogin(
+			handlers.GetModerationReportsAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/moderation/reports/resolve",
+		middleware.RequireLogin(
+			handlers.ResolveModerationReportAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/search",
 		middleware.RequireLogin(
 			handlers.SearchMessagesAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/media",
+		middleware.RequireLogin(
+			handlers.GetSharedMediaAPI,
 		),
 	)
 	mux.HandleFunc(
@@ -661,6 +707,18 @@ func RegisterRoutes(mux *http.ServeMux) {
 		"/messages/call/log",
 		middleware.RequireLogin(
 			handlers.LogCallAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/call/link/generate",
+		middleware.RequireLogin(
+			handlers.GenerateCallLinkAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/call/join",
+		middleware.RequireLogin(
+			handlers.JoinCallLinkHandler,
 		),
 	)
 	mux.HandleFunc(
@@ -772,6 +830,30 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/clear",
+		middleware.RequireLogin(
+			handlers.ClearChatAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/pin",
+		middleware.RequireLogin(
+			handlers.TogglePinAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/export",
+		middleware.RequireLogin(
+			handlers.ExportChatAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/members",
+		middleware.RequireLogin(
+			handlers.GetConversationMembersAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/call/group/start",
 		middleware.RequireLogin(
 			handlers.StartGroupCallAPI,
@@ -793,6 +875,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 		"/messages/call/group/active",
 		middleware.RequireLogin(
 			handlers.GetActiveGroupCallAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/messages/call/group/mute",
+		middleware.RequireLogin(
+			handlers.MuteGroupCallParticipantAPI,
 		),
 	)
 	mux.HandleFunc(

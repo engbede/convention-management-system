@@ -707,6 +707,7 @@ CREATE TABLE IF NOT EXISTS conversations (
     call_permission TEXT DEFAULT 'all',
     is_public INTEGER DEFAULT 1,
     join_policy TEXT DEFAULT 'approval',
+    disappearing_duration INTEGER DEFAULT 0,
     created_by INTEGER NOT NULL,
     last_message_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -724,6 +725,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 		`ALTER TABLE conversations ADD COLUMN call_permission TEXT DEFAULT 'all'`,
 		`ALTER TABLE conversations ADD COLUMN is_public INTEGER DEFAULT 1`,
 		`ALTER TABLE conversations ADD COLUMN join_policy TEXT DEFAULT 'approval'`,
+		`ALTER TABLE conversations ADD COLUMN disappearing_duration INTEGER DEFAULT 0`,
 		`ALTER TABLE conversations ADD COLUMN last_message_at DATETIME`,
 		`ALTER TABLE conversations ADD COLUMN updated_at DATETIME`,
 	} {
@@ -741,6 +743,9 @@ CREATE TABLE IF NOT EXISTS conversation_members (
     last_read_message_id INTEGER DEFAULT 0,
     last_read_at DATETIME,
     is_muted BOOLEAN DEFAULT 0,
+    muted_until DATETIME,
+    is_pinned BOOLEAN DEFAULT 0,
+    cleared_at DATETIME,
     is_archived BOOLEAN DEFAULT 0,
     joined_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(conversation_id, user_id),
@@ -749,6 +754,16 @@ CREATE TABLE IF NOT EXISTS conversation_members (
 );
 `); err != nil {
 		return err
+	}
+
+	for _, colQ := range []string{
+		`ALTER TABLE conversation_members ADD COLUMN muted_until DATETIME`,
+		`ALTER TABLE conversation_members ADD COLUMN is_pinned BOOLEAN DEFAULT 0`,
+		`ALTER TABLE conversation_members ADD COLUMN cleared_at DATETIME`,
+	} {
+		if err := addColumn(colQ); err != nil {
+			return err
+		}
 	}
 
 	if err := execMigration(`
@@ -782,6 +797,7 @@ CREATE TABLE IF NOT EXISTS messages (
     attachment_name TEXT,
     attachment_size INTEGER DEFAULT 0,
     attachment_type TEXT,
+    expires_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
@@ -804,6 +820,7 @@ CREATE TABLE IF NOT EXISTS messages (
 		`ALTER TABLE messages ADD COLUMN attachment_name TEXT`,
 		`ALTER TABLE messages ADD COLUMN attachment_size INTEGER DEFAULT 0`,
 		`ALTER TABLE messages ADD COLUMN attachment_type TEXT`,
+		`ALTER TABLE messages ADD COLUMN expires_at DATETIME`,
 	} {
 		if err := addColumn(colQ); err != nil {
 			return err
@@ -820,6 +837,34 @@ ON messages(conversation_id, created_at);
 	if err := execMigration(`
 CREATE INDEX IF NOT EXISTS idx_messages_client_id
 ON messages(client_message_id);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_messages_expires_at
+ON messages(expires_at);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE TABLE IF NOT EXISTS message_deletions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(message_id, user_id),
+    FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_message_deletions_user
+ON message_deletions(user_id, message_id);
 `); err != nil {
 		return err
 	}
@@ -856,11 +901,18 @@ CREATE TABLE IF NOT EXISTS chat_reports (
     reason TEXT NOT NULL,
     details TEXT,
     status TEXT DEFAULT 'pending',
+    evidence_text TEXT DEFAULT '',
+    evidence_url TEXT DEFAULT '',
+    reviewed_by INTEGER,
+    reviewed_at DATETIME,
+    resolution_notes TEXT DEFAULT '',
+    resolution_action TEXT DEFAULT 'none',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(reporter_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY(reported_user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE SET NULL,
-    FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE SET NULL
+    FOREIGN KEY(message_id) REFERENCES messages(id) ON DELETE SET NULL,
+    FOREIGN KEY(reviewed_by) REFERENCES users(id) ON DELETE SET NULL
 );
 `); err != nil {
 		return err
@@ -868,6 +920,7 @@ CREATE TABLE IF NOT EXISTS chat_reports (
 
 	if err := execMigration(`
 CREATE INDEX IF NOT EXISTS idx_chat_reports_reporter ON chat_reports(reporter_id);
+CREATE INDEX IF NOT EXISTS idx_chat_reports_reported ON chat_reports(reported_user_id);
 CREATE INDEX IF NOT EXISTS idx_chat_reports_status ON chat_reports(status);
 `); err != nil {
 		return err
@@ -916,8 +969,24 @@ CREATE TABLE IF NOT EXISTS call_participants (
 	}
 
 	if err := execMigration(`
-CREATE INDEX IF NOT EXISTS idx_call_participants_call ON call_participants(call_id);
-CREATE INDEX IF NOT EXISTS idx_call_participants_user ON call_participants(user_id);
+CREATE TABLE IF NOT EXISTS call_invitations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    call_type TEXT NOT NULL DEFAULT 'audio',
+    created_by INTEGER NOT NULL,
+    expires_at DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
+    FOREIGN KEY(created_by) REFERENCES users(id) ON DELETE CASCADE
+);
+`); err != nil {
+		return err
+	}
+
+	if err := execMigration(`
+CREATE INDEX IF NOT EXISTS idx_call_invitations_token ON call_invitations(token);
+CREATE INDEX IF NOT EXISTS idx_call_invitations_conv ON call_invitations(conversation_id);
 `); err != nil {
 		return err
 	}
@@ -968,6 +1037,29 @@ CREATE INDEX IF NOT EXISTS idx_password_resets_user_id ON password_resets(user_i
 
 	if err := migrateGroupGovernanceAndModeration(); err != nil {
 		return err
+	}
+
+	if err := migrateChatReportsColumns(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func migrateChatReportsColumns() error {
+	queries := []string{
+		`ALTER TABLE chat_reports ADD COLUMN evidence_text TEXT DEFAULT ''`,
+		`ALTER TABLE chat_reports ADD COLUMN evidence_url TEXT DEFAULT ''`,
+		`ALTER TABLE chat_reports ADD COLUMN reviewed_by INTEGER`,
+		`ALTER TABLE chat_reports ADD COLUMN reviewed_at DATETIME`,
+		`ALTER TABLE chat_reports ADD COLUMN resolution_notes TEXT DEFAULT ''`,
+		`ALTER TABLE chat_reports ADD COLUMN resolution_action TEXT DEFAULT 'none'`,
+	}
+
+	for _, query := range queries {
+		if err := addColumn(query); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -1350,5 +1442,28 @@ func migrateGroupGovernanceAndModeration() error {
 		}
 	}
 
+	// 8. Terms and Conditions Acceptance Table
+	termsQueries := []string{
+		`CREATE TABLE IF NOT EXISTS terms_acceptances (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL,
+			terms_version TEXT NOT NULL,
+			accepted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			ip_address TEXT DEFAULT '',
+			user_agent TEXT DEFAULT '',
+			UNIQUE(user_id, terms_version),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_terms_acceptances_user ON terms_acceptances(user_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_terms_acceptances_user_ver ON terms_acceptances(user_id, terms_version);`,
+	}
+
+	for _, q := range termsQueries {
+		if err := execMigration(q); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
+

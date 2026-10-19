@@ -6,6 +6,13 @@ import (
 )
 
 func CreateNotification(notification models.Notification) error {
+	// Silently suppress notification delivery if communication is blocked between sender and receiver
+	if notification.SenderID > 0 && notification.ReceiverID > 0 && notification.SenderID != notification.ReceiverID {
+		blocked, err := repository.IsCommunicationBlocked(notification.SenderID, notification.ReceiverID)
+		if err == nil && blocked {
+			return nil
+		}
+	}
 	return repository.CreateNotification(notification)
 }
 

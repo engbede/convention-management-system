@@ -383,6 +383,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 	call_permission TEXT DEFAULT 'all',
 	is_public BOOLEAN DEFAULT TRUE,
 	join_policy VARCHAR(50) DEFAULT 'approval',
+	disappearing_duration INTEGER DEFAULT 0,
 	created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 	last_message_at TIMESTAMP,
 	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -395,6 +396,7 @@ ALTER TABLE conversations ADD COLUMN IF NOT EXISTS avatar_url TEXT DEFAULT '';
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS call_permission TEXT DEFAULT 'all';
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT TRUE;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS join_policy VARCHAR(50) DEFAULT 'approval';
+ALTER TABLE conversations ADD COLUMN IF NOT EXISTS disappearing_duration INTEGER DEFAULT 0;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS last_message_at TIMESTAMP;
 ALTER TABLE conversations ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
@@ -408,10 +410,17 @@ CREATE TABLE IF NOT EXISTS conversation_members (
 	last_read_message_id BIGINT DEFAULT 0,
 	last_read_at TIMESTAMP,
 	is_muted BOOLEAN DEFAULT FALSE,
+	muted_until TIMESTAMP,
+	is_pinned BOOLEAN DEFAULT FALSE,
+	cleared_at TIMESTAMP,
 	is_archived BOOLEAN DEFAULT FALSE,
 	joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE(conversation_id, user_id)
 );
+
+ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS muted_until TIMESTAMP;
+ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN DEFAULT FALSE;
+ALTER TABLE conversation_members ADD COLUMN IF NOT EXISTS cleared_at TIMESTAMP;
 
 CREATE INDEX IF NOT EXISTS idx_pg_conv_members_user ON conversation_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_pg_conv_members_conv ON conversation_members(conversation_id);
@@ -430,6 +439,7 @@ CREATE TABLE IF NOT EXISTS messages (
 	attachment_name TEXT,
 	attachment_size BIGINT DEFAULT 0,
 	attachment_type TEXT,
+	expires_at TIMESTAMP,
 	deleted_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
 	deleted_at TIMESTAMP,
 	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -440,11 +450,23 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_name TEXT;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_size BIGINT DEFAULT 0;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_type TEXT;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_by BIGINT REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP;
 
 CREATE INDEX IF NOT EXISTS idx_pg_messages_conv_created ON messages(conversation_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_pg_messages_client_id ON messages(client_message_id);
+CREATE INDEX IF NOT EXISTS idx_pg_messages_expires_at ON messages(expires_at);
+
+CREATE TABLE IF NOT EXISTS message_deletions (
+	id BIGSERIAL PRIMARY KEY,
+	message_id BIGINT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+	user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	deleted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+	UNIQUE(message_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_message_deletions_user ON message_deletions(user_id, message_id);
 `); err != nil {
 		return err
 	}
@@ -474,11 +496,25 @@ CREATE TABLE IF NOT EXISTS chat_reports (
 	reason TEXT NOT NULL,
 	details TEXT,
 	status TEXT DEFAULT 'pending',
+	evidence_text TEXT DEFAULT '',
+	evidence_url TEXT DEFAULT '',
+	reviewed_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+	reviewed_at TIMESTAMP,
+	resolution_notes TEXT DEFAULT '',
+	resolution_action TEXT DEFAULT 'none',
 	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_pg_chat_reports_reporter ON chat_reports(reporter_id);
+CREATE INDEX IF NOT EXISTS idx_pg_chat_reports_reported ON chat_reports(reported_user_id);
 CREATE INDEX IF NOT EXISTS idx_pg_chat_reports_status ON chat_reports(status);
+
+ALTER TABLE chat_reports ADD COLUMN IF NOT EXISTS evidence_text TEXT DEFAULT '';
+ALTER TABLE chat_reports ADD COLUMN IF NOT EXISTS evidence_url TEXT DEFAULT '';
+ALTER TABLE chat_reports ADD COLUMN IF NOT EXISTS reviewed_by BIGINT REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE chat_reports ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+ALTER TABLE chat_reports ADD COLUMN IF NOT EXISTS resolution_notes TEXT DEFAULT '';
+ALTER TABLE chat_reports ADD COLUMN IF NOT EXISTS resolution_action TEXT DEFAULT 'none';
 
 CREATE TABLE IF NOT EXISTS call_logs (
 	id BIGSERIAL PRIMARY KEY,
@@ -509,6 +545,26 @@ CREATE TABLE IF NOT EXISTS call_participants (
 
 CREATE INDEX IF NOT EXISTS idx_pg_call_participants_call ON call_participants(call_id);
 CREATE INDEX IF NOT EXISTS idx_pg_call_participants_user ON call_participants(user_id);
+`); err != nil {
+		return err
+	}
+
+	// ----------------------------
+	// Call Invitations
+	// ----------------------------
+	if err := execPostgresMigration("call_invitations", `
+CREATE TABLE IF NOT EXISTS call_invitations (
+	id BIGSERIAL PRIMARY KEY,
+	conversation_id BIGINT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+	token TEXT UNIQUE NOT NULL,
+	call_type TEXT NOT NULL DEFAULT 'audio',
+	created_by BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	expires_at TIMESTAMP NOT NULL,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_call_invitations_token ON call_invitations(token);
+CREATE INDEX IF NOT EXISTS idx_pg_call_invitations_conv ON call_invitations(conversation_id);
 `); err != nil {
 		return err
 	}
@@ -686,6 +742,19 @@ CREATE TABLE IF NOT EXISTS prayer_request_prayers (
 
 CREATE INDEX IF NOT EXISTS idx_pg_pr_prayers_req ON prayer_request_prayers(prayer_request_id);
 CREATE INDEX IF NOT EXISTS idx_pg_pr_prayers_user ON prayer_request_prayers(user_id);
+
+CREATE TABLE IF NOT EXISTS terms_acceptances (
+	id BIGSERIAL PRIMARY KEY,
+	user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+	terms_version VARCHAR(32) NOT NULL,
+	accepted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+	ip_address VARCHAR(64) DEFAULT '',
+	user_agent TEXT DEFAULT '',
+	UNIQUE(user_id, terms_version)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pg_terms_acceptances_user ON terms_acceptances(user_id);
+CREATE INDEX IF NOT EXISTS idx_pg_terms_acceptances_user_ver ON terms_acceptances(user_id, terms_version);
 `); err != nil {
 		return err
 	}

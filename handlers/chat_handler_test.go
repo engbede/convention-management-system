@@ -14,6 +14,7 @@ import (
 
 	"convention-management-system/database"
 	"convention-management-system/middleware"
+	"convention-management-system/models"
 	"convention-management-system/repository"
 	"convention-management-system/services"
 	"convention-management-system/sessions"
@@ -47,6 +48,12 @@ func setupTestDB(t *testing.T) func() {
 			(1, 'User One', 'user1', 'hash1'),
 			(2, 'User Two', 'user2', 'hash2'),
 			(3, 'User Three', 'user3', 'hash3');
+
+		INSERT INTO terms_acceptances (user_id, terms_version, accepted_at, ip_address, user_agent)
+		VALUES 
+			(1, 'v1.0', CURRENT_TIMESTAMP, '127.0.0.1', 'TestSuite'),
+			(2, 'v1.0', CURRENT_TIMESTAMP, '127.0.0.1', 'TestSuite'),
+			(3, 'v1.0', CURRENT_TIMESTAMP, '127.0.0.1', 'TestSuite');
 	`)
 	if err != nil {
 		t.Fatalf("Failed to insert test users: %v", err)
@@ -476,6 +483,38 @@ func TestLogCallAPI(t *testing.T) {
 	if !strings.Contains(rr.Body.String(), `"success":true`) {
 		t.Errorf("Expected success: true, got %s", rr.Body.String())
 	}
+
+	// Verify DB state
+	logs, err := repository.GetConversationCallLogs(1, 10)
+	if err != nil || len(logs) == 0 {
+		t.Fatalf("Failed to retrieve call logs: %v", err)
+	}
+	if logs[0].Status != "completed" || logs[0].DurationSeconds != 120 {
+		t.Errorf("Expected status 'completed' and duration 120, got status=%s, duration=%d", logs[0].Status, logs[0].DurationSeconds)
+	}
+
+	// Update to busy status
+	busyJSON := `{"call_id": 1, "status": "busy", "duration_seconds": 0}`
+	busyReq, busyRR := makeAuthReq(http.MethodPost, "/messages/call/log", busyJSON, "application/json", 1)
+	LogCallAPI(busyRR, busyReq)
+	if busyRR.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK on busy log update, got %d", busyRR.Code)
+	}
+
+	// Invalid call ID -> 400 Bad Request
+	badReq, badRR := makeAuthReq(http.MethodPost, "/messages/call/log", `{"call_id": 0}`, "application/json", 1)
+	LogCallAPI(badRR, badReq)
+	if badRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for call_id 0, got %d", badRR.Code)
+	}
+
+	// Unauthorized request -> 401 Unauthorized
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/call/log", strings.NewReader(`{"call_id": 1}`))
+	unauthRR := httptest.NewRecorder()
+	LogCallAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 Unauthorized without session, got %d", unauthRR.Code)
+	}
 }
 
 // Helper to create authenticated session request
@@ -649,6 +688,33 @@ func TestGroupCallAPIs(t *testing.T) {
 
 	if joinRR3.Code != http.StatusOK {
 		t.Fatalf("JoinGroupCallAPI failed for User 3: %d (body: %s)", joinRR3.Code, joinRR3.Body.String())
+	}
+
+	// 5b. MuteGroupCallParticipantAPI:
+	// User 3 (regular member) attempts to mute User 1 (owner) -> 403 Forbidden
+	muteInvalidJSON := fmt.Sprintf(`{"conversation_id": %d, "user_id": 1}`, groupID)
+	muteReq3, muteRR3 := makeAuthReq(http.MethodPost, "/messages/call/group/mute", muteInvalidJSON, "application/json", 3)
+	MuteGroupCallParticipantAPI(muteRR3, muteReq3)
+	if muteRR3.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden when member tries to mute owner, got %d", muteRR3.Code)
+	}
+
+	// User 1 (owner) remotely mutes User 3 (member) -> 200 OK
+	muteValidJSON := fmt.Sprintf(`{"conversation_id": %d, "user_id": 3}`, groupID)
+	muteReq1, muteRR1 := makeAuthReq(http.MethodPost, "/messages/call/group/mute", muteValidJSON, "application/json", 1)
+	MuteGroupCallParticipantAPI(muteRR1, muteReq1)
+	if muteRR1.Code != http.StatusOK {
+		t.Fatalf("MuteGroupCallParticipantAPI failed for owner: %d (body: %s)", muteRR1.Code, muteRR1.Body.String())
+	}
+	if !strings.Contains(muteRR1.Body.String(), `"success":true`) {
+		t.Errorf("Expected success:true in MuteGroupCallParticipantAPI, got: %s", muteRR1.Body.String())
+	}
+
+	// Mute with invalid ID -> 400 Bad Request
+	muteBadReq, muteBadRR := makeAuthReq(http.MethodPost, "/messages/call/group/mute", `{"conversation_id": 0, "user_id": 0}`, "application/json", 1)
+	MuteGroupCallParticipantAPI(muteBadRR, muteBadReq)
+	if muteBadRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for invalid mute parameters, got %d", muteBadRR.Code)
 	}
 
 	// 6. KickGroupCallParticipantAPI: User 1 (owner) kicks User 3
@@ -1424,3 +1490,1128 @@ func TestConvertDirectToGroupAPI(t *testing.T) {
 		t.Errorf("Expected User 4 to have been added as 'member', got %+v", m4)
 	}
 }
+
+func TestCallInvitationHandlersAndTemplateRendering(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Create a direct conversation
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// 2. GenerateCallLinkAPI (POST /messages/call/link/generate)
+	genBody := fmt.Sprintf(`{"conversation_id": %d, "call_type": "audio"}`, conv.ID)
+	genReq, genRR := makeAuthReq(http.MethodPost, "/messages/call/link/generate", genBody, "application/json", 1)
+	GenerateCallLinkAPI(genRR, genReq)
+
+	if genRR.Code != http.StatusOK {
+		t.Fatalf("GenerateCallLinkAPI failed with status %d: %s", genRR.Code, genRR.Body.String())
+	}
+
+	var genResp struct {
+		Success   bool   `json:"success"`
+		Token     string `json:"token"`
+		CallType  string `json:"call_type"`
+		InviteURL string `json:"invite_url"`
+		Path      string `json:"path"`
+		ExpiresAt string `json:"expires_at"`
+	}
+	if err := json.Unmarshal(genRR.Body.Bytes(), &genResp); err != nil {
+		t.Fatalf("Failed to parse GenerateCallLinkAPI response: %v", err)
+	}
+	if !genResp.Success || genResp.Token == "" {
+		t.Fatalf("Expected successful generation with non-empty token, got %+v", genResp)
+	}
+	if genResp.CallType != "audio" {
+		t.Errorf("Expected call_type 'audio', got %q", genResp.CallType)
+	}
+	if !strings.Contains(genResp.InviteURL, "/messages/call/join?token="+genResp.Token) {
+		t.Errorf("Expected InviteURL to contain join link, got %q", genResp.InviteURL)
+	}
+
+	// 3. JoinCallLinkHandler (GET /messages/call/join?token=...)
+	// Valid join by participant (User 2)
+	joinReq, joinRR := makeAuthReq(http.MethodGet, "/messages/call/join?token="+genResp.Token, "", "", 2)
+	JoinCallLinkHandler(joinRR, joinReq)
+
+	if joinRR.Code != http.StatusSeeOther {
+		t.Fatalf("Expected 303 See Other redirect on valid join, got %d", joinRR.Code)
+	}
+	expectedRedirect := fmt.Sprintf("/messages?c=%d&autocall=audio", conv.ID)
+	if joinRR.Header().Get("Location") != expectedRedirect {
+		t.Errorf("Expected redirect Location %q, got %q", expectedRedirect, joinRR.Header().Get("Location"))
+	}
+
+	// Unauthorized join by outsider (User 3)
+	outReq, outRR := makeAuthReq(http.MethodGet, "/messages/call/join?token="+genResp.Token, "", "", 3)
+	JoinCallLinkHandler(outRR, outReq)
+	if outRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-member call join, got %d", outRR.Code)
+	}
+
+	// Join with missing token
+	noTokenReq, noTokenRR := makeAuthReq(http.MethodGet, "/messages/call/join", "", "", 2)
+	JoinCallLinkHandler(noTokenRR, noTokenReq)
+	if noTokenRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for missing token, got %d", noTokenRR.Code)
+	}
+
+	// 4. Verify template rendering of Call Dropdown, Modals, and Guidance
+	inboxReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages?c=%d", conv.ID), nil)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		inboxReq.AddCookie(cookie)
+	}
+
+	inboxRR := httptest.NewRecorder()
+	ChatInbox(inboxRR, inboxReq)
+
+	if inboxRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", inboxRR.Code)
+	}
+
+	html := inboxRR.Body.String()
+	requiredElements := []string{
+		`id="chatCallDropdownBtn"`,
+		`id="startAudioCallBtn"`,
+		`id="startVideoCallBtn"`,
+		`id="sendCallLinkModal"`,
+		`id="callInvitationLinkInput"`,
+		`id="copyCallInvitationLinkBtn"`,
+		`id="sendCallLinkToChatBtn"`,
+		`id="mediaPermissionModal"`,
+		`id="mediaPermissionRetryBtn"`,
+		`Android Chrome / Mobile Steps`,
+		`Lock / Page Info icon`,
+		`Microphone Access Blocked`,
+	}
+
+	for _, elem := range requiredElements {
+		if !strings.Contains(html, elem) {
+			t.Errorf("Expected HTML to contain %q, but was missing", elem)
+		}
+	}
+}
+
+func TestSearchMessagesAPI_ScopingAndPermissions(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Unauthenticated request should be 401
+	unauthReq := httptest.NewRequest(http.MethodGet, "/messages/search?q=test", nil)
+	unauthRR := httptest.NewRecorder()
+	SearchMessagesAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 Unauthorized for unauthenticated search, got %d", unauthRR.Code)
+	}
+
+	// Create conversation for user 1 & user 2
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// Seed message
+	_, err = database.DB.Exec(`
+		INSERT INTO messages (id, conversation_id, sender_id, message_type, body, created_at, updated_at, is_deleted)
+		VALUES (501, ?, 1, 'text', 'Searchable fellowship topic', datetime('now'), datetime('now'), 0);
+	`, conv.ID)
+	if err != nil {
+		t.Fatalf("Failed to seed message: %v", err)
+	}
+
+	// Helper to create authenticated session
+	makeAuthReq := func(userID int, urlStr string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, urlStr, nil)
+		rec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, rec)
+		for _, cookie := range rec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		return req
+	}
+
+	// 2. Invalid conversation_id parameter -> 400
+	invReq := makeAuthReq(1, "/messages/search?q=test&conversation_id=invalid")
+	invRR := httptest.NewRecorder()
+	SearchMessagesAPI(invRR, invReq)
+	if invRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for non-integer conversation_id, got %d", invRR.Code)
+	}
+
+	// 3. User 3 is not a member of conversation -> 403
+	forbiddenReq := makeAuthReq(3, fmt.Sprintf("/messages/search?q=fellowship&conversation_id=%d", conv.ID))
+	forbiddenRR := httptest.NewRecorder()
+	SearchMessagesAPI(forbiddenRR, forbiddenReq)
+	if forbiddenRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-participant search, got %d", forbiddenRR.Code)
+	}
+
+	// 4. Authorized user 1 searches scoped conversation -> 200 with metadata
+	validReq := makeAuthReq(1, fmt.Sprintf("/messages/search?q=fellowship&conversation_id=%d", conv.ID))
+	validRR := httptest.NewRecorder()
+	SearchMessagesAPI(validRR, validReq)
+	if validRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for scoped search, got %d", validRR.Code)
+	}
+
+	var res struct {
+		Count          int              `json:"count"`
+		Messages       []models.Message `json:"messages"`
+		ConversationID int              `json:"conversation_id"`
+		Limit          int              `json:"limit"`
+		Offset         int              `json:"offset"`
+	}
+	if err := json.Unmarshal(validRR.Body.Bytes(), &res); err != nil {
+		t.Fatalf("Failed to decode search response JSON: %v", err)
+	}
+	if res.Count != 1 || len(res.Messages) != 1 {
+		t.Errorf("Expected 1 result, got count=%d, messages=%d", res.Count, len(res.Messages))
+	}
+	if res.ConversationID != conv.ID {
+		t.Errorf("Expected response conversation_id=%d, got %d", conv.ID, res.ConversationID)
+	}
+
+	// 5. Global search (no conversation_id param) -> 200
+	globalReq := makeAuthReq(1, "/messages/search?q=fellowship")
+	globalRR := httptest.NewRecorder()
+	SearchMessagesAPI(globalRR, globalReq)
+	if globalRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for global search, got %d", globalRR.Code)
+	}
+}
+
+func TestGetSharedMediaAPI(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Unauthenticated request -> 401
+	unauthReq := httptest.NewRequest(http.MethodGet, "/messages/media?conversation_id=1", nil)
+	unauthRR := httptest.NewRecorder()
+	GetSharedMediaAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated media request, got %d", unauthRR.Code)
+	}
+
+	// Create conversation for user 1 & user 2
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// Seed media items
+	_, err = database.DB.Exec(`
+		INSERT INTO messages (id, conversation_id, sender_id, message_type, body, attachment_url, attachment_name, attachment_type, attachment_size, created_at, updated_at)
+		VALUES 
+			(601, ?, 1, 'image', 'Photo', '/uploads/chat/p1.jpg', 'p1.jpg', 'image/jpeg', 1024, datetime('now'), datetime('now')),
+			(602, ?, 2, 'video', 'Video', '/uploads/chat/v1.mp4', 'v1.mp4', 'video/mp4', 2048, datetime('now'), datetime('now'));
+	`, conv.ID, conv.ID)
+	if err != nil {
+		t.Fatalf("Failed to seed media messages: %v", err)
+	}
+
+	makeAuthReq := func(userID int, urlStr string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, urlStr, nil)
+		rec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, rec)
+		for _, cookie := range rec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		return req
+	}
+
+	// 2. Missing conversation_id parameter -> 400
+	missingReq := makeAuthReq(1, "/messages/media")
+	missingRR := httptest.NewRecorder()
+	GetSharedMediaAPI(missingRR, missingReq)
+	if missingRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for missing conversation_id, got %d", missingRR.Code)
+	}
+
+	// 3. User 3 not a participant -> 403
+	forbiddenReq := makeAuthReq(3, fmt.Sprintf("/messages/media?conversation_id=%d", conv.ID))
+	forbiddenRR := httptest.NewRecorder()
+	GetSharedMediaAPI(forbiddenRR, forbiddenReq)
+	if forbiddenRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for outsider media request, got %d", forbiddenRR.Code)
+	}
+
+	// 4. Authorized user 1 requests photo category -> 200
+	photoReq := makeAuthReq(1, fmt.Sprintf("/messages/media?conversation_id=%d&category=photo", conv.ID))
+	photoRR := httptest.NewRecorder()
+	GetSharedMediaAPI(photoRR, photoReq)
+	if photoRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for photo media request, got %d", photoRR.Code)
+	}
+
+	var photoRes struct {
+		Category string           `json:"category"`
+		Count    int              `json:"count"`
+		Media    []models.Message `json:"media"`
+	}
+	if err := json.Unmarshal(photoRR.Body.Bytes(), &photoRes); err != nil {
+		t.Fatalf("Failed to decode media JSON: %v", err)
+	}
+	if photoRes.Count != 1 || len(photoRes.Media) != 1 || photoRes.Media[0].AttachmentName != "p1.jpg" {
+		t.Errorf("Expected 1 photo p1.jpg, got %+v", photoRes)
+	}
+
+	// 5. Authorized user 1 requests video category -> 200
+	videoReq := makeAuthReq(1, fmt.Sprintf("/messages/media?conversation_id=%d&category=video", conv.ID))
+	videoRR := httptest.NewRecorder()
+	GetSharedMediaAPI(videoRR, videoReq)
+	if videoRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for video media request, got %d", videoRR.Code)
+	}
+
+	var videoRes struct {
+		Category string           `json:"category"`
+		Count    int              `json:"count"`
+		Media    []models.Message `json:"media"`
+	}
+	if err := json.Unmarshal(videoRR.Body.Bytes(), &videoRes); err != nil {
+		t.Fatalf("Failed to decode video JSON: %v", err)
+	}
+	if videoRes.Count != 1 || len(videoRes.Media) != 1 || videoRes.Media[0].AttachmentName != "v1.mp4" {
+		t.Errorf("Expected 1 video v1.mp4, got %+v", videoRes)
+	}
+}
+
+func TestTemplateSharedMediaAndSearchElements(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// Seed media
+	_, err = database.DB.Exec(`
+		INSERT INTO messages (id, conversation_id, sender_id, message_type, body, attachment_url, attachment_name, attachment_type, attachment_size, created_at, updated_at)
+		VALUES 
+			(701, ?, 1, 'image', 'Photo', '/uploads/chat/church.jpg', 'church.jpg', 'image/jpeg', 1024, datetime('now'), datetime('now')),
+			(702, ?, 2, 'video', 'Video', '/uploads/chat/choir.mp4', 'choir.mp4', 'video/mp4', 2048, datetime('now'), datetime('now')),
+			(703, ?, 1, 'file', 'Docs', '/uploads/chat/program.pdf', 'program.pdf', 'application/pdf', 4096, datetime('now'), datetime('now')),
+			(704, ?, 2, 'voice', 'Voice', '/uploads/chat/amen.webm', 'amen.webm', 'audio/webm', 512, datetime('now'), datetime('now'));
+	`, conv.ID, conv.ID, conv.ID, conv.ID)
+	if err != nil {
+		t.Fatalf("Failed to seed media messages: %v", err)
+	}
+
+	// Request chat inbox
+	inboxReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages?c=%d", conv.ID), nil)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		inboxReq.AddCookie(cookie)
+	}
+
+	inboxRR := httptest.NewRecorder()
+	ChatInbox(inboxRR, inboxReq)
+
+	if inboxRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", inboxRR.Code)
+	}
+
+	html := inboxRR.Body.String()
+	requiredStage2Elements := []string{
+		`id="searchScopeGroup"`,
+		`id="searchScopeCurrent"`,
+		`id="searchScopeAll"`,
+		`id="mediaLightboxModal"`,
+		`id="mediaLightboxImg"`,
+		`id="mediaLightboxDownloadBtn"`,
+		`id="sharedMediaTabs"`,
+		`id="media-photos-tab"`,
+		`id="media-videos-tab"`,
+		`id="media-docs-tab"`,
+		`id="media-voice-tab"`,
+		`openMediaLightbox(`,
+		`title="Search Messages"`,
+		`chat-attachment-video`,
+	}
+
+	for _, elem := range requiredStage2Elements {
+		if !strings.Contains(html, elem) {
+			t.Errorf("Expected HTML to contain %q, but was missing", elem)
+		}
+	}
+}
+
+func TestReportAbuseAPI_WorkflowAndDuplicateConflict(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Submit valid report via JSON
+	reportJSON := `{"reported_user_id": 2, "reason": "Harassment or Bullying", "details": "Unsolicited aggressive messages"}`
+	req, rr := makeAuthReq(http.MethodPost, "/messages/report", reportJSON, "application/json", 1)
+	ReportAbuseAPI(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ReportAbuseAPI, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+	if !strings.Contains(rr.Body.String(), `"success":true`) {
+		t.Errorf("Expected success:true in response: %s", rr.Body.String())
+	}
+
+	// 2. Submit duplicate report while first is pending -> must return 409 Conflict
+	dupReq, dupRR := makeAuthReq(http.MethodPost, "/messages/report", reportJSON, "application/json", 1)
+	ReportAbuseAPI(dupRR, dupReq)
+
+	if dupRR.Code != http.StatusConflict {
+		t.Errorf("Expected 409 Conflict for duplicate pending report, got %d (body: %s)", dupRR.Code, dupRR.Body.String())
+	}
+
+	// 3. Submit invalid reported user ID -> 400 Bad Request
+	badJSON := `{"reported_user_id": 0, "reason": "Spam"}`
+	badReq, badRR := makeAuthReq(http.MethodPost, "/messages/report", badJSON, "application/json", 1)
+	ReportAbuseAPI(badRR, badReq)
+
+	if badRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for invalid reported user ID, got %d", badRR.Code)
+	}
+}
+
+func TestGetBlockedUsersAPI(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Block user 2
+	_ = services.BlockUser(1, 2, "Spamming")
+
+	req, rr := makeAuthReq(http.MethodGet, "/messages/blocked", "", "", 1)
+	GetBlockedUsersAPI(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from GetBlockedUsersAPI, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Success      bool          `json:"success"`
+		BlockedUsers []models.User `json:"blocked_users"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to decode response: %v", err)
+	}
+	if !resp.Success || len(resp.BlockedUsers) != 1 || resp.BlockedUsers[0].ID != 2 {
+		t.Errorf("Expected blocked_users containing User 2, got: %+v", resp.BlockedUsers)
+	}
+}
+
+func TestModerationReportsAPIs(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Set user 1 as member, user 2 as admin
+	_, _ = database.DB.Exec("UPDATE users SET role = 'member' WHERE id = 1")
+	_, _ = database.DB.Exec("UPDATE users SET role = 'admin' WHERE id = 2")
+
+	// Submit a report
+	report, err := services.ReportAbuse(1, 3, nil, nil, "Threats or Violence", "Severe threat")
+	if err != nil {
+		t.Fatalf("ReportAbuse failed: %v", err)
+	}
+
+	// 1. Regular user calling GetModerationReportsAPI -> 403 Forbidden
+	req1, rr1 := makeAuthReq(http.MethodGet, "/messages/moderation/reports", "", "", 1)
+	GetModerationReportsAPI(rr1, req1)
+	if rr1.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-admin, got %d", rr1.Code)
+	}
+
+	// 2. Admin calling GetModerationReportsAPI -> 200 OK
+	req2, rr2 := makeAuthReq(http.MethodGet, "/messages/moderation/reports?status=pending", "", "", 2)
+	GetModerationReportsAPI(rr2, req2)
+	if rr2.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for admin, got %d (body: %s)", rr2.Code, rr2.Body.String())
+	}
+	if !strings.Contains(rr2.Body.String(), `"success":true`) {
+		t.Errorf("Expected success:true in response: %s", rr2.Body.String())
+	}
+
+	// 3. Regular user calling ResolveModerationReportAPI -> 403 Forbidden
+	resolveJSON := fmt.Sprintf(`{"report_id": %d, "status": "resolved", "action": "dismiss", "notes": "Done"}`, report.ID)
+	req3, rr3 := makeAuthReq(http.MethodPost, "/messages/moderation/reports/resolve", resolveJSON, "application/json", 1)
+	ResolveModerationReportAPI(rr3, req3)
+	if rr3.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-admin resolving report, got %d", rr3.Code)
+	}
+
+	// 4. Admin calling ResolveModerationReportAPI -> 200 OK
+	req4, rr4 := makeAuthReq(http.MethodPost, "/messages/moderation/reports/resolve", resolveJSON, "application/json", 2)
+	ResolveModerationReportAPI(rr4, req4)
+	if rr4.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for admin resolving report, got %d (body: %s)", rr4.Code, rr4.Body.String())
+	}
+}
+
+func TestTemplateStage3ReportAndBlockElements(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Make user 1 an admin
+	_, _ = database.DB.Exec("UPDATE users SET role = 'admin' WHERE id = 1")
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// Add an incoming message from User 2
+	_, _ = services.SendMessage(conv.ID, 2, "Incoming fellowship message", "cmsg_in_1", nil)
+
+	// Render ChatInbox
+	inboxReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages?c=%d", conv.ID), nil)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		inboxReq.AddCookie(cookie)
+	}
+
+	inboxRR := httptest.NewRecorder()
+	ChatInbox(inboxRR, inboxReq)
+
+	if inboxRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", inboxRR.Code)
+	}
+
+	html := inboxRR.Body.String()
+	requiredStage3Elements := []string{
+		`id="reportAbuseModal"`,
+		`id="blockedUsersModal"`,
+		`id="moderationReportsModal"`,
+		`id="reportEvidencePreview"`,
+		`report-msg-btn`,
+		`id="reportAbuseForm"`,
+		`id="blockedUsersList"`,
+		`id="modReportsList"`,
+	}
+
+	for _, elem := range requiredStage3Elements {
+		if !strings.Contains(html, elem) {
+			t.Errorf("Expected HTML to contain %q, but was missing", elem)
+		}
+	}
+}
+
+func TestToggleMuteDurationAPIs(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// 1. Unauthorized request
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/mute", strings.NewReader(`{"conversation_id": 1}`))
+	unauthRR := httptest.NewRecorder()
+	ToggleMuteAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 Unauthorized for unauth mute, got %d", unauthRR.Code)
+	}
+
+	// 2. Invalid conversation ID
+	reqBadID, rrBadID := makeAuthReq(http.MethodPost, "/messages/mute", `{"conversation_id": 0}`, "application/json", 1)
+	ToggleMuteAPI(rrBadID, reqBadID)
+	if rrBadID.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for invalid conv ID, got %d", rrBadID.Code)
+	}
+
+	// 3. Outsider member -> 403 Forbidden
+	reqOutsider, rrOutsider := makeAuthReq(http.MethodPost, "/messages/mute", fmt.Sprintf(`{"conversation_id": %d, "duration": "1h"}`, conv.ID), "application/json", 3)
+	ToggleMuteAPI(rrOutsider, reqOutsider)
+	if rrOutsider.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for outsider muting conv, got %d", rrOutsider.Code)
+	}
+
+	// 4. Mute option 1h via JSON
+	req1h, rr1h := makeAuthReq(http.MethodPost, "/messages/mute", fmt.Sprintf(`{"conversation_id": %d, "duration": "1h"}`, conv.ID), "application/json", 1)
+	ToggleMuteAPI(rr1h, req1h)
+	if rr1h.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for mute 1h, got %d (body: %s)", rr1h.Code, rr1h.Body.String())
+	}
+	if !strings.Contains(rr1h.Body.String(), `"is_muted":true`) {
+		t.Errorf("Expected is_muted:true in response, got %s", rr1h.Body.String())
+	}
+
+	// 5. Mute option 8h
+	req8h, rr8h := makeAuthReq(http.MethodPost, "/messages/mute", fmt.Sprintf(`{"conversation_id": %d, "duration": "8h"}`, conv.ID), "application/json", 1)
+	ToggleMuteAPI(rr8h, req8h)
+	if rr8h.Code != http.StatusOK || !strings.Contains(rr8h.Body.String(), `"is_muted":true`) {
+		t.Errorf("Expected 200 OK with is_muted:true for 8h, got %d: %s", rr8h.Code, rr8h.Body.String())
+	}
+
+	// 6. Mute option 1w via Form POST
+	formBody := fmt.Sprintf("conversation_id=%d&duration=1w", conv.ID)
+	req1w, rr1w := makeAuthReq(http.MethodPost, "/messages/mute", formBody, "application/x-www-form-urlencoded", 1)
+	ToggleMuteAPI(rr1w, req1w)
+	if rr1w.Code != http.StatusOK || !strings.Contains(rr1w.Body.String(), `"is_muted":true`) {
+		t.Errorf("Expected 200 OK for 1w mute, got %d: %s", rr1w.Code, rr1w.Body.String())
+	}
+
+	// 7. Indefinite mute
+	reqIndef, rrIndef := makeAuthReq(http.MethodPost, "/messages/mute", fmt.Sprintf(`{"conversation_id": %d, "duration": "indefinite"}`, conv.ID), "application/json", 1)
+	ToggleMuteAPI(rrIndef, reqIndef)
+	if rrIndef.Code != http.StatusOK || !strings.Contains(rrIndef.Body.String(), `"is_muted":true`) {
+		t.Errorf("Expected 200 OK for indefinite mute, got %d: %s", rrIndef.Code, rrIndef.Body.String())
+	}
+
+	// 8. Unmute
+	reqUnmute, rrUnmute := makeAuthReq(http.MethodPost, "/messages/mute", fmt.Sprintf(`{"conversation_id": %d, "duration": "unmute"}`, conv.ID), "application/json", 1)
+	ToggleMuteAPI(rrUnmute, reqUnmute)
+	if rrUnmute.Code != http.StatusOK || !strings.Contains(rrUnmute.Body.String(), `"is_muted":false`) {
+		t.Errorf("Expected 200 OK with is_muted:false for unmute, got %d: %s", rrUnmute.Code, rrUnmute.Body.String())
+	}
+}
+
+func TestSetDisappearingMessagesAPIs(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Direct conversation
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// Unauthenticated call
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/disappearing", nil)
+	unauthRR := httptest.NewRecorder()
+	SetDisappearingMessagesAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 Unauthorized, got %d", unauthRR.Code)
+	}
+
+	// Invalid conv ID
+	reqBadConv, rrBadConv := makeAuthReq(http.MethodPost, "/messages/disappearing", `{"conversation_id": 0}`, "application/json", 1)
+	SetDisappearingMessagesAPI(rrBadConv, reqBadConv)
+	if rrBadConv.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request, got %d", rrBadConv.Code)
+	}
+
+	// Invalid duration
+	reqBadDur, rrBadDur := makeAuthReq(http.MethodPost, "/messages/disappearing", fmt.Sprintf(`{"conversation_id": %d, "duration": 1234}`, conv.ID), "application/json", 1)
+	SetDisappearingMessagesAPI(rrBadDur, reqBadDur)
+	if rrBadDur.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 Bad Request for invalid duration, got %d", rrBadDur.Code)
+	}
+
+	// Valid 24h timer (86400)
+	req24h, rr24h := makeAuthReq(http.MethodPost, "/messages/disappearing", fmt.Sprintf(`{"conversation_id": %d, "duration": 86400}`, conv.ID), "application/json", 1)
+	SetDisappearingMessagesAPI(rr24h, req24h)
+	if rr24h.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for 24h timer, got %d: %s", rr24h.Code, rr24h.Body.String())
+	}
+	if !strings.Contains(rr24h.Body.String(), `"disappearing_duration":86400`) {
+		t.Errorf("Expected disappearing_duration:86400 in response, got %s", rr24h.Body.String())
+	}
+
+	// Valid 7d timer string alias ("7d")
+	req7d, rr7d := makeAuthReq(http.MethodPost, "/messages/disappearing", fmt.Sprintf(`{"conversation_id": %d, "duration": "7d"}`, conv.ID), "application/json", 2)
+	SetDisappearingMessagesAPI(rr7d, req7d)
+	if rr7d.Code != http.StatusOK || !strings.Contains(rr7d.Body.String(), `"disappearing_duration":604800`) {
+		t.Errorf("Expected 200 OK with 604800 for 7d alias, got %d: %s", rr7d.Code, rr7d.Body.String())
+	}
+
+	// 2. Group conversation permissions
+	group, err := services.CreateGroup(1, "Youth Bible Group", "bible_study", "Study circle", "all", true, []int{2})
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	err = services.AddGroupMembers(1, group.ID, []int{3})
+	if err != nil {
+		t.Fatalf("AddGroupMembers failed: %v", err)
+	}
+
+	// User 3 (regular member) -> 403 Forbidden
+	reqMem, rrMem := makeAuthReq(http.MethodPost, "/messages/disappearing", fmt.Sprintf(`{"conversation_id": %d, "duration": 86400}`, group.ID), "application/json", 3)
+	SetDisappearingMessagesAPI(rrMem, reqMem)
+	if rrMem.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for regular member setting group timer, got %d: %s", rrMem.Code, rrMem.Body.String())
+	}
+
+	// User 1 (group owner) -> 200 OK
+	reqOwner, rrOwner := makeAuthReq(http.MethodPost, "/messages/disappearing", fmt.Sprintf(`{"conversation_id": %d, "duration": 86400}`, group.ID), "application/json", 1)
+	SetDisappearingMessagesAPI(rrOwner, reqOwner)
+	if rrOwner.Code != http.StatusOK {
+		t.Errorf("Expected 200 OK for group owner setting timer, got %d: %s", rrOwner.Code, rrOwner.Body.String())
+	}
+
+	// Promote User 2 to admin -> 200 OK
+	_ = services.UpdateGroupMemberRole(1, group.ID, 2, "admin")
+	reqAdmin, rrAdmin := makeAuthReq(http.MethodPost, "/messages/disappearing", fmt.Sprintf(`{"conversation_id": %d, "duration": 0}`, group.ID), "application/json", 2)
+	SetDisappearingMessagesAPI(rrAdmin, reqAdmin)
+	if rrAdmin.Code != http.StatusOK || !strings.Contains(rrAdmin.Body.String(), `"disappearing_duration":0`) {
+		t.Errorf("Expected 200 OK for group admin turning off timer, got %d: %s", rrAdmin.Code, rrAdmin.Body.String())
+	}
+}
+
+func TestTemplateStage4MuteAndDisappearingElements(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// Enable disappearing messages and mute for user 1
+	_, _ = services.SetDisappearingMessages(1, conv.ID, 86400)
+	_, _, _ = services.SetConversationMute(conv.ID, 1, "8h")
+
+	// Render ChatInbox for user 1
+	inboxReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages?c=%d", conv.ID), nil)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		inboxReq.AddCookie(cookie)
+	}
+
+	inboxRR := httptest.NewRecorder()
+	ChatInbox(inboxRR, inboxReq)
+
+	if inboxRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", inboxRR.Code)
+	}
+
+	htmlDirect := inboxRR.Body.String()
+	requiredDirectElements := []string{
+		`id="muteConversationModal"`,
+		`id="disappearingMessagesModal"`,
+		`id="muteConversationForm"`,
+		`id="disappearingMessagesForm"`,
+		`id="headerMuteContainer"`,
+		`id="headerDisappearingBadge"`,
+		`id="muteOpt1h"`,
+		`id="dispOpt24h"`,
+	}
+
+	for _, elem := range requiredDirectElements {
+		if !strings.Contains(htmlDirect, elem) {
+			t.Errorf("Expected direct HTML to contain %q, but was missing", elem)
+		}
+	}
+
+	// 2. Test Group Conversation Rendering
+	group, err := services.CreateGroup(1, "Stage 4 Group", "bible_study", "Fellowship study", "all", true, []int{2})
+	if err != nil {
+		t.Fatalf("CreateGroup failed: %v", err)
+	}
+	_, _ = services.SetDisappearingMessages(1, group.ID, 604800)
+	_, _, _ = services.SetConversationMute(group.ID, 1, "1w")
+
+	groupReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages?c=%d", group.ID), nil)
+	for _, cookie := range saveRec.Result().Cookies() {
+		groupReq.AddCookie(cookie)
+	}
+	groupRR := httptest.NewRecorder()
+	ChatInbox(groupRR, groupReq)
+	if groupRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox for group, got %d", groupRR.Code)
+	}
+
+	htmlGroup := groupRR.Body.String()
+	requiredGroupElements := []string{
+		`id="groupHeaderMuteContainer"`,
+		`id="groupHeaderDisappearingBadge"`,
+		`id="groupHeaderDisappearingLabel"`,
+		`id="muteConversationModal"`,
+		`id="disappearingMessagesModal"`,
+	}
+	for _, elem := range requiredGroupElements {
+		if !strings.Contains(htmlGroup, elem) {
+			t.Errorf("Expected group HTML to contain %q, but was missing", elem)
+		}
+	}
+}
+
+func TestClearChatAPI(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	makeAuthReq := func(userID int, bodyStr string) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/messages/clear", strings.NewReader(bodyStr))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, rec)
+		for _, cookie := range rec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		return req
+	}
+
+	// 1. Unauthenticated request -> 401
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/clear", strings.NewReader(`{"conversation_id": 1}`))
+	unauthReq.Header.Set("Content-Type", "application/json")
+	unauthRR := httptest.NewRecorder()
+	ClearChatAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated request, got %d", unauthRR.Code)
+	}
+
+	// 2. Invalid body -> 400
+	badReq := makeAuthReq(1, `{"conversation_id": "invalid"}`)
+	badRR := httptest.NewRecorder()
+	ClearChatAPI(badRR, badReq)
+	if badRR.Code != http.StatusBadRequest {
+		t.Errorf("Expected 400 for bad JSON, got %d", badRR.Code)
+	}
+
+	// 3. User 3 (non-member) -> 403
+	forbiddenReq := makeAuthReq(3, fmt.Sprintf(`{"conversation_id": %d}`, conv.ID))
+	forbiddenRR := httptest.NewRecorder()
+	ClearChatAPI(forbiddenRR, forbiddenReq)
+	if forbiddenRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for non-member clear, got %d", forbiddenRR.Code)
+	}
+
+	// 4. User 1 (authorized member) -> 200
+	successReq := makeAuthReq(1, fmt.Sprintf(`{"conversation_id": %d}`, conv.ID))
+	successRR := httptest.NewRecorder()
+	ClearChatAPI(successRR, successReq)
+	if successRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for valid clear chat, got %d: %s", successRR.Code, successRR.Body.String())
+	}
+	var res map[string]interface{}
+	_ = json.Unmarshal(successRR.Body.Bytes(), &res)
+	if res["success"] != true {
+		t.Errorf("Expected success: true, got %v", res)
+	}
+}
+
+func TestTogglePinAPI(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	makeAuthReq := func(userID int, bodyStr string) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/messages/pin", strings.NewReader(bodyStr))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, rec)
+		for _, cookie := range rec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		return req
+	}
+
+	// 1. Unauthenticated -> 401
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/pin", strings.NewReader(`{"conversation_id": 1}`))
+	unauthRR := httptest.NewRecorder()
+	TogglePinAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated pin toggle, got %d", unauthRR.Code)
+	}
+
+	// 2. User 3 non-member -> 403
+	forbiddenReq := makeAuthReq(3, fmt.Sprintf(`{"conversation_id": %d}`, conv.ID))
+	forbiddenRR := httptest.NewRecorder()
+	TogglePinAPI(forbiddenRR, forbiddenReq)
+	if forbiddenRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for non-member pin toggle, got %d", forbiddenRR.Code)
+	}
+
+	// 3. User 1 pins conversation -> is_pinned: true
+	pinReq := makeAuthReq(1, fmt.Sprintf(`{"conversation_id": %d}`, conv.ID))
+	pinRR := httptest.NewRecorder()
+	TogglePinAPI(pinRR, pinReq)
+	if pinRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for pin, got %d: %s", pinRR.Code, pinRR.Body.String())
+	}
+	var res map[string]interface{}
+	_ = json.Unmarshal(pinRR.Body.Bytes(), &res)
+	if res["is_pinned"] != true {
+		t.Errorf("Expected is_pinned: true, got %v", res["is_pinned"])
+	}
+
+	// 4. User 1 unpins conversation -> is_pinned: false
+	unpinReq := makeAuthReq(1, fmt.Sprintf(`{"conversation_id": %d}`, conv.ID))
+	unpinRR := httptest.NewRecorder()
+	TogglePinAPI(unpinRR, unpinReq)
+	if unpinRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for unpin, got %d", unpinRR.Code)
+	}
+	var res2 map[string]interface{}
+	_ = json.Unmarshal(unpinRR.Body.Bytes(), &res2)
+	if res2["is_pinned"] != false {
+		t.Errorf("Expected is_pinned: false, got %v", res2["is_pinned"])
+	}
+}
+
+func TestExportChatAPI(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+	_, _ = services.SendMessage(conv.ID, 1, "Hello from export test", "", nil)
+
+	makeAuthReq := func(userID int, urlStr string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, urlStr, nil)
+		rec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, rec)
+		for _, cookie := range rec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		return req
+	}
+
+	// 1. Unauthenticated -> 401
+	unauthReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages/export?conversation_id=%d", conv.ID), nil)
+	unauthRR := httptest.NewRecorder()
+	ExportChatAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated export, got %d", unauthRR.Code)
+	}
+
+	// 2. User 3 non-member -> 403
+	forbiddenReq := makeAuthReq(3, fmt.Sprintf("/messages/export?conversation_id=%d", conv.ID))
+	forbiddenRR := httptest.NewRecorder()
+	ExportChatAPI(forbiddenRR, forbiddenReq)
+	if forbiddenRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for non-member export, got %d", forbiddenRR.Code)
+	}
+
+	// 3. User 1 export TXT -> 200
+	txtReq := makeAuthReq(1, fmt.Sprintf("/messages/export?conversation_id=%d&format=txt", conv.ID))
+	txtRR := httptest.NewRecorder()
+	ExportChatAPI(txtRR, txtReq)
+	if txtRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for TXT export, got %d: %s", txtRR.Code, txtRR.Body.String())
+	}
+	disp := txtRR.Header().Get("Content-Disposition")
+	if !strings.Contains(disp, "attachment") || !strings.Contains(disp, ".txt") {
+		t.Errorf("Expected Content-Disposition attachment with .txt, got %s", disp)
+	}
+	if !strings.Contains(txtRR.Body.String(), "Hello from export test") {
+		t.Errorf("Expected export to include message content, got %s", txtRR.Body.String())
+	}
+
+	// 4. User 1 export JSON -> 200
+	jsonReq := makeAuthReq(1, fmt.Sprintf("/messages/export?conversation_id=%d&format=json", conv.ID))
+	jsonRR := httptest.NewRecorder()
+	ExportChatAPI(jsonRR, jsonReq)
+	if jsonRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for JSON export, got %d: %s", jsonRR.Code, jsonRR.Body.String())
+	}
+	dispJSON := jsonRR.Header().Get("Content-Disposition")
+	if !strings.Contains(dispJSON, "attachment") || !strings.Contains(dispJSON, ".json") {
+		t.Errorf("Expected Content-Disposition attachment with .json, got %s", dispJSON)
+	}
+	var exportData map[string]interface{}
+	err = json.Unmarshal(jsonRR.Body.Bytes(), &exportData)
+	if err != nil {
+		t.Fatalf("Expected valid JSON export payload, got err: %v", err)
+	}
+	if exportData["messages"] == nil {
+		t.Errorf("Expected messages key in JSON export payload")
+	}
+}
+
+func TestGetConversationMembersAPI(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	makeAuthReq := func(userID int, urlStr string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, urlStr, nil)
+		rec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, rec)
+		for _, cookie := range rec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		return req
+	}
+
+	// 1. Unauthenticated -> 401
+	unauthReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages/members?conversation_id=%d", conv.ID), nil)
+	unauthRR := httptest.NewRecorder()
+	GetConversationMembersAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 for unauthenticated members call, got %d", unauthRR.Code)
+	}
+
+	// 2. User 3 non-member -> 403
+	forbiddenReq := makeAuthReq(3, fmt.Sprintf("/messages/members?conversation_id=%d", conv.ID))
+	forbiddenRR := httptest.NewRecorder()
+	GetConversationMembersAPI(forbiddenRR, forbiddenReq)
+	if forbiddenRR.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 for non-member call, got %d", forbiddenRR.Code)
+	}
+
+	// 3. User 1 member -> 200 with members array
+	successReq := makeAuthReq(1, fmt.Sprintf("/messages/members?conversation_id=%d", conv.ID))
+	successRR := httptest.NewRecorder()
+	GetConversationMembersAPI(successRR, successReq)
+	if successRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK, got %d: %s", successRR.Code, successRR.Body.String())
+	}
+	var res map[string]interface{}
+	_ = json.Unmarshal(successRR.Body.Bytes(), &res)
+	members, ok := res["members"].([]interface{})
+	if !ok || len(members) != 2 {
+		t.Errorf("Expected 2 members in response, got %v", res["members"])
+	}
+}
+
+func TestDeleteMessageAPI_Modes(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	msg, err := services.SendMessage(conv.ID, 1, "Sensitive note to be deleted", "", nil)
+	if err != nil {
+		t.Fatalf("SendMessage failed: %v", err)
+	}
+
+	makeAuthReq := func(userID int, bodyStr string) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/messages/message/delete", strings.NewReader(bodyStr))
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, rec)
+		for _, cookie := range rec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+		return req
+	}
+
+	// 1. Mode "for_me": User 2 deletes message for me -> 200
+	delForMeReq := makeAuthReq(2, fmt.Sprintf(`{"message_id": %d, "mode": "for_me"}`, msg.ID))
+	delForMeRR := httptest.NewRecorder()
+	DeleteMessageAPI(delForMeRR, delForMeReq)
+	if delForMeRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for delete for me, got %d: %s", delForMeRR.Code, delForMeRR.Body.String())
+	}
+	var resForMe map[string]interface{}
+	_ = json.Unmarshal(delForMeRR.Body.Bytes(), &resForMe)
+	if resForMe["mode"] != "for_me" {
+		t.Errorf("Expected mode 'for_me', got %v", resForMe["mode"])
+	}
+
+	// 2. Mode "for_everyone": User 1 deletes own message for everyone -> 200
+	delForEveryoneReq := makeAuthReq(1, fmt.Sprintf(`{"message_id": %d, "mode": "for_everyone"}`, msg.ID))
+	delForEveryoneRR := httptest.NewRecorder()
+	DeleteMessageAPI(delForEveryoneRR, delForEveryoneReq)
+	if delForEveryoneRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for delete for everyone, got %d: %s", delForEveryoneRR.Code, delForEveryoneRR.Body.String())
+	}
+	var resForEveryone map[string]interface{}
+	_ = json.Unmarshal(delForEveryoneRR.Body.Bytes(), &resForEveryone)
+	if resForEveryone["mode"] != "for_everyone" {
+		t.Errorf("Expected mode 'for_everyone', got %v", resForEveryone["mode"])
+	}
+}
+
+func TestStage6_UIRendering(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// Send an initial message and a reply message
+	msg1, err := services.SendMessage(conv.ID, 1, "First test message", "", nil)
+	if err != nil {
+		t.Fatalf("SendMessage 1 failed: %v", err)
+	}
+	_, err = services.SendMessage(conv.ID, 2, "Second reply message", "", &msg1.ID)
+	if err != nil {
+		t.Fatalf("SendMessage 2 failed: %v", err)
+	}
+
+	// Toggle pin so pinned UI elements render
+	_, _ = services.TogglePinConversation(conv.ID, 1)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages?c=%d", conv.ID), nil)
+	rec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(req, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(req, rec)
+	for _, cookie := range rec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	inboxRR := httptest.NewRecorder()
+	ChatInbox(inboxRR, req)
+	if inboxRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", inboxRR.Code)
+	}
+
+	html := inboxRR.Body.String()
+	requiredElements := []string{
+		`id="headerPinnedIcon"`,
+		`id="clearChatModal"`,
+		`id="deleteMessageModal"`,
+		`id="composerReplyPreview"`,
+		`id="mentionDropdown"`,
+		`reply-msg-btn`,
+		`copy-msg-btn`,
+		`delete-for-me-btn`,
+		`delete-for-everyone-btn`,
+		`chat-quoted-reply`,
+		`scrollToQuotedMessage`,
+		`Clear Chat History`,
+		`Export Chat (.txt)`,
+		`Export Chat (.json)`,
+	}
+
+	for _, elem := range requiredElements {
+		if !strings.Contains(html, elem) {
+			t.Errorf("Expected UI to contain %q, but was missing", elem)
+		}
+	}
+}
+
+

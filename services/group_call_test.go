@@ -494,3 +494,85 @@ func TestGroupCall_300SimultaneousParticipantsAndActiveSpeaker(t *testing.T) {
 	}
 }
 
+func TestGroupCall_RemoteMuteAndModerationPermissions(t *testing.T) {
+	cleanup, convID, _ := setupGroupCallTestDB(t)
+	defer cleanup()
+
+	// 1. Owner (User 1) starts call
+	room, err := GlobalGroupCallManager.StartGroupCall(convID, 1, "video")
+	if err != nil {
+		t.Fatalf("Failed to start group call: %v", err)
+	}
+
+	// 2. Admin (User 2), Moderator (User 3), and Member (User 4) join call
+	_, _, err = GlobalGroupCallManager.JoinGroupCall(convID, 2)
+	if err != nil {
+		t.Fatalf("User 2 failed to join: %v", err)
+	}
+	_, _, err = GlobalGroupCallManager.JoinGroupCall(convID, 3)
+	if err != nil {
+		t.Fatalf("User 3 failed to join: %v", err)
+	}
+	_, _, err = GlobalGroupCallManager.JoinGroupCall(convID, 4)
+	if err != nil {
+		t.Fatalf("User 4 failed to join: %v", err)
+	}
+
+	// Member 4 is unmuted and speaking
+	_, err = GlobalGroupCallManager.UpdateParticipantMediaState(convID, 4, false, false, true)
+	if err != nil {
+		t.Fatalf("Failed to set speaking state for User 4: %v", err)
+	}
+
+	// 3. Regular Member (User 4) attempts to remote mute Admin (User 2) -> must fail
+	err = GlobalGroupCallManager.MuteParticipantInGroupCall(convID, 4, 2)
+	if err == nil {
+		t.Errorf("Expected error when regular member attempts remote mute, got nil")
+	}
+
+	// 4. Admin (User 2) attempts to remote mute Owner (User 1) -> must fail
+	err = GlobalGroupCallManager.MuteParticipantInGroupCall(convID, 2, 1)
+	if err == nil {
+		t.Errorf("Expected error when admin attempts to remote mute owner, got nil")
+	}
+
+	// 5. Admin (User 2) remotely mutes noisy Member (User 4) -> must succeed
+	err = GlobalGroupCallManager.MuteParticipantInGroupCall(convID, 2, 4)
+	if err != nil {
+		t.Fatalf("Admin failed to remote mute member: %v", err)
+	}
+
+	GlobalGroupCallManager.mu.RLock()
+	p4 := room.Participants[4]
+	GlobalGroupCallManager.mu.RUnlock()
+
+	if p4 == nil {
+		t.Fatalf("Expected User 4 in participants")
+	}
+	if !p4.IsMuted {
+		t.Errorf("Expected User 4 to have IsMuted=true after remote mute")
+	}
+	if p4.IsSpeaking {
+		t.Errorf("Expected User 4 to have IsSpeaking=false after remote mute")
+	}
+
+	// 6. Moderator (User 3) remotely mutes User 4 again or unmutes then mutes
+	err = GlobalGroupCallManager.MuteParticipantInGroupCall(convID, 3, 4)
+	if err != nil {
+		t.Errorf("Moderator should be able to remote mute member: %v", err)
+	}
+
+	// 7. Remote mute on user not in call (User 10) -> must fail
+	err = GlobalGroupCallManager.MuteParticipantInGroupCall(convID, 1, 10)
+	if err == nil {
+		t.Errorf("Expected error when muting user not in call, got nil")
+	}
+
+	// 8. End call
+	_, err = GlobalGroupCallManager.EndGroupCall(convID, 1)
+	if err != nil {
+		t.Fatalf("Failed to end call: %v", err)
+	}
+}
+
+

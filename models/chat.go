@@ -9,19 +9,46 @@ import (
 
 // Conversation represents a direct or group chat thread.
 type Conversation struct {
-	ID             int
-	Type           string // "direct" or "group"
-	Title          string // Used for group chat
-	Category       string // "general", "bible_study", "prayer", "evangelism", "other"
-	Description    string
-	AvatarURL      string
-	CallPermission string // "all", "admin_only"
-	IsPublic       bool
-	JoinPolicy     string // "approval", "open"
-	CreatedBy      int
-	LastMessageAt  *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                   int
+	Type                 string // "direct" or "group"
+	Title                string // Used for group chat
+	Category             string // "general", "bible_study", "prayer", "evangelism", "other"
+	Description          string
+	AvatarURL            string
+	CallPermission       string // "all", "admin_only"
+	IsPublic             bool
+	JoinPolicy           string // "approval", "open"
+	DisappearingDuration int    // Expiry timer in seconds: 0 = Off, 86400 = 24h, 604800 = 7d, 7776000 = 90d
+	CreatedBy            int
+	LastMessageAt        *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+// HasDisappearingMessages returns true if messages in this conversation expire.
+func (c Conversation) HasDisappearingMessages() bool {
+	return c.DisappearingDuration > 0
+}
+
+// FormattedDisappearingDuration returns a human-friendly label for the expiring timer.
+func (c Conversation) FormattedDisappearingDuration() string {
+	switch c.DisappearingDuration {
+	case 86400:
+		return "24 hours"
+	case 604800:
+		return "7 days"
+	case 7776000:
+		return "90 days"
+	default:
+		if c.DisappearingDuration > 0 {
+			hours := c.DisappearingDuration / 3600
+			if hours >= 24 && hours%24 == 0 {
+				return fmt.Sprintf("%d days", hours/24)
+			}
+			return fmt.Sprintf("%d hours", hours)
+		}
+		return "Off"
+	}
 }
 
 // ConversationMember represents a user's participation in a conversation.
@@ -33,11 +60,58 @@ type ConversationMember struct {
 	LastReadMessageID int
 	LastReadAt        *time.Time
 	IsMuted           bool
+	MutedUntil        *time.Time
 	IsArchived        bool
+	IsPinned          bool
+	ClearedAt         *time.Time
 	JoinedAt          time.Time
 
 	// Hydrated user details
 	User User
+}
+
+// IsActiveMuted evaluates whether the conversation member is currently muted (considering expiration).
+func (cm ConversationMember) IsActiveMuted() bool {
+	if !cm.IsMuted {
+		return false
+	}
+	if cm.MutedUntil == nil {
+		return true // Indefinite
+	}
+	return cm.MutedUntil.After(time.Now())
+}
+
+// FormattedMutedUntil returns a human-readable description of mute duration.
+func (cm ConversationMember) FormattedMutedUntil() string {
+	if !cm.IsMuted {
+		return "Not muted"
+	}
+	if cm.MutedUntil == nil {
+		return "Until unmuted"
+	}
+	remaining := time.Until(*cm.MutedUntil)
+	if remaining <= 0 {
+		return "Expired"
+	}
+	if remaining < time.Hour {
+		mins := int(remaining.Minutes())
+		if mins <= 1 {
+			return "for 1 min"
+		}
+		return fmt.Sprintf("for %d mins", mins)
+	}
+	if remaining < 24*time.Hour {
+		hours := int(remaining.Hours())
+		if hours <= 1 {
+			return "for 1 hour"
+		}
+		return fmt.Sprintf("for %d hours", hours)
+	}
+	days := int(remaining.Hours() / 24)
+	if days <= 1 {
+		return "for 1 day"
+	}
+	return fmt.Sprintf("for %d days", days)
 }
 
 // Message represents a single chat message.
@@ -58,11 +132,50 @@ type Message struct {
 	AttachmentName    string
 	AttachmentSize    int64
 	AttachmentType    string
+	ExpiresAt         *time.Time
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 
 	// Hydrated sender details
 	Sender User
+
+	// Quoted reply details
+	ReplyToMessage *Message
+	IsDeletedForMe bool
+}
+
+// IsExpired returns true if the message has an expiration time in the past.
+func (m Message) IsExpired() bool {
+	if m.ExpiresAt == nil {
+		return false
+	}
+	return m.ExpiresAt.Before(time.Now())
+}
+
+// HasExpiration returns true if the message has a set expiration time.
+func (m Message) HasExpiration() bool {
+	return m.ExpiresAt != nil
+}
+
+// FormattedRemainingTime returns human-readable remaining time before disappearing.
+func (m Message) FormattedRemainingTime() string {
+	if m.ExpiresAt == nil {
+		return ""
+	}
+	remaining := time.Until(*m.ExpiresAt)
+	if remaining <= 0 {
+		return "Expired"
+	}
+	if remaining < time.Minute {
+		return "<1m"
+	}
+	if remaining < time.Hour {
+		return fmt.Sprintf("%dm", int(remaining.Minutes()))
+	}
+	if remaining < 24*time.Hour {
+		return fmt.Sprintf("%dh", int(remaining.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(remaining.Hours()/24))
 }
 
 // FormattedAttachmentSize returns a human-readable file size string.
@@ -124,6 +237,109 @@ func (m Message) CanPreview() bool {
 	return ext == "pdf" || ext == "txt"
 }
 
+// IsImage returns true if the message is an image attachment.
+func (m Message) IsImage() bool {
+	if m.MessageType == "image" || strings.HasPrefix(m.AttachmentType, "image/") {
+		return true
+	}
+	switch m.AttachmentExtension() {
+	case "jpg", "jpeg", "png", "webp", "gif":
+		return true
+	}
+	return false
+}
+
+// IsVideo returns true if the message is a video attachment.
+func (m Message) IsVideo() bool {
+	if m.MessageType == "video" || strings.HasPrefix(m.AttachmentType, "video/") {
+		return true
+	}
+	switch m.AttachmentExtension() {
+	case "mp4", "mov", "avi", "mkv":
+		return true
+	}
+	return false
+}
+
+// IsVoice returns true if the message is a voice note or audio attachment.
+func (m Message) IsVoice() bool {
+	if m.MessageType == "voice" || strings.HasPrefix(m.AttachmentType, "audio/") {
+		return true
+	}
+	switch m.AttachmentExtension() {
+	case "mp3", "wav", "ogg", "aac", "m4a", "webm":
+		return true
+	}
+	return false
+}
+
+// IsDocument returns true if the message is a file/document attachment.
+func (m Message) IsDocument() bool {
+	return m.AttachmentURL != "" && !m.IsImage() && !m.IsVideo() && !m.IsVoice()
+}
+
+// HasLink returns true if the message body contains an HTTP or HTTPS URL.
+func (m Message) HasLink() bool {
+	return strings.Contains(m.Body, "http://") || strings.Contains(m.Body, "https://")
+}
+
+// SharedMediaOverview groups attachments into distinct categories for offcanvas display.
+type SharedMediaOverview struct {
+	Photos    []Message
+	Videos    []Message
+	Documents []Message
+	Voice     []Message
+	Total     int
+}
+
+// TotalCount returns the total number of shared media items.
+func (s *SharedMediaOverview) TotalCount() int {
+	if s == nil {
+		return 0
+	}
+	return s.Total
+}
+
+// PhotoCount returns the number of shared photos.
+func (s *SharedMediaOverview) PhotoCount() int {
+	if s == nil {
+		return 0
+	}
+	return len(s.Photos)
+}
+
+// VideoCount returns the number of shared videos.
+func (s *SharedMediaOverview) VideoCount() int {
+	if s == nil {
+		return 0
+	}
+	return len(s.Videos)
+}
+
+// DocCount returns the number of shared documents.
+func (s *SharedMediaOverview) DocCount() int {
+	if s == nil {
+		return 0
+	}
+	return len(s.Documents)
+}
+
+// VoiceCount returns the number of shared voice notes.
+func (s *SharedMediaOverview) VoiceCount() int {
+	if s == nil {
+		return 0
+	}
+	return len(s.Voice)
+}
+
+// VoiceNotes returns the list of voice note messages.
+func (s *SharedMediaOverview) VoiceNotes() []Message {
+	if s == nil {
+		return nil
+	}
+	return s.Voice
+}
+
 // ConversationItem represents an inbox list entry with summary info.
 type ConversationItem struct {
 	ID                      int
@@ -145,7 +361,18 @@ type ConversationItem struct {
 	UnreadCount             int
 	IsActive                bool
 	IsMuted                 bool
+	MutedUntil              *time.Time
+	DisappearingDuration    int
 	IsArchived              bool
+	IsPinned                bool
+}
+
+// MessageDeletion represents a user-specific "Delete for Me" action.
+type MessageDeletion struct {
+	ID        int       `json:"id"`
+	MessageID int       `json:"message_id"`
+	UserID    int       `json:"user_id"`
+	DeletedAt time.Time `json:"deleted_at"`
 }
 
 // GroupMembershipRequest represents a user's request to join a community group requiring approval.
@@ -167,31 +394,40 @@ type GroupMembershipRequest struct {
 
 // ChatViewData holds template data for the chat interface.
 type ChatViewData struct {
-	CurrentUser          User
-	Error                string
-	Conversations        []ConversationItem
-	ActiveConversation   *Conversation
-	ActiveRecipient      *User
-	ActiveGroupMembers   []ConversationMember
-	ActiveUserRole       string // "owner", "admin", "moderator", "member"
-	CanStartCall         bool
-	CanManageMembers     bool
-	DiscoverableGroups   []ConversationItem
-	Messages             []Message
-	EligibleFriends      []User
-	UnreadCount          int
-	UnreadMessagesCount  int
-	IsActiveMuted        bool
-	IsActiveArchived     bool
-	HasOlderMessages     bool
-	IsActiveOnline       bool
-	IsRecipientBlocked   bool
-	IsBlockedByRecipient bool
-	SharedMedia          []Message
-	CallLogs             []CallLog
-	ActiveGroupCall      *GroupCallRoom
-	PendingRequestsCount int
-	PendingRequests      []GroupMembershipRequest
+	CurrentUser                User
+	Error                      string
+	Conversations              []ConversationItem
+	ActiveConversation         *Conversation
+	ActiveRecipient            *User
+	ActiveGroupMembers         []ConversationMember
+	ActiveUserRole             string // "owner", "admin", "moderator", "member"
+	CanStartCall               bool
+	CanManageMembers           bool
+	DiscoverableGroups         []ConversationItem
+	Messages                   []Message
+	EligibleFriends            []User
+	UnreadCount                int
+	UnreadMessagesCount        int
+	IsActiveMuted              bool
+	ActiveMutedUntil           *time.Time
+	ActiveDisappearingDuration int
+	ActiveDisappearingLabel    string
+	IsActiveArchived           bool
+	IsActivePinned             bool
+	HasOlderMessages           bool
+	IsActiveOnline             bool
+	IsRecipientBlocked         bool
+	IsBlockedByRecipient       bool
+	SharedMedia                []Message
+	SharedMediaOverview        *SharedMediaOverview
+	CallLogs                   []CallLog
+	ActiveGroupCall            *GroupCallRoom
+	PendingRequestsCount       int
+	PendingRequests            []GroupMembershipRequest
+	BlockedUsers               []User
+	PendingReportsCount        int
+	HasAcceptedTerms           bool
+	ActiveTermsVersion         string
 }
 
 // CallParticipant represents a participant who joined a call session.
@@ -245,15 +481,27 @@ type BlockedUser struct {
 
 // ChatReport represents an abuse or moderation report submitted against a user or message.
 type ChatReport struct {
-	ID             int       `json:"id"`
-	ReporterID     int       `json:"reporter_id"`
-	ReportedUserID int       `json:"reported_user_id"`
-	ConversationID *int      `json:"conversation_id"`
-	MessageID      *int      `json:"message_id"`
-	Reason         string    `json:"reason"`
-	Details        string    `json:"details"`
-	Status         string    `json:"status"` // "pending", "reviewed", "dismissed", "action_taken"
-	CreatedAt      time.Time `json:"created_at"`
+	ID               int        `json:"id"`
+	ReporterID       int        `json:"reporter_id"`
+	ReportedUserID   int        `json:"reported_user_id"`
+	ConversationID   *int       `json:"conversation_id,omitempty"`
+	MessageID        *int       `json:"message_id,omitempty"`
+	Reason           string     `json:"reason"`
+	Details          string     `json:"details"`
+	Status           string     `json:"status"` // "pending", "reviewed", "dismissed", "action_taken"
+	EvidenceText     string     `json:"evidence_text,omitempty"`
+	EvidenceURL      string     `json:"evidence_url,omitempty"`
+	ReviewedBy       *int       `json:"reviewed_by,omitempty"`
+	ReviewedAt       *time.Time `json:"reviewed_at,omitempty"`
+	ResolutionNotes  string     `json:"resolution_notes,omitempty"`
+	ResolutionAction string     `json:"resolution_action,omitempty"` // "none", "warning_issued", "message_deleted", "user_suspended"
+	CreatedAt        time.Time  `json:"created_at"`
+
+	// Hydrated details
+	Reporter     *User    `json:"reporter,omitempty"`
+	ReportedUser *User    `json:"reported_user,omitempty"`
+	Reviewer     *User    `json:"reviewer,omitempty"`
+	Message      *Message `json:"message,omitempty"`
 }
 
 // CallLog represents a record of an audio or video call session.
@@ -272,4 +520,15 @@ type CallLog struct {
 	Caller       User              `json:"caller,omitempty"`
 	Receiver     User              `json:"receiver,omitempty"`
 	Participants []CallParticipant `json:"participants,omitempty"`
+}
+
+// CallInvitation represents a shareable invitation token to an audio or video call session.
+type CallInvitation struct {
+	ID             int       `json:"id"`
+	ConversationID int       `json:"conversation_id"`
+	Token          string    `json:"token"`
+	CallType       string    `json:"call_type"` // "audio" or "video"
+	CreatedBy      int       `json:"created_by"`
+	ExpiresAt      time.Time `json:"expires_at"`
+	CreatedAt      time.Time `json:"created_at"`
 }

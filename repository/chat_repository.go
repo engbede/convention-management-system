@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -161,7 +162,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 		SELECT id, type, COALESCE(title, ''), COALESCE(category, 'general'),
 		       COALESCE(description, ''), COALESCE(avatar_url, ''),
 		       COALESCE(call_permission, 'all'), COALESCE(is_public, TRUE),
-		       COALESCE(join_policy, 'approval'),
+		       COALESCE(join_policy, 'approval'), COALESCE(disappearing_duration, 0),
 		       created_by, last_message_at, created_at, updated_at
 		FROM conversations
 		WHERE id = %s
@@ -171,6 +172,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 	var lastMsg, createdAtRaw, updatedAtRaw any
 	var title, category, description, avatarURL, callPermission, joinPolicy string
 	var isPublic bool
+	var disappearingDuration int
 
 	err := database.DB.QueryRow(query, conversationID).Scan(
 		&conv.ID,
@@ -182,6 +184,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 		&callPermission,
 		&isPublic,
 		&joinPolicy,
+		&disappearingDuration,
 		&conv.CreatedBy,
 		&lastMsg,
 		&createdAtRaw,
@@ -198,6 +201,7 @@ func GetConversationByID(conversationID int) (*models.Conversation, error) {
 	conv.CallPermission = callPermission
 	conv.IsPublic = isPublic
 	conv.JoinPolicy = joinPolicy
+	conv.DisappearingDuration = disappearingDuration
 	conv.CreatedAt = parseSQLTime(createdAtRaw)
 	conv.UpdatedAt = parseSQLTime(updatedAtRaw)
 	if t := parseSQLTime(lastMsg); !t.IsZero() {
@@ -261,13 +265,22 @@ func SaveMessage(msg *models.Message) error {
 	}
 
 	// 2. Insert message
+	if msg.ExpiresAt == nil && msg.ConversationID > 0 {
+		var disappearingDuration int
+		_ = database.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(disappearing_duration, 0) FROM conversations WHERE id = %s`, helpers.Placeholder(1)), msg.ConversationID).Scan(&disappearingDuration)
+		if disappearingDuration > 0 {
+			exp := time.Now().UTC().Add(time.Duration(disappearingDuration) * time.Second)
+			msg.ExpiresAt = &exp
+		}
+	}
+
 	insertQuery := fmt.Sprintf(`
 		INSERT INTO messages (
 			conversation_id, sender_id, message_type, body, client_message_id, reply_to_message_id,
 			attachment_url, attachment_name, attachment_size, attachment_type,
-			is_edited, is_deleted, created_at, updated_at
+			is_edited, is_deleted, expires_at, created_at, updated_at
 		)
-		VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, FALSE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, FALSE, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`,
 		helpers.Placeholder(1),
 		helpers.Placeholder(2),
@@ -279,6 +292,7 @@ func SaveMessage(msg *models.Message) error {
 		helpers.Placeholder(8),
 		helpers.Placeholder(9),
 		helpers.Placeholder(10),
+		helpers.Placeholder(11),
 	)
 
 	result, err := database.DB.Exec(
@@ -293,6 +307,7 @@ func SaveMessage(msg *models.Message) error {
 		msg.AttachmentName,
 		msg.AttachmentSize,
 		msg.AttachmentType,
+		msg.ExpiresAt,
 	)
 	if err != nil {
 		return err
@@ -325,6 +340,77 @@ func SaveMessage(msg *models.Message) error {
 }
 
 // GetConversationMessages returns ordered messages for a conversation with sender details and read status.
+// GetMessagesByIDs retrieves multiple messages by their IDs, useful for batch hydration of quoted replies.
+func GetMessagesByIDs(ids []int) (map[int]models.Message, error) {
+	if len(ids) == 0 {
+		return make(map[int]models.Message), nil
+	}
+
+	placeholders := make([]string, len(ids))
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		placeholders[i] = helpers.Placeholder(i + 1)
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT 
+			m.id, m.conversation_id, m.sender_id, m.message_type, m.body,
+			COALESCE(m.client_message_id, ''), m.reply_to_message_id,
+			m.is_edited, m.is_deleted,
+			COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''),
+			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
+			m.expires_at,
+			m.created_at, m.updated_at,
+			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
+		FROM messages m
+		JOIN users u ON m.sender_id = u.id
+		WHERE m.id IN (%s)
+	`, strings.Join(placeholders, ", "))
+
+	rows, err := database.DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int]models.Message)
+	for rows.Next() {
+		var m models.Message
+		var replyTo sql.NullInt64
+		var photo string
+		var expiresAtRaw any
+		var createdAtRaw, updatedAtRaw any
+
+		err := rows.Scan(
+			&m.ID, &m.ConversationID, &m.SenderID, &m.MessageType, &m.Body,
+			&m.ClientMessageID, &replyTo,
+			&m.IsEdited, &m.IsDeleted,
+			&m.AttachmentURL, &m.AttachmentName, &m.AttachmentSize, &m.AttachmentType,
+			&expiresAtRaw,
+			&createdAtRaw, &updatedAtRaw,
+			&m.Sender.ID, &m.Sender.FullName, &m.Sender.Username, &photo,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if t := parseSQLTime(expiresAtRaw); !t.IsZero() {
+			m.ExpiresAt = &t
+		}
+		m.CreatedAt = parseSQLTime(createdAtRaw)
+		m.UpdatedAt = parseSQLTime(updatedAtRaw)
+		if replyTo.Valid {
+			repID := int(replyTo.Int64)
+			m.ReplyToMessageID = &repID
+		}
+		m.Sender.ProfilePhoto = photo
+		m.Sender.Initials = utils.Initials(m.Sender.FullName)
+		result[m.ID] = m
+	}
+	return result, nil
+}
+
+// GetConversationMessages returns ordered messages for a conversation with sender details, read status, and hydration.
 func GetConversationMessages(conversationID int, limit, offset int, currentUserID int) ([]models.Message, error) {
 	if limit <= 0 {
 		limit = 50
@@ -347,16 +433,22 @@ func GetConversationMessages(conversationID int, limit, offset int, currentUserI
 			m.is_edited, m.is_deleted,
 			COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''),
 			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
+			m.expires_at,
 			m.created_at, m.updated_at,
 			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
 		FROM messages m
 		JOIN users u ON m.sender_id = u.id
+		LEFT JOIN conversation_members cm_curr ON cm_curr.conversation_id = m.conversation_id AND cm_curr.user_id = %s
+		LEFT JOIN message_deletions md ON md.message_id = m.id AND md.user_id = %s
 		WHERE m.conversation_id = %s
+		  AND md.id IS NULL
+		  AND (cm_curr.cleared_at IS NULL OR m.created_at > cm_curr.cleared_at)
+		  AND (m.expires_at IS NULL OR m.expires_at > CURRENT_TIMESTAMP)
 		ORDER BY m.created_at ASC, m.id ASC
 		LIMIT %s OFFSET %s
-	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5))
 
-	rows, err := database.DB.Query(query, conversationID, limit, offset)
+	rows, err := database.DB.Query(query, currentUserID, currentUserID, conversationID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -367,8 +459,9 @@ func GetConversationMessages(conversationID int, limit, offset int, currentUserI
 		var m models.Message
 		var replyTo sql.NullInt64
 		var photo string
-
+		var expiresAtRaw any
 		var createdAtRaw, updatedAtRaw any
+
 		err := rows.Scan(
 			&m.ID,
 			&m.ConversationID,
@@ -383,6 +476,7 @@ func GetConversationMessages(conversationID int, limit, offset int, currentUserI
 			&m.AttachmentName,
 			&m.AttachmentSize,
 			&m.AttachmentType,
+			&expiresAtRaw,
 			&createdAtRaw,
 			&updatedAtRaw,
 			&m.Sender.ID,
@@ -394,6 +488,9 @@ func GetConversationMessages(conversationID int, limit, offset int, currentUserI
 			return nil, err
 		}
 
+		if t := parseSQLTime(expiresAtRaw); !t.IsZero() {
+			m.ExpiresAt = &t
+		}
 		m.CreatedAt = parseSQLTime(createdAtRaw)
 		m.UpdatedAt = parseSQLTime(updatedAtRaw)
 
@@ -412,10 +509,31 @@ func GetConversationMessages(conversationID int, limit, offset int, currentUserI
 		messages = append(messages, m)
 	}
 
+	// Hydrate quoted replies
+	replyIDs := make([]int, 0)
+	for _, m := range messages {
+		if m.ReplyToMessageID != nil && *m.ReplyToMessageID > 0 {
+			replyIDs = append(replyIDs, *m.ReplyToMessageID)
+		}
+	}
+	if len(replyIDs) > 0 {
+		replyMap, err := GetMessagesByIDs(replyIDs)
+		if err == nil {
+			for i := range messages {
+				if messages[i].ReplyToMessageID != nil {
+					if rep, ok := replyMap[*messages[i].ReplyToMessageID]; ok {
+						repCopy := rep
+						messages[i].ReplyToMessage = &repCopy
+					}
+				}
+			}
+		}
+	}
+
 	return messages, nil
 }
 
-// GetUserConversations returns all active conversations for a user with unread counts, mute, and archive flags.
+// GetUserConversations returns all active conversations for a user with unread counts, mute, archive, and pin flags.
 func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 	query := fmt.Sprintf(`
 		SELECT 
@@ -427,11 +545,15 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 			COALESCE(c.avatar_url, ''),
 			COALESCE(c.call_permission, 'all'),
 			COALESCE(c.is_public, TRUE),
+			COALESCE(c.disappearing_duration, 0),
 			(SELECT COUNT(*) FROM conversation_members WHERE conversation_id = c.id) as member_count,
 			COALESCE(c.last_message_at, c.created_at) as sort_time,
 			cm.last_read_message_id,
 			COALESCE(cm.is_muted, FALSE),
+			cm.muted_until,
 			COALESCE(cm.is_archived, FALSE),
+			COALESCE(cm.is_pinned, FALSE),
+			cm.cleared_at,
 			-- Other user details for direct chat
 			COALESCE(u.id, 0),
 			COALESCE(u.full_name, ''),
@@ -448,18 +570,19 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 		LEFT JOIN conversation_members other_cm 
 			ON other_cm.conversation_id = c.id AND other_cm.user_id != %s AND c.type = 'direct'
 		LEFT JOIN users u ON other_cm.user_id = u.id AND c.type = 'direct'
-		-- Subquery for the most recent message in the conversation
+		-- Subquery for the most recent message in the conversation (excluding expired messages)
 		LEFT JOIN (
 			SELECT m1.conversation_id, m1.id, m1.body, m1.sender_id, m1.created_at
 			FROM messages m1
 			INNER JOIN (
 				SELECT conversation_id, MAX(id) as max_id
 				FROM messages
+				WHERE (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
 				GROUP BY conversation_id
 			) m2 ON m1.conversation_id = m2.conversation_id AND m1.id = m2.max_id
 		) latest ON latest.conversation_id = c.id
 		WHERE cm.user_id = %s
-		ORDER BY sort_time DESC
+		ORDER BY COALESCE(cm.is_pinned, FALSE) DESC, sort_time DESC
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
 
 	rows, err := database.DB.Query(query, userID, userID)
@@ -472,7 +595,9 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 	for rows.Next() {
 		var item models.ConversationItem
 		var lastReadID int
-		var isMuted, isArchived bool
+		var isMuted, isArchived, isPinned bool
+		var mutedUntilRaw, clearedAtRaw any
+		var disappearingDuration int
 		var isPublic bool
 		var sortTimeRaw any
 		var otherID int
@@ -490,11 +615,15 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 			&item.AvatarURL,
 			&item.CallPermission,
 			&isPublic,
+			&disappearingDuration,
 			&item.MemberCount,
 			&sortTimeRaw,
 			&lastReadID,
 			&isMuted,
+			&mutedUntilRaw,
 			&isArchived,
+			&isPinned,
+			&clearedAtRaw,
 			&otherID,
 			&otherName,
 			&otherUsername,
@@ -509,7 +638,21 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 		}
 
 		item.IsPublic = isPublic
-		item.IsMuted = isMuted
+		item.DisappearingDuration = disappearingDuration
+		item.IsPinned = isPinned
+		if t := parseSQLTime(mutedUntilRaw); !t.IsZero() {
+			item.MutedUntil = &t
+		}
+
+		if isMuted {
+			if item.MutedUntil == nil {
+				item.IsMuted = true
+			} else {
+				item.IsMuted = item.MutedUntil.After(time.Now().UTC())
+			}
+		} else {
+			item.IsMuted = false
+		}
 		item.IsArchived = isArchived
 
 		if item.Type == "direct" && otherID != 0 {
@@ -526,14 +669,31 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 		item.LastMessageSenderID = latestSenderID
 		item.LastMessageTime = parseSQLTime(latestTimeRaw)
 
-		// Calculate unread count
+		// Suppress latest message if it was sent prior to cleared_at
+		if t := parseSQLTime(clearedAtRaw); !t.IsZero() {
+			if !item.LastMessageTime.IsZero() && !item.LastMessageTime.After(t) {
+				item.LastMessage = ""
+				item.LastMessageSenderID = 0
+				item.LastMessageTime = time.Time{}
+			}
+		}
+
+		// Calculate unread count (excluding expired and deleted/cleared messages)
 		if latestMsgID > lastReadID {
 			unreadQuery := fmt.Sprintf(`
-				SELECT COUNT(*) FROM messages
-				WHERE conversation_id = %s AND id > %s AND sender_id != %s
-			`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
+				SELECT COUNT(*) FROM messages m
+				LEFT JOIN message_deletions md ON md.message_id = m.id AND md.user_id = %s
+				WHERE m.conversation_id = %s AND m.id > %s AND m.sender_id != %s
+				  AND md.id IS NULL
+				  AND (m.expires_at IS NULL OR m.expires_at > CURRENT_TIMESTAMP)
+			`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4))
+			args := []any{userID, item.ID, lastReadID, userID}
+			if t := parseSQLTime(clearedAtRaw); !t.IsZero() {
+				unreadQuery += fmt.Sprintf(" AND m.created_at > %s", helpers.Placeholder(5))
+				args = append(args, t)
+			}
 			var unread int
-			database.DB.QueryRow(unreadQuery, item.ID, lastReadID, userID).Scan(&unread)
+			_ = database.DB.QueryRow(unreadQuery, args...).Scan(&unread)
 			item.UnreadCount = unread
 		}
 
@@ -546,7 +706,7 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 // MarkConversationAsRead advances the user's read marker to the latest message.
 func MarkConversationAsRead(conversationID, userID int) error {
 	var maxID int
-	queryMax := fmt.Sprintf(`SELECT COALESCE(MAX(id), 0) FROM messages WHERE conversation_id = %s`, helpers.Placeholder(1))
+	queryMax := fmt.Sprintf(`SELECT COALESCE(MAX(id), 0) FROM messages WHERE conversation_id = %s AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`, helpers.Placeholder(1))
 	err := database.DB.QueryRow(queryMax, conversationID).Scan(&maxID)
 	if err != nil {
 		return err
@@ -562,13 +722,14 @@ func MarkConversationAsRead(conversationID, userID int) error {
 	return err
 }
 
-// CountTotalUnreadMessages counts all unread messages for a user across all conversations.
+// CountTotalUnreadMessages counts all unread messages for a user across all conversations (excluding expired messages).
 func CountTotalUnreadMessages(userID int) (int, error) {
 	query := fmt.Sprintf(`
 		SELECT COUNT(m.id)
 		FROM messages m
 		JOIN conversation_members cm ON m.conversation_id = cm.conversation_id
 		WHERE cm.user_id = %s AND m.sender_id != %s AND m.id > cm.last_read_message_id
+		  AND (m.expires_at IS NULL OR m.expires_at > CURRENT_TIMESTAMP)
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
 
 	var count int
@@ -579,32 +740,58 @@ func CountTotalUnreadMessages(userID int) (int, error) {
 	return count, nil
 }
 
+// SetConversationMute sets the mute preference for a user in a conversation with optional duration.
+// Options: "1h", "8h", "1w", "indefinite", "forever", "unmute".
+func SetConversationMute(convID, userID int, option string) (*time.Time, bool, error) {
+	option = strings.ToLower(strings.TrimSpace(option))
+	var isMuted bool
+	var mutedUntil *time.Time
+
+	now := time.Now().UTC()
+	switch option {
+	case "1h", "1_hour", "1 hour":
+		isMuted = true
+		t := now.Add(1 * time.Hour)
+		mutedUntil = &t
+	case "8h", "8_hours", "8 hours":
+		isMuted = true
+		t := now.Add(8 * time.Hour)
+		mutedUntil = &t
+	case "1w", "1_week", "7d", "1 week", "7 days":
+		isMuted = true
+		t := now.Add(7 * 24 * time.Hour)
+		mutedUntil = &t
+	case "indefinite", "forever", "until_unmuted", "always":
+		isMuted = true
+		mutedUntil = nil
+	case "unmute", "off", "0":
+		isMuted = false
+		mutedUntil = nil
+	default:
+		return nil, false, fmt.Errorf("invalid mute option %q: must be 1h, 8h, 1w, indefinite, or unmute", option)
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE conversation_members
+		SET is_muted = %s, muted_until = %s
+		WHERE conversation_id = %s AND user_id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4))
+	_, err := database.DB.Exec(query, isMuted, mutedUntil, convID, userID)
+	if err != nil {
+		return nil, false, err
+	}
+	return mutedUntil, isMuted, nil
+}
+
 // ToggleMuteConversation toggles the is_muted state for a user in a conversation.
 func ToggleMuteConversation(convID, userID int) (bool, error) {
-	var currentMuted bool
-	querySelect := fmt.Sprintf(`
-		SELECT COALESCE(is_muted, FALSE)
-		FROM conversation_members
-		WHERE conversation_id = %s AND user_id = %s
-	`, helpers.Placeholder(1), helpers.Placeholder(2))
-	err := database.DB.QueryRow(querySelect, convID, userID).Scan(&currentMuted)
-	if err != nil {
-		return false, err
+	currentlyMuted := IsConversationMutedBy(convID, userID)
+	if currentlyMuted {
+		_, isMuted, err := SetConversationMute(convID, userID, "unmute")
+		return isMuted, err
 	}
-
-	newMuted := !currentMuted
-
-	queryUpdate := fmt.Sprintf(`
-		UPDATE conversation_members
-		SET is_muted = %s
-		WHERE conversation_id = %s AND user_id = %s
-	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
-	_, err = database.DB.Exec(queryUpdate, newMuted, convID, userID)
-	if err != nil {
-		return false, err
-	}
-
-	return newMuted, nil
+	_, isMuted, err := SetConversationMute(convID, userID, "indefinite")
+	return isMuted, err
 }
 
 // ToggleArchiveConversation toggles the is_archived state for a user in a conversation.
@@ -635,38 +822,100 @@ func ToggleArchiveConversation(convID, userID int) (bool, error) {
 	return newArchived, nil
 }
 
-// GetConversationMemberSettings gets the mute and archive status for a member.
-func GetConversationMemberSettings(convID, userID int) (isMuted, isArchived bool, err error) {
+// GetConversationMemberSettings gets the mute, archive, and pin status for a member.
+func GetConversationMemberSettings(convID, userID int) (isMuted, isArchived, isPinned bool, err error) {
+	var muted bool
+	var mutedUntilRaw any
 	query := fmt.Sprintf(`
-		SELECT COALESCE(is_muted, FALSE), COALESCE(is_archived, FALSE)
+		SELECT COALESCE(is_muted, FALSE), muted_until, COALESCE(is_archived, FALSE), COALESCE(is_pinned, FALSE)
 		FROM conversation_members
 		WHERE conversation_id = %s AND user_id = %s
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
-	err = database.DB.QueryRow(query, convID, userID).Scan(&isMuted, &isArchived)
+	err = database.DB.QueryRow(query, convID, userID).Scan(&muted, &mutedUntilRaw, &isArchived, &isPinned)
 	if err != nil {
-		return false, false, err
+		return false, false, false, err
 	}
-	return isMuted, isArchived, nil
+	if !muted {
+		return false, isArchived, isPinned, nil
+	}
+	if mutedUntilRaw == nil {
+		return true, isArchived, isPinned, nil
+	}
+	t := parseSQLTime(mutedUntilRaw)
+	if t.IsZero() {
+		return true, isArchived, isPinned, nil
+	}
+	return t.After(time.Now().UTC()), isArchived, isPinned, nil
 }
 
-// IsConversationMutedBy checks if a conversation is muted by a specific user.
+// IsConversationMutedBy checks if a conversation is muted by a specific user (taking expiration into account).
 func IsConversationMutedBy(convID, userID int) bool {
 	var muted bool
+	var mutedUntilRaw any
 	query := fmt.Sprintf(`
-		SELECT COALESCE(is_muted, FALSE)
+		SELECT COALESCE(is_muted, FALSE), muted_until
 		FROM conversation_members
 		WHERE conversation_id = %s AND user_id = %s
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
-	err := database.DB.QueryRow(query, convID, userID).Scan(&muted)
-	if err != nil {
+	err := database.DB.QueryRow(query, convID, userID).Scan(&muted, &mutedUntilRaw)
+	if err != nil || !muted {
 		return false
 	}
-	return muted
+	if mutedUntilRaw == nil {
+		return true // Indefinite mute
+	}
+	t := parseSQLTime(mutedUntilRaw)
+	if t.IsZero() {
+		return true
+	}
+	return t.After(time.Now().UTC())
 }
 
-// CountMessagesInConversation returns the total number of messages in a conversation.
+// UpdateConversationDisappearingMessages updates the disappearing message timer for a conversation.
+func UpdateConversationDisappearingMessages(convID int, durationSeconds int) error {
+	query := fmt.Sprintf(`
+		UPDATE conversations
+		SET disappearing_duration = %s, updated_at = CURRENT_TIMESTAMP
+		WHERE id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	_, err := database.DB.Exec(query, durationSeconds, convID)
+	return err
+}
+
+// DeleteExpiredMessages purges expired messages and cleans up local attachments if applicable.
+func DeleteExpiredMessages() (int64, error) {
+	// 1. Find local attachments of expired messages before deleting
+	querySelect := `
+		SELECT attachment_url FROM messages
+		WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP AND attachment_url IS NOT NULL AND attachment_url != ''
+	`
+	rows, err := database.DB.Query(querySelect)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var attachURL string
+			if err := rows.Scan(&attachURL); err == nil && attachURL != "" {
+				// Safety check: only delete files within /uploads/
+				if strings.HasPrefix(attachURL, "/uploads/") && !strings.Contains(attachURL, "..") {
+					localPath := "." + attachURL
+					_ = os.Remove(localPath)
+				}
+			}
+		}
+	}
+
+	// 2. Delete expired messages from database
+	queryDelete := `DELETE FROM messages WHERE expires_at IS NOT NULL AND expires_at <= CURRENT_TIMESTAMP`
+	res, err := database.DB.Exec(queryDelete)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
+// CountMessagesInConversation returns the total number of non-expired messages in a conversation.
 func CountMessagesInConversation(convID int) (int, error) {
-	query := fmt.Sprintf(`SELECT COUNT(*) FROM messages WHERE conversation_id = %s`, helpers.Placeholder(1))
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM messages WHERE conversation_id = %s AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`, helpers.Placeholder(1))
 	var count int
 	err := database.DB.QueryRow(query, convID).Scan(&count)
 	return count, err
@@ -757,13 +1006,34 @@ func GetBlockedUsers(blockerID int) ([]models.User, error) {
 	return users, nil
 }
 
+// HasPendingChatReport checks if a pending report from reporterID on the target already exists.
+func HasPendingChatReport(reporterID, reportedUserID int, messageID *int) (bool, error) {
+	var count int
+	var query string
+	var err error
+	if messageID != nil && *messageID > 0 {
+		query = fmt.Sprintf(`
+			SELECT COUNT(1) FROM chat_reports 
+			WHERE reporter_id = %s AND reported_user_id = %s AND message_id = %s AND status = 'pending'
+		`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
+		err = database.DB.QueryRow(query, reporterID, reportedUserID, *messageID).Scan(&count)
+	} else {
+		query = fmt.Sprintf(`
+			SELECT COUNT(1) FROM chat_reports 
+			WHERE reporter_id = %s AND reported_user_id = %s AND (message_id IS NULL OR message_id = 0) AND status = 'pending'
+		`, helpers.Placeholder(1), helpers.Placeholder(2))
+		err = database.DB.QueryRow(query, reporterID, reportedUserID).Scan(&count)
+	}
+	return count > 0, err
+}
+
 // CreateChatReport persists an abuse report against a user or message.
 func CreateChatReport(report *models.ChatReport) error {
 	query := fmt.Sprintf(`
-		INSERT INTO chat_reports (reporter_id, reported_user_id, conversation_id, message_id, reason, details, status, created_at)
-		VALUES (%s, %s, %s, %s, %s, %s, 'pending', CURRENT_TIMESTAMP)
-	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5), helpers.Placeholder(6))
-	res, err := database.DB.Exec(query, report.ReporterID, report.ReportedUserID, report.ConversationID, report.MessageID, report.Reason, report.Details)
+		INSERT INTO chat_reports (reporter_id, reported_user_id, conversation_id, message_id, reason, details, status, evidence_text, evidence_url, created_at)
+		VALUES (%s, %s, %s, %s, %s, %s, 'pending', %s, %s, CURRENT_TIMESTAMP)
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5), helpers.Placeholder(6), helpers.Placeholder(7), helpers.Placeholder(8))
+	res, err := database.DB.Exec(query, report.ReporterID, report.ReportedUserID, report.ConversationID, report.MessageID, report.Reason, report.Details, report.EvidenceText, report.EvidenceURL)
 	if err != nil {
 		return err
 	}
@@ -771,6 +1041,171 @@ func CreateChatReport(report *models.ChatReport) error {
 		report.ID = int(id)
 	}
 	return nil
+}
+
+// CountPendingChatReports returns the total number of unreviewed reports.
+func CountPendingChatReports() (int, error) {
+	var count int
+	err := database.DB.QueryRow("SELECT COUNT(1) FROM chat_reports WHERE status = 'pending'").Scan(&count)
+	return count, err
+}
+
+// GetChatReports retrieves moderation reports with optional status filtering and pagination.
+func GetChatReports(status string, limit, offset int) ([]models.ChatReport, int, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 30
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	whereClause := ""
+	var args []any
+	argIndex := 1
+
+	if status != "" {
+		whereClause = fmt.Sprintf("WHERE cr.status = %s", helpers.Placeholder(argIndex))
+		args = append(args, status)
+		argIndex++
+	}
+
+	// Count total
+	countQuery := fmt.Sprintf("SELECT COUNT(1) FROM chat_reports cr %s", whereClause)
+	var total int
+	err := database.DB.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	selectQuery := fmt.Sprintf(`
+		SELECT cr.id, cr.reporter_id, cr.reported_user_id, cr.conversation_id, cr.message_id,
+		       cr.reason, COALESCE(cr.details, ''), cr.status,
+		       COALESCE(cr.evidence_text, ''), COALESCE(cr.evidence_url, ''),
+		       cr.reviewed_by, cr.reviewed_at,
+		       COALESCE(cr.resolution_notes, ''), COALESCE(cr.resolution_action, 'none'),
+		       cr.created_at,
+		       u_rep.id, u_rep.full_name, u_rep.username, COALESCE(u_rep.profile_photo, ''),
+		       u_tgt.id, u_tgt.full_name, u_tgt.username, COALESCE(u_tgt.profile_photo, ''),
+		       COALESCE(u_rev.full_name, '')
+		FROM chat_reports cr
+		JOIN users u_rep ON cr.reporter_id = u_rep.id
+		JOIN users u_tgt ON cr.reported_user_id = u_tgt.id
+		LEFT JOIN users u_rev ON cr.reviewed_by = u_rev.id
+		%s
+		ORDER BY cr.created_at DESC
+		LIMIT %s OFFSET %s
+	`, whereClause, helpers.Placeholder(argIndex), helpers.Placeholder(argIndex+1))
+
+	queryArgs := append(args, limit, offset)
+	rows, err := database.DB.Query(selectQuery, queryArgs...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	reports := make([]models.ChatReport, 0)
+	for rows.Next() {
+		var r models.ChatReport
+		var rep models.User
+		var tgt models.User
+		var reviewerName string
+		var reviewedAtRaw any
+		var createdAtRaw any
+
+		err := rows.Scan(
+			&r.ID, &r.ReporterID, &r.ReportedUserID, &r.ConversationID, &r.MessageID,
+			&r.Reason, &r.Details, &r.Status,
+			&r.EvidenceText, &r.EvidenceURL,
+			&r.ReviewedBy, &reviewedAtRaw,
+			&r.ResolutionNotes, &r.ResolutionAction,
+			&createdAtRaw,
+			&rep.ID, &rep.FullName, &rep.Username, &rep.ProfilePhoto,
+			&tgt.ID, &tgt.FullName, &tgt.Username, &tgt.ProfilePhoto,
+			&reviewerName,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		r.CreatedAt = parseSQLTime(createdAtRaw)
+		if reviewedAtRaw != nil {
+			t := parseSQLTime(reviewedAtRaw)
+			r.ReviewedAt = &t
+		}
+		rep.Initials = utils.Initials(rep.FullName)
+		tgt.Initials = utils.Initials(tgt.FullName)
+		r.Reporter = &rep
+		r.ReportedUser = &tgt
+		if r.ReviewedBy != nil {
+			r.Reviewer = &models.User{
+				ID:       *r.ReviewedBy,
+				FullName: reviewerName,
+			}
+		}
+		reports = append(reports, r)
+	}
+
+	return reports, total, nil
+}
+
+// GetChatReportByID retrieves a single report with hydrated users.
+func GetChatReportByID(id int) (*models.ChatReport, error) {
+	query := fmt.Sprintf(`
+		SELECT cr.id, cr.reporter_id, cr.reported_user_id, cr.conversation_id, cr.message_id,
+		       cr.reason, COALESCE(cr.details, ''), cr.status,
+		       COALESCE(cr.evidence_text, ''), COALESCE(cr.evidence_url, ''),
+		       cr.reviewed_by, cr.reviewed_at,
+		       COALESCE(cr.resolution_notes, ''), COALESCE(cr.resolution_action, 'none'),
+		       cr.created_at,
+		       u_rep.id, u_rep.full_name, u_rep.username, COALESCE(u_rep.profile_photo, ''),
+		       u_tgt.id, u_tgt.full_name, u_tgt.username, COALESCE(u_tgt.profile_photo, '')
+		FROM chat_reports cr
+		JOIN users u_rep ON cr.reporter_id = u_rep.id
+		JOIN users u_tgt ON cr.reported_user_id = u_tgt.id
+		WHERE cr.id = %s
+	`, helpers.Placeholder(1))
+
+	var r models.ChatReport
+	var rep models.User
+	var tgt models.User
+	var reviewedAtRaw any
+	var createdAtRaw any
+
+	err := database.DB.QueryRow(query, id).Scan(
+		&r.ID, &r.ReporterID, &r.ReportedUserID, &r.ConversationID, &r.MessageID,
+		&r.Reason, &r.Details, &r.Status,
+		&r.EvidenceText, &r.EvidenceURL,
+		&r.ReviewedBy, &reviewedAtRaw,
+		&r.ResolutionNotes, &r.ResolutionAction,
+		&createdAtRaw,
+		&rep.ID, &rep.FullName, &rep.Username, &rep.ProfilePhoto,
+		&tgt.ID, &tgt.FullName, &tgt.Username, &tgt.ProfilePhoto,
+	)
+	if err != nil {
+		return nil, err
+	}
+	r.CreatedAt = parseSQLTime(createdAtRaw)
+	if reviewedAtRaw != nil {
+		t := parseSQLTime(reviewedAtRaw)
+		r.ReviewedAt = &t
+	}
+	rep.Initials = utils.Initials(rep.FullName)
+	tgt.Initials = utils.Initials(tgt.FullName)
+	r.Reporter = &rep
+	r.ReportedUser = &tgt
+
+	return &r, nil
+}
+
+// ResolveChatReport updates a report's review status and recorded actions.
+func ResolveChatReport(reportID, reviewerID int, status, resolutionAction, notes string) error {
+	query := fmt.Sprintf(`
+		UPDATE chat_reports
+		SET status = %s, reviewed_by = %s, reviewed_at = CURRENT_TIMESTAMP,
+		    resolution_action = %s, resolution_notes = %s
+		WHERE id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5))
+	_, err := database.DB.Exec(query, status, reviewerID, resolutionAction, notes, reportID)
+	return err
 }
 
 // SearchMessages searches messages containing query across user's conversations or a specific conversation.
@@ -797,7 +1232,9 @@ func SearchMessages(userID int, query string, conversationID *int, limit, offset
 			JOIN users u ON m.sender_id = u.id
 			WHERE m.conversation_id = %s
 			  AND (m.body LIKE %s OR m.attachment_name LIKE %s)
-			  AND m.is_deleted = FALSE
+			  AND (m.is_deleted = FALSE OR m.is_deleted = 0)
+			  AND m.deleted_at IS NULL
+			  AND (m.expires_at IS NULL OR m.expires_at > CURRENT_TIMESTAMP)
 			ORDER BY m.created_at DESC
 			LIMIT %s OFFSET %s
 		`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5), helpers.Placeholder(6))
@@ -812,7 +1249,9 @@ func SearchMessages(userID int, query string, conversationID *int, limit, offset
 			JOIN conversation_members cm ON m.conversation_id = cm.conversation_id AND cm.user_id = %s
 			JOIN users u ON m.sender_id = u.id
 			WHERE (m.body LIKE %s OR m.attachment_name LIKE %s)
-			  AND m.is_deleted = FALSE
+			  AND (m.is_deleted = FALSE OR m.is_deleted = 0)
+			  AND m.deleted_at IS NULL
+			  AND (m.expires_at IS NULL OR m.expires_at > CURRENT_TIMESTAMP)
 			ORDER BY m.created_at DESC
 			LIMIT %s OFFSET %s
 		`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5))
@@ -842,14 +1281,36 @@ func SearchMessages(userID int, query string, conversationID *int, limit, offset
 		m.Sender.Initials = utils.Initials(m.Sender.FullName)
 		messages = append(messages, &m)
 	}
+
 	return messages, nil
 }
 
 // GetConversationSharedMedia retrieves messages containing attachments in conversationID.
 func GetConversationSharedMedia(conversationID int, limit int) ([]models.Message, error) {
-	if limit <= 0 || limit > 50 {
-		limit = 20
+	return GetConversationSharedMediaCategorized(conversationID, "", limit, 0)
+}
+
+// GetConversationSharedMediaCategorized retrieves messages containing attachments in conversationID with optional category filtering and pagination.
+func GetConversationSharedMediaCategorized(conversationID int, category string, limit, offset int) ([]models.Message, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
 	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	filterClause := ""
+	switch strings.ToLower(strings.TrimSpace(category)) {
+	case "photos", "photo", "image", "images":
+		filterClause = " AND (m.message_type = 'image' OR m.attachment_type LIKE 'image/%')"
+	case "videos", "video":
+		filterClause = " AND (m.message_type = 'video' OR m.attachment_type LIKE 'video/%')"
+	case "voice", "audio", "voicenote", "voicenotes", "voice_note", "voice_notes":
+		filterClause = " AND (m.message_type = 'voice' OR m.attachment_type LIKE 'audio/%')"
+	case "documents", "document", "doc", "docs", "files", "file":
+		filterClause = " AND (m.message_type = 'file' OR (m.message_type NOT IN ('image', 'video', 'voice') AND m.attachment_type NOT LIKE 'image/%' AND m.attachment_type NOT LIKE 'video/%' AND m.attachment_type NOT LIKE 'audio/%'))"
+	}
+
 	query := fmt.Sprintf(`
 		SELECT m.id, m.conversation_id, m.sender_id, m.message_type, m.body,
 		       COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''),
@@ -860,12 +1321,15 @@ func GetConversationSharedMedia(conversationID int, limit int) ([]models.Message
 		WHERE m.conversation_id = %s
 		  AND m.attachment_url IS NOT NULL
 		  AND m.attachment_url != ''
-		  AND m.is_deleted = FALSE
+		  AND (m.is_deleted = FALSE OR m.is_deleted = 0)
+		  AND m.deleted_at IS NULL
+		  AND (m.expires_at IS NULL OR m.expires_at > CURRENT_TIMESTAMP)
+		  %s
 		ORDER BY m.created_at DESC
-		LIMIT %s
-	`, helpers.Placeholder(1), helpers.Placeholder(2))
+		LIMIT %s OFFSET %s
+	`, helpers.Placeholder(1), filterClause, helpers.Placeholder(2), helpers.Placeholder(3))
 
-	rows, err := database.DB.Query(query, conversationID, limit)
+	rows, err := database.DB.Query(query, conversationID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -1125,7 +1589,8 @@ func GetConversationMembers(conversationID int) ([]models.ConversationMember, er
 	query := fmt.Sprintf(`
 		SELECT cm.id, cm.conversation_id, cm.user_id, cm.role,
 		       COALESCE(cm.last_read_message_id, 0),
-		       COALESCE(cm.is_muted, FALSE), COALESCE(cm.is_archived, FALSE), cm.joined_at,
+		       COALESCE(cm.is_muted, FALSE), cm.muted_until, COALESCE(cm.is_archived, FALSE),
+		       COALESCE(cm.is_pinned, FALSE), cm.cleared_at, cm.joined_at,
 		       u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''), COALESCE(u.church_name, '')
 		FROM conversation_members cm
 		JOIN users u ON cm.user_id = u.id
@@ -1149,13 +1614,15 @@ func GetConversationMembers(conversationID int) ([]models.ConversationMember, er
 	var members []models.ConversationMember
 	for rows.Next() {
 		var m models.ConversationMember
-		var isMuted, isArchived bool
+		var isMuted, isArchived, isPinned bool
+		var mutedUntilRaw, clearedAtRaw any
 		var joinedAtRaw any
 		var photo, church string
 
 		err := rows.Scan(
 			&m.ID, &m.ConversationID, &m.UserID, &m.Role,
-			&m.LastReadMessageID, &isMuted, &isArchived, &joinedAtRaw,
+			&m.LastReadMessageID, &isMuted, &mutedUntilRaw, &isArchived,
+			&isPinned, &clearedAtRaw, &joinedAtRaw,
 			&m.User.ID, &m.User.FullName, &m.User.Username, &photo, &church,
 		)
 		if err != nil {
@@ -1163,7 +1630,14 @@ func GetConversationMembers(conversationID int) ([]models.ConversationMember, er
 		}
 
 		m.IsMuted = isMuted
+		if t := parseSQLTime(mutedUntilRaw); !t.IsZero() {
+			m.MutedUntil = &t
+		}
 		m.IsArchived = isArchived
+		m.IsPinned = isPinned
+		if t := parseSQLTime(clearedAtRaw); !t.IsZero() {
+			m.ClearedAt = &t
+		}
 		m.JoinedAt = parseSQLTime(joinedAtRaw)
 		m.User.ProfilePhoto = photo
 		m.User.ChurchName = church
@@ -1179,7 +1653,8 @@ func GetConversationMember(conversationID, userID int) (*models.ConversationMemb
 	query := fmt.Sprintf(`
 		SELECT cm.id, cm.conversation_id, cm.user_id, cm.role,
 		       COALESCE(cm.last_read_message_id, 0),
-		       COALESCE(cm.is_muted, FALSE), COALESCE(cm.is_archived, FALSE), cm.joined_at,
+		       COALESCE(cm.is_muted, FALSE), cm.muted_until, COALESCE(cm.is_archived, FALSE),
+		       COALESCE(cm.is_pinned, FALSE), cm.cleared_at, cm.joined_at,
 		       u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
 		FROM conversation_members cm
 		JOIN users u ON cm.user_id = u.id
@@ -1188,13 +1663,15 @@ func GetConversationMember(conversationID, userID int) (*models.ConversationMemb
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
 
 	var m models.ConversationMember
-	var isMuted, isArchived bool
+	var isMuted, isArchived, isPinned bool
+	var mutedUntilRaw, clearedAtRaw any
 	var joinedAtRaw any
 	var photo string
 
 	err := database.DB.QueryRow(query, conversationID, userID).Scan(
 		&m.ID, &m.ConversationID, &m.UserID, &m.Role,
-		&m.LastReadMessageID, &isMuted, &isArchived, &joinedAtRaw,
+		&m.LastReadMessageID, &isMuted, &mutedUntilRaw, &isArchived,
+		&isPinned, &clearedAtRaw, &joinedAtRaw,
 		&m.User.ID, &m.User.FullName, &m.User.Username, &photo,
 	)
 	if err != nil {
@@ -1202,7 +1679,14 @@ func GetConversationMember(conversationID, userID int) (*models.ConversationMemb
 	}
 
 	m.IsMuted = isMuted
+	if t := parseSQLTime(mutedUntilRaw); !t.IsZero() {
+		m.MutedUntil = &t
+	}
 	m.IsArchived = isArchived
+	m.IsPinned = isPinned
+	if t := parseSQLTime(clearedAtRaw); !t.IsZero() {
+		m.ClearedAt = &t
+	}
 	m.JoinedAt = parseSQLTime(joinedAtRaw)
 	m.User.ProfilePhoto = photo
 	m.User.Initials = utils.Initials(m.User.FullName)
@@ -1390,6 +1874,7 @@ func GetMessageByID(messageID int) (*models.Message, error) {
 			m.is_edited, m.is_deleted, m.deleted_by, m.deleted_at,
 			COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''),
 			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
+			m.expires_at,
 			m.created_at, m.updated_at,
 			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
 		FROM messages m
@@ -1400,7 +1885,7 @@ func GetMessageByID(messageID int) (*models.Message, error) {
 	var m models.Message
 	var replyTo sql.NullInt64
 	var deletedBy sql.NullInt64
-	var deletedAtRaw, createdAtRaw, updatedAtRaw any
+	var deletedAtRaw, createdAtRaw, updatedAtRaw, expiresAtRaw any
 	var photo string
 
 	err := database.DB.QueryRow(query, messageID).Scan(
@@ -1408,6 +1893,7 @@ func GetMessageByID(messageID int) (*models.Message, error) {
 		&m.ClientMessageID, &replyTo,
 		&m.IsEdited, &m.IsDeleted, &deletedBy, &deletedAtRaw,
 		&m.AttachmentURL, &m.AttachmentName, &m.AttachmentSize, &m.AttachmentType,
+		&expiresAtRaw,
 		&createdAtRaw, &updatedAtRaw,
 		&m.Sender.ID, &m.Sender.FullName, &m.Sender.Username, &photo,
 	)
@@ -1426,6 +1912,9 @@ func GetMessageByID(messageID int) (*models.Message, error) {
 	if t := parseSQLTime(deletedAtRaw); !t.IsZero() {
 		m.DeletedAt = &t
 	}
+	if t := parseSQLTime(expiresAtRaw); !t.IsZero() {
+		m.ExpiresAt = &t
+	}
 	m.CreatedAt = parseSQLTime(createdAtRaw)
 	m.UpdatedAt = parseSQLTime(updatedAtRaw)
 	m.Sender.ProfilePhoto = photo
@@ -1434,22 +1923,26 @@ func GetMessageByID(messageID int) (*models.Message, error) {
 }
 
 // SoftDeleteMessage marks a message as deleted by a moderator or sender.
-func SoftDeleteMessage(messageID, deletedByID int) error {
+func SoftDeleteMessage(messageID, deletedByID int, customText ...string) error {
+	bodyText := "This message was deleted."
+	if len(customText) > 0 && strings.TrimSpace(customText[0]) != "" {
+		bodyText = customText[0]
+	}
 	query := fmt.Sprintf(`
 		UPDATE messages
 		SET is_deleted = TRUE,
 		    deleted_by = %s,
 		    deleted_at = CURRENT_TIMESTAMP,
-		    body = 'This message was removed by a moderator.',
+		    body = %s,
 		    attachment_url = '',
 		    attachment_name = '',
 		    attachment_size = 0,
 		    attachment_type = '',
 		    updated_at = CURRENT_TIMESTAMP
 		WHERE id = %s
-	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
 
-	_, err := database.DB.Exec(query, deletedByID, messageID)
+	_, err := database.DB.Exec(query, deletedByID, bodyText, messageID)
 	return err
 }
 
@@ -1744,4 +2237,212 @@ func EnsureDefaultCommunityMembership(userID int) error {
 		return err
 	}
 	return AddConversationMember(generalConvID, userID, "member")
+}
+
+// CreateCallInvitation persists a new call invitation token.
+func CreateCallInvitation(inv *models.CallInvitation) error {
+	query := fmt.Sprintf(`
+		INSERT INTO call_invitations (conversation_id, token, call_type, created_by, expires_at, created_at)
+		VALUES (%s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5))
+
+	res, err := database.DB.Exec(query, inv.ConversationID, inv.Token, inv.CallType, inv.CreatedBy, inv.ExpiresAt)
+	if err != nil {
+		return err
+	}
+	if lastID, lErr := res.LastInsertId(); lErr == nil && lastID > 0 {
+		inv.ID = int(lastID)
+	}
+	return nil
+}
+
+// GetCallInvitationByToken fetches an active invitation by token.
+func GetCallInvitationByToken(token string) (*models.CallInvitation, error) {
+	query := fmt.Sprintf(`
+		SELECT id, conversation_id, token, call_type, created_by, expires_at, created_at
+		FROM call_invitations
+		WHERE token = %s
+	`, helpers.Placeholder(1))
+
+	row := database.DB.QueryRow(query, token)
+	var inv models.CallInvitation
+	var expiresAtRaw, createdAtRaw any
+	if err := row.Scan(&inv.ID, &inv.ConversationID, &inv.Token, &inv.CallType, &inv.CreatedBy, &expiresAtRaw, &createdAtRaw); err != nil {
+		return nil, err
+	}
+	inv.ExpiresAt = parseSQLTime(expiresAtRaw)
+	inv.CreatedAt = parseSQLTime(createdAtRaw)
+	return &inv, nil
+}
+
+// ClearConversationHistory updates cm.cleared_at to CURRENT_TIMESTAMP for the specified user in the conversation.
+func ClearConversationHistory(conversationID, userID int) error {
+	query := fmt.Sprintf(`
+		UPDATE conversation_members
+		SET cleared_at = CURRENT_TIMESTAMP
+		WHERE conversation_id = %s AND user_id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	res, err := database.DB.Exec(query, conversationID, userID)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err == nil && rows == 0 {
+		return errors.New("user is not a member of this conversation")
+	}
+	return nil
+}
+
+// ToggleConversationPin toggles the is_pinned state for a user in a conversation and returns the new state.
+func ToggleConversationPin(conversationID, userID int) (bool, error) {
+	var currentPinned bool
+	queryCheck := fmt.Sprintf(`
+		SELECT COALESCE(is_pinned, FALSE)
+		FROM conversation_members
+		WHERE conversation_id = %s AND user_id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+
+	err := database.DB.QueryRow(queryCheck, conversationID, userID).Scan(&currentPinned)
+	if err == sql.ErrNoRows {
+		return false, errors.New("user is not a member of this conversation")
+	} else if err != nil {
+		return false, err
+	}
+
+	newPinned := !currentPinned
+	queryUpdate := fmt.Sprintf(`
+		UPDATE conversation_members
+		SET is_pinned = %s
+		WHERE conversation_id = %s AND user_id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
+
+	_, err = database.DB.Exec(queryUpdate, newPinned, conversationID, userID)
+	if err != nil {
+		return false, err
+	}
+	return newPinned, nil
+}
+
+// DeleteMessageForMe records a row in message_deletions hiding the message only for this user.
+func DeleteMessageForMe(messageID, userID int) error {
+	var convID int
+	queryCheck := fmt.Sprintf(`
+		SELECT m.conversation_id
+		FROM messages m
+		JOIN conversation_members cm ON cm.conversation_id = m.conversation_id AND cm.user_id = %s
+		WHERE m.id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	err := database.DB.QueryRow(queryCheck, userID, messageID).Scan(&convID)
+	if err != nil {
+		return errors.New("message not found or user not authorized")
+	}
+
+	query := fmt.Sprintf(`
+		INSERT INTO message_deletions (message_id, user_id, deleted_at)
+		VALUES (%s, %s, CURRENT_TIMESTAMP)
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	_, err = database.DB.Exec(query, messageID, userID)
+	if err != nil {
+		// Unique constraint or duplicate deletion is treated as success
+		return nil
+	}
+	return nil
+}
+
+// GetConversationMessagesForExport returns the conversation and its visible messages for export.
+func GetConversationMessagesForExport(conversationID, currentUserID int) (*models.Conversation, []models.Message, error) {
+	conv, err := GetConversationByID(conversationID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	member, err := GetConversationMember(conversationID, currentUserID)
+	if err != nil || member == nil {
+		return nil, nil, errors.New("unauthorized: not a conversation member")
+	}
+
+	query := fmt.Sprintf(`
+		SELECT 
+			m.id, m.conversation_id, m.sender_id, m.message_type, m.body,
+			COALESCE(m.client_message_id, ''), m.reply_to_message_id,
+			m.is_edited, m.is_deleted,
+			COALESCE(m.attachment_url, ''), COALESCE(m.attachment_name, ''),
+			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
+			m.expires_at,
+			m.created_at, m.updated_at,
+			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
+		FROM messages m
+		JOIN users u ON m.sender_id = u.id
+		LEFT JOIN conversation_members cm_curr ON cm_curr.conversation_id = m.conversation_id AND cm_curr.user_id = %s
+		LEFT JOIN message_deletions md ON md.message_id = m.id AND md.user_id = %s
+		WHERE m.conversation_id = %s
+		  AND md.id IS NULL
+		  AND (cm_curr.cleared_at IS NULL OR m.created_at > cm_curr.cleared_at)
+		  AND (m.expires_at IS NULL OR m.expires_at > CURRENT_TIMESTAMP)
+		ORDER BY m.created_at ASC, m.id ASC
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
+
+	rows, err := database.DB.Query(query, currentUserID, currentUserID, conversationID)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+
+	var messages []models.Message
+	for rows.Next() {
+		var m models.Message
+		var replyTo sql.NullInt64
+		var photo string
+		var expiresAtRaw any
+		var createdAtRaw, updatedAtRaw any
+
+		err := rows.Scan(
+			&m.ID, &m.ConversationID, &m.SenderID, &m.MessageType, &m.Body,
+			&m.ClientMessageID, &replyTo,
+			&m.IsEdited, &m.IsDeleted,
+			&m.AttachmentURL, &m.AttachmentName, &m.AttachmentSize, &m.AttachmentType,
+			&expiresAtRaw,
+			&createdAtRaw, &updatedAtRaw,
+			&m.Sender.ID, &m.Sender.FullName, &m.Sender.Username, &photo,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if t := parseSQLTime(expiresAtRaw); !t.IsZero() {
+			m.ExpiresAt = &t
+		}
+		m.CreatedAt = parseSQLTime(createdAtRaw)
+		m.UpdatedAt = parseSQLTime(updatedAtRaw)
+		if replyTo.Valid {
+			repID := int(replyTo.Int64)
+			m.ReplyToMessageID = &repID
+		}
+		m.Sender.ProfilePhoto = photo
+		m.Sender.Initials = utils.Initials(m.Sender.FullName)
+		messages = append(messages, m)
+	}
+
+	// Hydrate quoted replies
+	replyIDs := make([]int, 0)
+	for _, m := range messages {
+		if m.ReplyToMessageID != nil && *m.ReplyToMessageID > 0 {
+			replyIDs = append(replyIDs, *m.ReplyToMessageID)
+		}
+	}
+	if len(replyIDs) > 0 {
+		replyMap, err := GetMessagesByIDs(replyIDs)
+		if err == nil {
+			for i := range messages {
+				if messages[i].ReplyToMessageID != nil {
+					if rep, ok := replyMap[*messages[i].ReplyToMessageID]; ok {
+						repCopy := rep
+						messages[i].ReplyToMessage = &repCopy
+					}
+				}
+			}
+		}
+	}
+
+	return conv, messages, nil
 }

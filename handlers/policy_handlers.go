@@ -1,6 +1,10 @@
 package handlers
 
-import "net/http"
+import (
+	"net/http"
+
+	"convention-management-system/services"
+)
 
 // CommunityGuidelinesHandler displays the public Community Guidelines.
 func CommunityGuidelinesHandler(w http.ResponseWriter, r *http.Request) {
@@ -12,8 +16,14 @@ func PrivacyPolicyHandler(w http.ResponseWriter, r *http.Request) {
 	Render(w, "privacy.html", nil)
 }
 
-// TermsOfUseHandler displays the public Terms of Use.
+// TermsOfUseHandler displays the public Terms of Use with active version metadata.
 func TermsOfUseHandler(w http.ResponseWriter, r *http.Request) {
-	Render(w, "terms.html", nil)
+	data := map[string]interface{}{
+		"ActiveVersion": services.GetActiveTermsVersion(),
+		"Declined":      r.URL.Query().Get("declined") == "1",
+		"Prompt":        r.URL.Query().Get("prompt") == "1",
+	}
+	Render(w, "terms.html", data)
 }
+
 

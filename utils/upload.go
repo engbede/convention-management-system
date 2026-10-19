@@ -119,6 +119,11 @@ var allowedChatExtensions = map[string]string{
 	".m4a":  "voice",
 	".webm": "voice",
 	".aac":  "voice",
+	// Videos -> "video"
+	".mp4":  "video",
+	".mov":  "video",
+	".avi":  "video",
+	".mkv":  "video",
 	// Documents / Files -> "file"
 	".pdf":  "file",
 	".doc":  "file",
@@ -131,7 +136,7 @@ var allowedChatExtensions = map[string]string{
 }
 
 // SaveChatAttachment validates and stores an attachment for chat messaging.
-// Supports images, voice notes, and documents up to 10MB.
+// Supports images, voice notes, videos, and documents up to 10MB.
 func SaveChatAttachment(
 	file multipart.File,
 	header *multipart.FileHeader,
@@ -179,6 +184,21 @@ func SaveChatAttachment(
 				detectedType = "audio/aac"
 			default:
 				detectedType = "audio/webm"
+			}
+		}
+	} else if msgType == "video" {
+		if !strings.HasPrefix(detectedType, "video/") {
+			switch ext {
+			case ".mp4":
+				detectedType = "video/mp4"
+			case ".mov":
+				detectedType = "video/quicktime"
+			case ".avi":
+				detectedType = "video/x-msvideo"
+			case ".mkv":
+				detectedType = "video/x-matroska"
+			default:
+				detectedType = "video/mp4"
 			}
 		}
 	}
