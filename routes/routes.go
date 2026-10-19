@@ -725,6 +725,28 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/call/status",
+		middleware.RequireLogin(
+			handlers.GetCallStatusAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/push/vapid-public-key",
+		handlers.GetVAPIDPublicKeyAPI,
+	)
+	mux.HandleFunc(
+		"/push/subscribe",
+		middleware.RequireLogin(
+			handlers.SubscribePushAPI,
+		),
+	)
+	mux.HandleFunc(
+		"/push/unsubscribe",
+		middleware.RequireLogin(
+			handlers.UnsubscribePushAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/group/create",
 		middleware.RequireLogin(
 			handlers.CreateGroupAPI,

@@ -515,6 +515,7 @@ type CallLog struct {
 	DurationSeconds int        `json:"duration_seconds"`
 	StartedAt       time.Time  `json:"started_at"`
 	EndedAt         *time.Time `json:"ended_at,omitempty"`
+	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
 
 	// Hydrated details
 	Caller       User              `json:"caller,omitempty"`

@@ -822,6 +822,21 @@ func ToggleArchiveConversation(convID, userID int) (bool, error) {
 	return newArchived, nil
 }
 
+// IsUserInConversation checks if a user is an active participant or member of a conversation.
+func IsUserInConversation(convID, userID int) (bool, error) {
+	var count int
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM conversation_members
+		WHERE conversation_id = %s AND user_id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	err := database.DB.QueryRow(query, convID, userID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // GetConversationMemberSettings gets the mute, archive, and pin status for a member.
 func GetConversationMemberSettings(convID, userID int) (isMuted, isArchived, isPinned bool, err error) {
 	var muted bool
@@ -1361,11 +1376,12 @@ func CreateCallLog(call *models.CallLog) error {
 	if call.ReceiverID <= 0 {
 		receiverVal = nil
 	}
+	var expiresVal any = call.ExpiresAt
 	query := fmt.Sprintf(`
-		INSERT INTO call_logs (conversation_id, caller_id, receiver_id, call_type, status, duration_seconds, started_at)
-		VALUES (%s, %s, %s, %s, %s, 0, CURRENT_TIMESTAMP)
-	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5))
-	res, err := database.DB.Exec(query, call.ConversationID, call.CallerID, receiverVal, call.CallType, call.Status)
+		INSERT INTO call_logs (conversation_id, caller_id, receiver_id, call_type, status, duration_seconds, started_at, expires_at)
+		VALUES (%s, %s, %s, %s, %s, 0, CURRENT_TIMESTAMP, %s)
+	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3), helpers.Placeholder(4), helpers.Placeholder(5), helpers.Placeholder(6))
+	res, err := database.DB.Exec(query, call.ConversationID, call.CallerID, receiverVal, call.CallType, call.Status, expiresVal)
 	if err != nil {
 		return err
 	}
@@ -1386,6 +1402,51 @@ func UpdateCallLog(callID int, status string, durationSeconds int) error {
 	`, helpers.Placeholder(1), helpers.Placeholder(2), helpers.Placeholder(3))
 	_, err := database.DB.Exec(query, status, durationSeconds, callID)
 	return err
+}
+
+// UpdateCallLogStatus transitions the call state without ending it.
+func UpdateCallLogStatus(callID int, status string) error {
+	query := fmt.Sprintf(`
+		UPDATE call_logs
+		SET status = %s
+		WHERE id = %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	_, err := database.DB.Exec(query, status, callID)
+	return err
+}
+
+// GetCallLogByID retrieves an authoritative call log by its unique ID.
+func GetCallLogByID(callID int) (*models.CallLog, error) {
+	query := fmt.Sprintf(`
+		SELECT id, conversation_id, caller_id, COALESCE(receiver_id, 0), call_type, status, duration_seconds, started_at, ended_at, expires_at
+		FROM call_logs
+		WHERE id = %s
+	`, helpers.Placeholder(1))
+	var cl models.CallLog
+	var endedAt sql.NullTime
+	var expiresAt sql.NullTime
+	err := database.DB.QueryRow(query, callID).Scan(
+		&cl.ID,
+		&cl.ConversationID,
+		&cl.CallerID,
+		&cl.ReceiverID,
+		&cl.CallType,
+		&cl.Status,
+		&cl.DurationSeconds,
+		&cl.StartedAt,
+		&endedAt,
+		&expiresAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if endedAt.Valid {
+		cl.EndedAt = &endedAt.Time
+	}
+	if expiresAt.Valid {
+		cl.ExpiresAt = &expiresAt.Time
+	}
+	return &cl, nil
 }
 
 // AddCallParticipant records a member joining an audio/video call session.

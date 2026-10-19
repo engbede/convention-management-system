@@ -13,21 +13,37 @@ self.addEventListener('activate', event => {
 self.addEventListener('notificationclick', event => {
     event.notification.close();
 
-    const targetUrl = (event.notification.data && event.notification.data.url) || '/messages';
+    const data = event.notification.data || {};
+    let targetUrl = data.url || '/messages';
 
+    // If user tapped 'Decline' action button
+    if (event.action === 'decline' && data.callId) {
+        event.waitUntil(
+            fetch('/messages/call/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    call_id: data.callId,
+                    status: 'declined',
+                    duration_seconds: 0
+                })
+            }).catch(e => console.warn('[SW] Decline report failed:', e))
+        );
+        return;
+    }
+
+    // Default or 'Answer' action: Focus existing window or open new one
     event.waitUntil(
         self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-            // If any tab is already open on CMS, focus it and optionally navigate to call
             for (const client of clientList) {
                 if ('focus' in client) {
                     client.focus();
-                    if ('navigate' in client && targetUrl && !client.url.includes(targetUrl)) {
+                    if ('navigate' in client && targetUrl) {
                         return client.navigate(targetUrl);
                     }
                     return client;
                 }
             }
-            // If no window is currently open, open a new window
             if (self.clients.openWindow) {
                 return self.clients.openWindow(targetUrl);
             }
@@ -35,24 +51,62 @@ self.addEventListener('notificationclick', event => {
     );
 });
 
-// Listen for push notifications if server push is triggered
+// Listen for push notifications from Go Web Push backend
 self.addEventListener('push', event => {
     if (!event.data) return;
     try {
         const payload = event.data.json();
-        const title = payload.title || "Incoming Call";
+        const callId = payload.call_id;
+        const tag = payload.tag || (callId ? `call-${callId}` : "youth-call");
+
+        // If this is a call cancellation push event, dismiss the ringing notification
+        if (payload.type === "call_cancel") {
+            event.waitUntil(
+                self.registration.getNotifications({ tag: tag }).then(notifications => {
+                    notifications.forEach(n => n.close());
+                })
+            );
+            return;
+        }
+
+        const callType = payload.call_type || "audio";
+        const callerName = payload.caller_name || "Youth Member";
+        const title = payload.title || `Incoming ${callType} call`;
+        const body = payload.body || `${callerName} is calling on Youth Community...`;
+        
+        let icon = "/static/img/call-icon.png";
+        if (payload.caller_avatar) {
+            icon = payload.caller_avatar.startsWith("http") 
+                ? payload.caller_avatar 
+                : `/uploads/profiles/${payload.caller_avatar}`;
+        }
+
+        const targetUrl = payload.url || (payload.conversation_id 
+            ? `/messages?c=${payload.conversation_id}&call_id=${callId}&autocall=${callType}` 
+            : '/messages');
+
         const options = {
-            body: payload.body || "Incoming call on Youth Community",
-            icon: payload.icon || "/static/img/call-icon.png",
-            tag: payload.tag || "youth-call",
+            body: body,
+            icon: icon,
+            badge: '/static/img/call-icon.png',
+            tag: tag,
             renotify: true,
             requireInteraction: true,
             vibrate: [250, 100, 250, 100, 500],
-            data: payload.data || { url: '/messages' }
+            data: {
+                url: targetUrl,
+                callId: callId,
+                conversationId: payload.conversation_id,
+                callType: callType
+            },
+            actions: [
+                { action: 'answer', title: 'Answer' },
+                { action: 'decline', title: 'Decline' }
+            ]
         };
+
         event.waitUntil(self.registration.showNotification(title, options));
     } catch (e) {
-        console.warn("SW push parse error:", e);
+        console.warn("[SW] push parse error:", e);
     }
 });
-

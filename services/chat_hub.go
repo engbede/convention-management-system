@@ -3,7 +3,9 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"convention-management-system/models"
 	"convention-management-system/repository"
@@ -339,8 +341,12 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			callType = "audio"
 		}
 
-		// Check if target user is online
-		if !h.IsUserOnline(targetUserID) {
+		// Check if target user is online or has registered push subscriptions
+		isOnline := h.IsUserOnline(targetUserID)
+		pushSubs, _ := repository.GetPushSubscriptionsByUserID(targetUserID)
+		hasPush := len(pushSubs) > 0
+
+		if !isOnline && !hasPush {
 			missedCall := &models.CallLog{
 				ConversationID: convID,
 				CallerID:       client.UserID,
@@ -359,12 +365,14 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			return
 		}
 
+		expiresAt := time.Now().Add(45 * time.Second)
 		callLog := &models.CallLog{
 			ConversationID: convID,
 			CallerID:       client.UserID,
 			ReceiverID:     targetUserID,
 			CallType:       callType,
 			Status:         "initiated",
+			ExpiresAt:      &expiresAt,
 		}
 		_ = repository.CreateCallLog(callLog)
 
@@ -374,20 +382,79 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			avatar = callerUser.ProfilePhoto
 		}
 
-		h.BroadcastToUser(targetUserID, WSEvent{
+		// Send real-time WebSocket event to active recipient sessions
+		if isOnline {
+			h.BroadcastToUser(targetUserID, WSEvent{
+				Type:           "call_offer",
+				ConversationID: convID,
+				UserID:         client.UserID,
+				Username:       client.Username,
+				TargetUserID:   targetUserID,
+				CallerName:     client.FullName,
+				CallerAvatar:   avatar,
+				CallType:       callType,
+				CallID:         callLog.ID,
+				SDP:            event.SDP,
+			})
+		}
+
+		// Trigger Web Push notification for background delivery
+		pushPayload := &models.CallNotificationPayload{
 			Type:           "call_offer",
+			CallID:         callLog.ID,
 			ConversationID: convID,
-			UserID:         client.UserID,
-			Username:       client.Username,
-			TargetUserID:   targetUserID,
+			CallerID:       client.UserID,
 			CallerName:     client.FullName,
 			CallerAvatar:   avatar,
 			CallType:       callType,
-			CallID:         callLog.ID,
-			SDP:            event.SDP,
-		})
+			Title:          fmt.Sprintf("Incoming %s call", callType),
+			Body:           fmt.Sprintf("%s is calling on Youth Community...", client.FullName),
+			URL:            fmt.Sprintf("/messages?c=%d&call_id=%d&autocall=%s", convID, callLog.ID, callType),
+			Tag:            fmt.Sprintf("call-%d", callLog.ID),
+			ExpiresAt:      expiresAt.Unix(),
+		}
+		_ = SendCallPushNotification(targetUserID, pushPayload)
+
+		// Start authoritative ringing timer (45 seconds)
+		go func(cID, callerID, targetID, callID int) {
+			time.Sleep(45 * time.Second)
+			cl, err := repository.GetCallLogByID(callID)
+			if err == nil && cl != nil && (cl.Status == "initiated" || cl.Status == "ringing") {
+				_ = repository.UpdateCallLog(callID, "missed", 0)
+				_ = SendCallCancelPush(targetID, callID, cID)
+				GlobalHub.BroadcastToUser(callerID, WSEvent{
+					Type:           "call_unavailable",
+					ConversationID: cID,
+					UserID:         targetID,
+					CallID:         callID,
+					Error:          "No answer",
+				})
+				GlobalHub.BroadcastToUser(targetID, WSEvent{
+					Type:           "call_cancel",
+					ConversationID: cID,
+					UserID:         callerID,
+					TargetUserID:   targetID,
+					CallID:         callID,
+				})
+			}
+		}(convID, client.UserID, targetUserID, callLog.ID)
 
 	case "call_answer":
+		if event.CallID > 0 {
+			cl, err := repository.GetCallLogByID(event.CallID)
+			if err == nil && cl != nil {
+				if cl.Status != "initiated" && cl.Status != "ringing" {
+					_ = client.Send(WSEvent{
+						Type:           "error",
+						CallID:         event.CallID,
+						ConversationID: event.ConversationID,
+						Error:          "Call is no longer active",
+					})
+					return
+				}
+				_ = repository.UpdateCallLogStatus(event.CallID, "connected")
+			}
+		}
 		if event.TargetUserID > 0 {
 			h.BroadcastToUser(event.TargetUserID, WSEvent{
 				Type:           "call_answer",
@@ -414,8 +481,10 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 	case "call_decline":
 		if event.CallID > 0 {
 			_ = repository.UpdateCallLog(event.CallID, "declined", 0)
+			_ = SendCallCancelPush(client.UserID, event.CallID, event.ConversationID)
 		}
 		if event.TargetUserID > 0 {
+			_ = SendCallCancelPush(event.TargetUserID, event.CallID, event.ConversationID)
 			h.BroadcastToUser(event.TargetUserID, WSEvent{
 				Type:           "call_decline",
 				ConversationID: event.ConversationID,
@@ -426,9 +495,11 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 		}
 	case "call_cancel":
 		if event.CallID > 0 {
-			_ = repository.UpdateCallLog(event.CallID, "missed", 0)
+			_ = repository.UpdateCallLog(event.CallID, "cancelled", 0)
+			_ = SendCallCancelPush(client.UserID, event.CallID, event.ConversationID)
 		}
 		if event.TargetUserID > 0 {
+			_ = SendCallCancelPush(event.TargetUserID, event.CallID, event.ConversationID)
 			h.BroadcastToUser(event.TargetUserID, WSEvent{
 				Type:           "call_cancel",
 				ConversationID: event.ConversationID,

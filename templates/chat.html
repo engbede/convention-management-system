@@ -960,6 +960,21 @@
                             Join Call
                         </button>
                     </div>
+                    <div id="callNotificationBanner" class="alert alert-info border-0 rounded-0 mb-0 d-none d-flex align-items-center justify-content-between px-3 py-2" style="background-color: #e0f2fe; color: #0369a1; border-bottom: 1px solid #bae6fd !important;">
+                        <div class="d-flex align-items-center gap-2 overflow-hidden me-2">
+                            <i class="bi bi-bell-fill fs-5 text-primary flex-shrink-0"></i>
+                            <div class="small text-truncate">
+                                <span class="fw-bold">Background Call Alerts:</span>
+                                <span>Get notified of incoming fellowship calls when this tab is in the background.</span>
+                            </div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+                            <button type="button" class="btn btn-sm btn-primary rounded-pill px-3 shadow-sm fw-semibold" id="enableCallNotificationsBtn">
+                                Enable
+                            </button>
+                            <button type="button" class="btn-close btn-sm" id="dismissCallNotificationBannerBtn" aria-label="Dismiss"></button>
+                        </div>
+                    </div>
 
                     <!-- Messages Scroll Body -->
                     <div class="flex-grow-1 p-3 overflow-y-auto" id="messageContainer" style="background-color: #f7f9fa;">
@@ -3533,6 +3548,37 @@ document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById("messageContainer");
     if (container) {
         container.scrollTop = container.scrollHeight;
+    }
+
+    // Background Call Notification Permission Banner
+    const callNotifBanner = document.getElementById("callNotificationBanner");
+    const enableCallNotifBtn = document.getElementById("enableCallNotificationsBtn");
+    const dismissCallNotifBtn = document.getElementById("dismissCallNotificationBannerBtn");
+
+    if (callNotifBanner && typeof Notification !== "undefined") {
+        const isDismissed = sessionStorage.getItem("call_notif_banner_dismissed");
+        if (Notification.permission === "default" && !isDismissed) {
+            callNotifBanner.classList.remove("d-none");
+        }
+        if (enableCallNotifBtn) {
+            enableCallNotifBtn.addEventListener("click", async function() {
+                enableCallNotifBtn.disabled = true;
+                if (typeof window.requestAndEnableCallNotifications === "function") {
+                    const granted = await window.requestAndEnableCallNotifications();
+                    if (granted) {
+                        callNotifBanner.classList.add("d-none");
+                        showChatNotification("Background call notifications enabled!", true);
+                    }
+                }
+                enableCallNotifBtn.disabled = false;
+            });
+        }
+        if (dismissCallNotifBtn) {
+            dismissCallNotifBtn.addEventListener("click", function() {
+                callNotifBanner.classList.add("d-none");
+                sessionStorage.setItem("call_notif_banner_dismissed", "1");
+            });
+        }
     }
 
     // Sidebar conversation search & category filter pills
@@ -8559,18 +8605,47 @@ document.addEventListener("DOMContentLoaded", function () {
     // Autocall Parameter Handling
     // ==========================================
     let autoCallTriggered = false;
-    function handleAutoCallIfRequested() {
+    async function handleAutoCallIfRequested() {
         if (autoCallTriggered) return;
         const urlParams = new URLSearchParams(window.location.search);
         const autoCallParam = (urlParams.get("autocall") || "").toLowerCase();
+        const incomingCallId = urlParams.get("call_id");
         if (!autoCallParam || !convId) return;
 
         autoCallTriggered = true;
         // Clean URL to prevent re-triggering call on reload
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete("autocall");
+        newUrl.searchParams.delete("call_id");
         window.history.replaceState({}, document.title, newUrl.pathname + newUrl.search);
 
+        // If this is an incoming call opened from notification click
+        if (incomingCallId) {
+            try {
+                const resp = await fetch(`/messages/call/status?call_id=${incomingCallId}`);
+                if (!resp.ok) {
+                    showChatNotification("Call is no longer active", false);
+                    return;
+                }
+                const statusData = await resp.json();
+                if (!statusData.is_active) {
+                    if (statusData.status === "cancelled") {
+                        showChatNotification("Call was cancelled by caller", false);
+                    } else if (statusData.status === "missed") {
+                        showChatNotification("This call has expired or was missed", false);
+                    } else {
+                        showChatNotification("This call has ended", false);
+                    }
+                    return;
+                }
+                showChatNotification("Connecting to incoming call...", true);
+            } catch (err) {
+                console.warn("Call status check failed:", err);
+            }
+            return;
+        }
+
+        // Outgoing call initiation
         const callType = (autoCallParam === "video") ? "video" : "audio";
         setTimeout(() => {
             if (isGroupConversation) {
