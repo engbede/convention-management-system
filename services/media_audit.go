@@ -167,3 +167,4 @@ func AutoSyncEmbeddedMedia(db *sql.DB) {
 		log.Println("[Media Audit] Startup media audit encountered non-fatal error:", err)
 	}
 }
+

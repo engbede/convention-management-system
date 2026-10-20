@@ -1,14 +1,18 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -106,6 +110,75 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
+func buildCanonicalQuery(rawQuery string) string {
+	if rawQuery == "" {
+		return ""
+	}
+	parts := strings.Split(rawQuery, "&")
+	type qParam struct {
+		k, v string
+	}
+	var params []qParam
+	for _, p := range parts {
+		if p == "" {
+			continue
+		}
+		kv := strings.SplitN(p, "=", 2)
+		k := url.QueryEscape(kv[0])
+		v := ""
+		if len(kv) > 1 {
+			v = url.QueryEscape(kv[1])
+		}
+		params = append(params, qParam{k: k, v: v})
+	}
+	sort.Slice(params, func(i, j int) bool {
+		return params[i].k < params[j].k
+	})
+	var builder strings.Builder
+	for i, param := range params {
+		if i > 0 {
+			builder.WriteString("&")
+		}
+		builder.WriteString(param.k)
+		builder.WriteString("=")
+		builder.WriteString(param.v)
+	}
+	return builder.String()
+}
+
+func signS3Request(req *http.Request, cfg *S3Config, payloadHash string) {
+	now := time.Now().UTC()
+	amzDate := now.Format("20060102T150405Z")
+	dateStamp := now.Format("20060102")
+
+	req.Header.Set("x-amz-date", amzDate)
+	req.Header.Set("x-amz-content-sha256", payloadHash)
+
+	host := req.URL.Host
+	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n", host, payloadHash, amzDate)
+	signedHeaders := "host;x-amz-content-sha256;x-amz-date"
+	if ct := req.Header.Get("Content-Type"); ct != "" {
+		canonicalHeaders = fmt.Sprintf("content-type:%s\n%s", ct, canonicalHeaders)
+		signedHeaders = "content-type;" + signedHeaders
+	}
+
+	canonicalQuery := buildCanonicalQuery(req.URL.RawQuery)
+	canonicalReq := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s", req.Method, req.URL.Path, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash)
+	canonicalHash := sha256Hex([]byte(canonicalReq))
+
+	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", dateStamp, cfg.Region)
+	stringToSign := fmt.Sprintf("AWS4-HMAC-SHA256\n%s\n%s\n%s", amzDate, credentialScope, canonicalHash)
+
+	kDate := hmacSHA256([]byte("AWS4"+cfg.SecretKey), dateStamp)
+	kRegion := hmacSHA256(kDate, cfg.Region)
+	kService := hmacSHA256(kRegion, "s3")
+	kSigning := hmacSHA256(kService, "aws4_request")
+	signature := hex.EncodeToString(hmacSHA256(kSigning, stringToSign))
+
+	authHeader := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", cfg.AccessKey, credentialScope, signedHeaders, signature)
+	req.Header.Set("Authorization", authHeader)
+}
+
 // UploadToObjectStorage stores an object in S3-compatible cloud storage using AWS SigV4.
 func UploadToObjectStorage(key string, reader io.Reader, size int64, contentType string) (string, error) {
 	cfg := GetS3Config()
@@ -121,7 +194,7 @@ func UploadToObjectStorage(key string, reader io.Reader, size int64, contentType
 		return "", fmt.Errorf("failed reading object body for S3 upload: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, reqURL, strings.NewReader(string(bodyBytes)))
+	req, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return "", err
 	}
@@ -131,35 +204,10 @@ func UploadToObjectStorage(key string, reader io.Reader, size int64, contentType
 	}
 	req.Header.Set("Content-Type", contentType)
 
-	// AWS SigV4 signing
-	now := time.Now().UTC()
-	amzDate := now.Format("20060102T150405Z")
-	dateStamp := now.Format("20060102")
 	payloadHash := sha256Hex(bodyBytes)
+	signS3Request(req, cfg, payloadHash)
 
-	req.Header.Set("x-amz-date", amzDate)
-	req.Header.Set("x-amz-content-sha256", payloadHash)
-
-	host := req.URL.Host
-	canonicalHeaders := fmt.Sprintf("content-type:%s\nhost:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n", contentType, host, payloadHash, amzDate)
-	signedHeaders := "content-type;host;x-amz-content-sha256;x-amz-date"
-
-	canonicalReq := fmt.Sprintf("%s\n/%s/%s\n\n%s\n%s\n%s", http.MethodPut, cfg.Bucket, cleanKey, canonicalHeaders, signedHeaders, payloadHash)
-	canonicalHash := sha256Hex([]byte(canonicalReq))
-
-	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", dateStamp, cfg.Region)
-	stringToSign := fmt.Sprintf("AWS4-HMAC-SHA256\n%s\n%s\n%s", amzDate, credentialScope, canonicalHash)
-
-	kDate := hmacSHA256([]byte("AWS4"+cfg.SecretKey), dateStamp)
-	kRegion := hmacSHA256(kDate, cfg.Region)
-	kService := hmacSHA256(kRegion, "s3")
-	kSigning := hmacSHA256(kService, "aws4_request")
-	signature := hex.EncodeToString(hmacSHA256(kSigning, stringToSign))
-
-	authHeader := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", cfg.AccessKey, credentialScope, signedHeaders, signature)
-	req.Header.Set("Authorization", authHeader)
-
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("S3 upload request failed: %w", err)
@@ -192,34 +240,188 @@ func DeleteFromObjectStorage(key string) error {
 		return err
 	}
 
-	now := time.Now().UTC()
-	amzDate := now.Format("20060102T150405Z")
-	dateStamp := now.Format("20060102")
-	payloadHash := sha256Hex([]byte(""))
+	signS3Request(req, cfg, sha256Hex([]byte("")))
 
-	req.Header.Set("x-amz-date", amzDate)
-	req.Header.Set("x-amz-content-sha256", payloadHash)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
 
-	host := req.URL.Host
-	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n", host, payloadHash, amzDate)
-	signedHeaders := "host;x-amz-content-sha256;x-amz-date"
+// S3CompletedPart represents a single uploaded part in an S3 multipart upload.
+type S3CompletedPart struct {
+	PartNumber int    `xml:"PartNumber" json:"part_number"`
+	ETag       string `xml:"ETag" json:"etag"`
+}
 
-	canonicalReq := fmt.Sprintf("%s\n/%s/%s\n\n%s\n%s\n%s", http.MethodDelete, cfg.Bucket, cleanKey, canonicalHeaders, signedHeaders, payloadHash)
-	canonicalHash := sha256Hex([]byte(canonicalReq))
+type completeMultipartUploadReq struct {
+	XMLName xml.Name          `xml:"CompleteMultipartUpload"`
+	Parts   []S3CompletedPart `xml:"Part"`
+}
 
-	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", dateStamp, cfg.Region)
-	stringToSign := fmt.Sprintf("AWS4-HMAC-SHA256\n%s\n%s\n%s", amzDate, credentialScope, canonicalHash)
+type initiateMultipartUploadResult struct {
+	XMLName  xml.Name `xml:"InitiateMultipartUploadResult"`
+	Bucket   string   `xml:"Bucket"`
+	Key      string   `xml:"Key"`
+	UploadId string   `xml:"UploadId"`
+}
 
-	kDate := hmacSHA256([]byte("AWS4"+cfg.SecretKey), dateStamp)
-	kRegion := hmacSHA256(kDate, cfg.Region)
-	kService := hmacSHA256(kRegion, "s3")
-	kSigning := hmacSHA256(kService, "aws4_request")
-	signature := hex.EncodeToString(hmacSHA256(kSigning, stringToSign))
+// InitiateS3MultipartUpload begins an S3-compatible multipart upload and returns the upload ID.
+func InitiateS3MultipartUpload(key, contentType string) (string, error) {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return "", errors.New("S3 object storage is not configured")
+	}
 
-	authHeader := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", cfg.AccessKey, credentialScope, signedHeaders, signature)
-	req.Header.Set("Authorization", authHeader)
+	cleanKey := strings.TrimPrefix(key, "/")
+	reqURL := fmt.Sprintf("%s/%s/%s?uploads", cfg.Endpoint, cfg.Bucket, cleanKey)
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest(http.MethodPost, reqURL, nil)
+	if err != nil {
+		return "", err
+	}
+
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	req.Header.Set("Content-Type", contentType)
+
+	signS3Request(req, cfg, sha256Hex([]byte("")))
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("initiate multipart upload failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("initiate multipart upload returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var res initiateMultipartUploadResult
+	if err := xml.NewDecoder(resp.Body).Decode(&res); err != nil {
+		return "", fmt.Errorf("failed to parse initiate multipart XML: %w", err)
+	}
+
+	if res.UploadId == "" {
+		return "", errors.New("empty upload ID returned by S3 provider")
+	}
+
+	return res.UploadId, nil
+}
+
+// UploadS3Part uploads a single chunk/part to an ongoing S3 multipart upload.
+func UploadS3Part(key, uploadID string, partNumber int, reader io.Reader, size int64) (string, error) {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return "", errors.New("S3 object storage is not configured")
+	}
+
+	cleanKey := strings.TrimPrefix(key, "/")
+	reqURL := fmt.Sprintf("%s/%s/%s?partNumber=%d&uploadId=%s", cfg.Endpoint, cfg.Bucket, cleanKey, partNumber, url.QueryEscape(uploadID))
+
+	partBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read part data: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewReader(partBytes))
+	if err != nil {
+		return "", err
+	}
+
+	payloadHash := sha256Hex(partBytes)
+	signS3Request(req, cfg, payloadHash)
+
+	client := &http.Client{Timeout: 180 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("upload part %d failed: %w", partNumber, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("upload part %d returned status %d: %s", partNumber, resp.StatusCode, string(body))
+	}
+
+	etag := strings.Trim(resp.Header.Get("ETag"), `"`)
+	if etag == "" {
+		etag = payloadHash
+	}
+
+	return etag, nil
+}
+
+// CompleteS3MultipartUpload finalizes an S3 multipart upload after all parts are uploaded.
+func CompleteS3MultipartUpload(key, uploadID string, parts []S3CompletedPart) (string, error) {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return "", errors.New("S3 object storage is not configured")
+	}
+
+	// Sort parts by PartNumber ascending (required by S3 API)
+	sort.Slice(parts, func(i, j int) bool {
+		return parts[i].PartNumber < parts[j].PartNumber
+	})
+
+	xmlBody, err := xml.Marshal(completeMultipartUploadReq{Parts: parts})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal complete multipart XML: %w", err)
+	}
+
+	cleanKey := strings.TrimPrefix(key, "/")
+	reqURL := fmt.Sprintf("%s/%s/%s?uploadId=%s", cfg.Endpoint, cfg.Bucket, cleanKey, url.QueryEscape(uploadID))
+
+	req, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewReader(xmlBody))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/xml")
+
+	signS3Request(req, cfg, sha256Hex(xmlBody))
+
+	client := &http.Client{Timeout: 60 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("complete multipart upload failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("complete multipart upload returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	if cfg.PublicURL != "" {
+		return fmt.Sprintf("%s/%s", cfg.PublicURL, cleanKey), nil
+	}
+	return fmt.Sprintf("%s/%s/%s", cfg.Endpoint, cfg.Bucket, cleanKey), nil
+}
+
+// AbortS3MultipartUpload cancels an active S3 multipart upload and cleans up stored parts.
+func AbortS3MultipartUpload(key, uploadID string) error {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return nil
+	}
+
+	cleanKey := strings.TrimPrefix(key, "/")
+	reqURL := fmt.Sprintf("%s/%s/%s?uploadId=%s", cfg.Endpoint, cfg.Bucket, cleanKey, url.QueryEscape(uploadID))
+
+	req, err := http.NewRequest(http.MethodDelete, reqURL, nil)
+	if err != nil {
+		return err
+	}
+
+	signS3Request(req, cfg, sha256Hex([]byte("")))
+
+	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err

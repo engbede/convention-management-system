@@ -522,6 +522,14 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 
+	// Resilient Chunked Video Upload APIs (supports up to 10 GB long-form recordings)
+	mux.HandleFunc("/api/upload/config", handlers.GetUploadConfigAPI)
+	mux.HandleFunc("/api/upload/initiate", middleware.RequireLogin(handlers.InitiateUploadAPI))
+	mux.HandleFunc("/api/upload/chunk", middleware.RequireLogin(handlers.UploadChunkAPI))
+	mux.HandleFunc("/api/upload/complete", middleware.RequireLogin(handlers.CompleteUploadAPI))
+	mux.HandleFunc("/api/upload/abort", middleware.RequireLogin(handlers.AbortUploadAPI))
+	mux.HandleFunc("/api/upload/status", middleware.RequireLogin(handlers.GetUploadStatusAPI))
+
 	mux.HandleFunc(
 		"/community/comment",
 		middleware.RequireLogin(

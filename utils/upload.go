@@ -54,8 +54,8 @@ func GetUploadBaseDir() string {
 }
 
 // GetMaxVideoUploadSize returns the maximum allowed video upload size in bytes.
-// Defaults to 500 MB (500 * 1024 * 1024 bytes) to accommodate full church programmes,
-// worship conventions, sermons, and Bible studies.
+// Defaults to 10 GB (10240 * 1024 * 1024 bytes) to accommodate complete 4–5+ hour church programmes,
+// worship conventions, services, and Bible studies across full HD (1080p) and standard HD (720p).
 // Can be customized via MAX_VIDEO_SIZE_MB environment variable.
 func GetMaxVideoUploadSize() int64 {
 	if mbStr := strings.TrimSpace(os.Getenv("MAX_VIDEO_SIZE_MB")); mbStr != "" {
@@ -63,12 +63,26 @@ func GetMaxVideoUploadSize() int64 {
 			return mb * 1024 * 1024
 		}
 	}
-	return 500 * 1024 * 1024 // 500 MB default
+	return 10240 * 1024 * 1024 // 10 GB default
 }
 
 // GetMaxVideoUploadSizeMB returns the maximum allowed video upload size in megabytes.
 func GetMaxVideoUploadSizeMB() int64 {
 	return GetMaxVideoUploadSize() / (1024 * 1024)
+}
+
+// FormatBytes formats byte count into human-readable representation (B, KB, MB, GB).
+func FormatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "KMGTPE"[exp])
 }
 
 func resolveDestination(destination string) string {
@@ -181,7 +195,7 @@ func SaveUploadedFile(
 }
 
 // SaveUploadedVideo validates and stores an uploaded video file for community posts.
-// Supports mp4, webm, mov, mkv, and avi videos up to the configured limit (default 500 MB).
+// Supports mp4, webm, mov, mkv, and avi videos up to the configured limit (default 10 GB).
 func SaveUploadedVideo(
 	file multipart.File,
 	header *multipart.FileHeader,

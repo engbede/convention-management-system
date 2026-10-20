@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"convention-management-system/models"
@@ -112,6 +114,22 @@ func CreateCommunityPost(
 		}
 	} else if vidFile != nil {
 		_ = vidFile.Close()
+	}
+
+	// If no direct file was uploaded, check if video was pre-uploaded via chunked/multipart upload session
+	if videoName == "" {
+		if videoKey := strings.TrimSpace(r.FormValue("video_key")); videoKey != "" {
+			cleanKey := filepath.Clean("/" + videoKey)
+			cleanKey = strings.TrimPrefix(cleanKey, "/")
+			if strings.HasPrefix(cleanKey, "posts/") && !strings.Contains(cleanKey, "..") {
+				diskPath := filepath.Join(utils.GetUploadBaseDir(), cleanKey)
+				if _, err := os.Stat(diskPath); err == nil || utils.IsObjectStorageEnabled() {
+					videoName = cleanKey
+				} else {
+					log.Println("Referenced video_key not found in storage:", cleanKey)
+				}
+			}
+		}
 	}
 
 	if content == "" && imageName == "" && videoName == "" {

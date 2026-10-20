@@ -4,6 +4,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 
@@ -40,6 +41,7 @@ func main() {
 
 	// Non-destructive startup media durability audit & synchronization
 	services.AutoSyncEmbeddedMedia(database.DB)
+	services.CleanupStaleUploads(24 * time.Hour)
 
 	mux := http.NewServeMux()
 	routes.RegisterRoutes(mux)

@@ -16,12 +16,31 @@ document.addEventListener("DOMContentLoaded", function () {
     const progressBar = document.getElementById("postProgressBar");
     const progressStatus = document.getElementById("postProgressStatus");
     const progressPercent = document.getElementById("postProgressPercent");
+    const cancelUploadBtn = document.getElementById("postCancelUploadBtn");
     const submitBtn = document.getElementById("submitPostBtn");
     const submitSpinner = document.getElementById("submitPostSpinner");
     const submitIcon = document.getElementById("submitPostIcon");
     const submitText = document.getElementById("submitPostText");
 
     let currentMediaUrl = null;
+    let maxVideoSize = 10 * 1024 * 1024 * 1024; // 10 GB default
+    let chunkSize = 10 * 1024 * 1024; // 10 MB default
+    let currentUploadId = null;
+    let currentUploadXhr = null;
+    let isUploadCancelled = false;
+
+    // Fetch dynamic server configuration to keep client and backend limits synchronized
+    fetch("/api/upload/config")
+        .then(function (res) { return res.json(); })
+        .then(function (cfg) {
+            if (cfg && cfg.max_video_size_bytes) {
+                maxVideoSize = cfg.max_video_size_bytes;
+            }
+            if (cfg && cfg.chunk_size_bytes) {
+                chunkSize = cfg.chunk_size_bytes;
+            }
+        })
+        .catch(function () {});
 
     function formatBytes(bytes) {
         if (!bytes || bytes <= 0) return "0 B";
@@ -64,34 +83,50 @@ document.addEventListener("DOMContentLoaded", function () {
             submitBtn.disabled = isSubmitting;
         }
         if (submitSpinner) {
-            if (isSubmitting) {
-                submitSpinner.classList.remove("d-none");
-            } else {
-                submitSpinner.classList.add("d-none");
-            }
+            if (isSubmitting) submitSpinner.classList.remove("d-none");
+            else submitSpinner.classList.add("d-none");
         }
         if (submitIcon) {
-            if (isSubmitting) {
-                submitIcon.classList.add("d-none");
-            } else {
-                submitIcon.classList.remove("d-none");
-            }
+            if (isSubmitting) submitIcon.classList.add("d-none");
+            else submitIcon.classList.remove("d-none");
         }
         if (submitText) {
             submitText.textContent = isSubmitting ? (statusMsg || "Processing...") : "Post";
         }
         if (progressContainer) {
-            if (isSubmitting) {
-                progressContainer.classList.remove("d-none");
-            } else {
-                progressContainer.classList.add("d-none");
+            if (isSubmitting) progressContainer.classList.remove("d-none");
+            else progressContainer.classList.add("d-none");
+        }
+        if (!isSubmitting) {
+            if (progressBar) {
+                progressBar.style.width = "0%";
+                progressBar.setAttribute("aria-valuenow", "0");
             }
-        }
-        if (!isSubmitting && progressBar) {
-            progressBar.style.width = "0%";
-            progressBar.setAttribute("aria-valuenow", "0");
             if (progressPercent) progressPercent.textContent = "0%";
+            currentUploadId = null;
+            currentUploadXhr = null;
+            isUploadCancelled = false;
         }
+    }
+
+    if (cancelUploadBtn) {
+        cancelUploadBtn.addEventListener("click", function () {
+            if (confirm("Are you sure you want to cancel this video upload?")) {
+                isUploadCancelled = true;
+                if (currentUploadXhr) {
+                    currentUploadXhr.abort();
+                }
+                if (currentUploadId) {
+                    fetch("/api/upload/abort", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ upload_id: currentUploadId })
+                    }).catch(function () {});
+                }
+                setSubmittingState(false);
+                showError("Video upload was cancelled.");
+            }
+        });
     }
 
     if (textarea && counter) {
@@ -115,8 +150,8 @@ document.addEventListener("DOMContentLoaded", function () {
             // Clear video selection if image is selected
             if (videoInput) videoInput.value = "";
 
-            if (file.size > 5 * 1024 * 1024) {
-                showError("Image size must not exceed 5 MB.");
+            if (file.size > 10 * 1024 * 1024) {
+                showError("Image size must not exceed 10 MB.");
                 this.value = "";
                 return;
             }
@@ -161,8 +196,8 @@ document.addEventListener("DOMContentLoaded", function () {
             // Clear image selection if video is selected
             if (imageInput) imageInput.value = "";
 
-            if (file.size > 500 * 1024 * 1024) {
-                showError("Video size must not exceed 500 MB (" + formatBytes(file.size) + " selected).");
+            if (file.size > maxVideoSize) {
+                showError("Video size must not exceed " + formatBytes(maxVideoSize) + " (" + formatBytes(file.size) + " selected).");
                 this.value = "";
                 return;
             }
@@ -195,7 +230,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (form) {
-        form.addEventListener("submit", function (e) {
+        form.addEventListener("submit", async function (e) {
             e.preventDefault();
             clearError();
 
@@ -208,98 +243,224 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            if (hasVideo && videoInput.files[0].size > 500 * 1024 * 1024) {
-                showError("Selected video exceeds the 500 MB size limit (" + formatBytes(videoInput.files[0].size) + " selected).");
-                return;
-            }
-
             if (hasImage && imageInput.files[0].size > 10 * 1024 * 1024) {
                 showError("Selected image exceeds the 10 MB size limit.");
                 return;
             }
 
-            setSubmittingState(true, hasVideo ? "Uploading video..." : "Posting...");
+            // Resilient chunked upload pipeline for videos up to 10 GB
+            if (hasVideo) {
+                const file = videoInput.files[0];
+                if (file.size > maxVideoSize) {
+                    showError("Selected video exceeds the " + formatBytes(maxVideoSize) + " size limit (" + formatBytes(file.size) + " selected).");
+                    return;
+                }
 
-            const formData = new FormData(form);
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", form.action || "/community/post", true);
-            xhr.setRequestHeader("Accept", "application/json");
-            xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-            xhr.timeout = 900000; // 15 minute bounded timeout for long-form video uploads
+                setSubmittingState(true, "Preparing upload...");
+                isUploadCancelled = false;
 
-            if (xhr.upload) {
-                xhr.upload.onprogress = function (event) {
-                    if (event.lengthComputable && event.total > 0) {
-                        const pct = Math.min(100, Math.round((event.loaded / event.total) * 100));
-                        if (progressBar) {
-                            progressBar.style.width = pct + "%";
-                            progressBar.setAttribute("aria-valuenow", pct);
+                try {
+                    // State 1: Preparing upload
+                    if (progressStatus) progressStatus.textContent = "Preparing upload and verifying capacity...";
+                    if (submitText) submitText.textContent = "Preparing...";
+
+                    const initRes = await fetch("/api/upload/initiate", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                        body: JSON.stringify({
+                            filename: file.name,
+                            file_size: file.size,
+                            content_type: file.type || "video/mp4"
+                        })
+                    });
+
+                    if (!initRes.ok) {
+                        const initErr = await initRes.json().catch(function() { return {}; });
+                        throw new Error(initErr.error || `Server rejected upload initialization (${initRes.status})`);
+                    }
+
+                    const session = await initRes.json();
+                    currentUploadId = session.upload_id;
+                    const partSize = session.chunk_size || chunkSize;
+                    const totalParts = session.total_chunks;
+                    const uploadedSet = new Set(session.uploaded_chunks || []);
+
+                    // State 2: Uploading chunks
+                    let totalTransferred = 0;
+                    for (let i = 0; i < totalParts; i++) {
+                        if (isUploadCancelled) {
+                            throw new Error("Upload was cancelled.");
                         }
-                        if (progressPercent) {
-                            progressPercent.textContent = pct + "%";
+
+                        const start = i * partSize;
+                        const end = Math.min(start + partSize, file.size);
+                        const chunkBytes = end - start;
+
+                        if (uploadedSet.has(i)) {
+                            totalTransferred += chunkBytes;
+                            continue; // Skip already uploaded chunk for resume support
                         }
-                        if (progressStatus) {
-                            if (pct < 100) {
-                                progressStatus.textContent = `Uploading media (${pct}% • ${formatBytes(event.loaded)} / ${formatBytes(event.total)})...`;
-                            } else {
-                                progressStatus.textContent = "Finalizing upload and verifying video stream on server...";
-                                if (submitText) submitText.textContent = "Finalizing...";
+
+                        const chunkBlob = file.slice(start, end);
+                        let chunkSuccess = false;
+                        let lastErr = null;
+
+                        // Bounded retries: up to 3 attempts with exponential backoff
+                        for (let attempt = 1; attempt <= 3; attempt++) {
+                            if (isUploadCancelled) break;
+                            try {
+                                await new Promise(function(resolve, reject) {
+                                    const chunkXhr = new XMLHttpRequest();
+                                    currentUploadXhr = chunkXhr;
+                                    chunkXhr.open("POST", "/api/upload/chunk", true);
+                                    chunkXhr.setRequestHeader("Accept", "application/json");
+
+                                    chunkXhr.upload.onprogress = function (pe) {
+                                        if (pe.lengthComputable) {
+                                            const currentBytes = totalTransferred + pe.loaded;
+                                            const pct = Math.min(99, Math.round((currentBytes / file.size) * 100));
+                                            if (progressBar) {
+                                                progressBar.style.width = pct + "%";
+                                                progressBar.setAttribute("aria-valuenow", pct);
+                                            }
+                                            if (progressPercent) progressPercent.textContent = pct + "%";
+                                            if (progressStatus) {
+                                                progressStatus.textContent = `Uploading chunk ${i + 1} of ${totalParts} (${pct}% • ${formatBytes(currentBytes)} / ${formatBytes(file.size)})...`;
+                                            }
+                                        }
+                                    };
+
+                                    chunkXhr.onload = function () {
+                                        if (chunkXhr.status >= 200 && chunkXhr.status < 300) {
+                                            resolve();
+                                        } else {
+                                            let errText = "Chunk upload failed";
+                                            try {
+                                                const cData = JSON.parse(chunkXhr.responseText);
+                                                if (cData && cData.error) errText = cData.error;
+                                            } catch (_) {}
+                                            reject(new Error(errText));
+                                        }
+                                    };
+
+                                    chunkXhr.onerror = function () {
+                                        reject(new Error("Network connection error during chunk transfer"));
+                                    };
+                                    chunkXhr.onabort = function () {
+                                        reject(new Error("Chunk upload aborted"));
+                                    };
+
+                                    const chunkFormData = new FormData();
+                                    chunkFormData.append("upload_id", session.upload_id);
+                                    chunkFormData.append("chunk_index", i);
+                                    chunkFormData.append("chunk", chunkBlob, file.name);
+
+                                    chunkXhr.send(chunkFormData);
+                                });
+
+                                chunkSuccess = true;
+                                totalTransferred += chunkBytes;
+                                break;
+                            } catch (err) {
+                                lastErr = err;
+                                if (isUploadCancelled) break;
+                                if (attempt < 3) {
+                                    if (progressStatus) {
+                                        progressStatus.textContent = `Retrying chunk ${i + 1} of ${totalParts} (attempt ${attempt + 1}/3)...`;
+                                    }
+                                    await new Promise(function(r) { setTimeout(r, attempt * 1200); });
+                                }
                             }
                         }
+
+                        if (!chunkSuccess) {
+                            throw new Error(`Failed to upload chunk ${i + 1} of ${totalParts} after 3 attempts: ${lastErr ? lastErr.message : "network failure"}`);
+                        }
                     }
-                };
+
+                    // State 3: Finalizing storage upload & State 4: Verifying video integrity
+                    if (progressStatus) progressStatus.textContent = "Finalizing storage upload and assembling video stream on server...";
+                    if (submitText) submitText.textContent = "Finalizing...";
+                    if (progressBar) {
+                        progressBar.style.width = "100%";
+                        progressBar.setAttribute("aria-valuenow", "100");
+                    }
+                    if (progressPercent) progressPercent.textContent = "100%";
+
+                    const compRes = await fetch("/api/upload/complete", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                        body: JSON.stringify({ upload_id: session.upload_id })
+                    });
+
+                    if (!compRes.ok) {
+                        const compErr = await compRes.json().catch(function() { return {}; });
+                        throw new Error(compErr.error || "Failed to finalize video assembly on server");
+                    }
+
+                    const compData = await compRes.json();
+                    const verifiedVideoKey = compData.video_key;
+
+                    // State 5: Publishing the post
+                    if (progressStatus) progressStatus.textContent = "Publishing post to community feed...";
+                    if (submitText) submitText.textContent = "Publishing...";
+
+                    const postFormData = new FormData();
+                    postFormData.append("content", content);
+                    postFormData.append("visibility", form.querySelector("[name='visibility']") ? form.querySelector("[name='visibility']").value : "public");
+                    postFormData.append("video_key", verifiedVideoKey);
+
+                    const postRes = await fetch(form.action || "/community/post", {
+                        method: "POST",
+                        headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+                        body: postFormData
+                    });
+
+                    if (!postRes.ok) {
+                        const postErr = await postRes.json().catch(function() { return {}; });
+                        throw new Error(postErr.error || "Failed to publish post record");
+                    }
+
+                    // State 6: Completed
+                    if (progressStatus) progressStatus.textContent = "Post published successfully! Redirecting...";
+                    clearMediaPreview();
+                    if (textarea) textarea.value = "";
+                    if (counter) counter.textContent = "0 / 3000";
+                    window.location.href = "/community";
+                    return;
+
+                } catch (uploadErr) {
+                    // State 7: Failed or Cancelled
+                    setSubmittingState(false);
+                    showError(uploadErr.message || "Video upload failed. Please try again.");
+                    return;
+                }
             }
 
-            xhr.onload = function () {
+            // Direct submission for text-only or photo posts
+            setSubmittingState(true, "Posting...");
+            const formData = new FormData(form);
+            try {
+                const res = await fetch(form.action || "/community/post", {
+                    method: "POST",
+                    headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
+                    body: formData
+                });
+
                 setSubmittingState(false);
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        if (data && data.success) {
-                            clearMediaPreview();
-                            if (textarea) textarea.value = "";
-                            if (counter) counter.textContent = "0 / 3000";
-                            window.location.href = data.redirect || "/community";
-                            return;
-                        }
-                    } catch (parseErr) {
-                        // Successful response without JSON
-                        window.location.href = "/community";
-                        return;
-                    }
+                if (res.ok) {
+                    clearMediaPreview();
+                    if (textarea) textarea.value = "";
+                    if (counter) counter.textContent = "0 / 3000";
                     window.location.href = "/community";
                 } else {
-                    let errMsg = "Failed to publish post. Please try again.";
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        if (data && data.error) {
-                            errMsg = data.error;
-                        }
-                    } catch (e) {
-                        if (xhr.statusText) {
-                            errMsg = `Server error (${xhr.status}): ${xhr.statusText}`;
-                        }
-                    }
-                    showError(errMsg);
+                    const errData = await res.json().catch(function() { return {}; });
+                    showError(errData.error || `Server error (${res.status}): ${res.statusText}`);
                 }
-            };
-
-            xhr.onerror = function () {
+            } catch (netErr) {
                 setSubmittingState(false);
-                showError("Network connection error during upload. Please check your network and try again.");
-            };
-
-            xhr.ontimeout = function () {
-                setSubmittingState(false);
-                showError("Upload timed out after 15 minutes. Please verify your connection or consider compressing your video.");
-            };
-
-            xhr.onabort = function () {
-                setSubmittingState(false);
-                showError("Upload was cancelled.");
-            };
-
-            xhr.send(formData);
+                showError("Network connection error. Please try again.");
+            }
         });
     }
 
