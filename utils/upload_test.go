@@ -117,12 +117,22 @@ func TestSaveUploadedVideo_ValidationErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("Exceeds max size limit", func(t *testing.T) {
+	t.Run("Exceeds default max size limit", func(t *testing.T) {
 		file, header := createMultipartFile(t, "huge.mp4", []byte("too big"), "video/mp4")
-		header.Size = 51 * 1024 * 1024 // Fake header size > 50MB
+		header.Size = 501 * 1024 * 1024 // Fake header size > 500MB
 		_, err := utils.SaveUploadedVideo(file, header, destDir)
-		if err == nil || !strings.Contains(err.Error(), "must not exceed 50 MB") {
-			t.Errorf("Expected max size error, got: %v", err)
+		if err == nil || !strings.Contains(err.Error(), "must not exceed 500 MB") {
+			t.Errorf("Expected 500 MB max size error, got: %v", err)
+		}
+	})
+
+	t.Run("Respects custom MAX_VIDEO_SIZE_MB limit", func(t *testing.T) {
+		t.Setenv("MAX_VIDEO_SIZE_MB", "100")
+		file, header := createMultipartFile(t, "oversize.mp4", []byte("too big"), "video/mp4")
+		header.Size = 101 * 1024 * 1024
+		_, err := utils.SaveUploadedVideo(file, header, destDir)
+		if err == nil || !strings.Contains(err.Error(), "must not exceed 100 MB") {
+			t.Errorf("Expected 100 MB max size error, got: %v", err)
 		}
 	})
 

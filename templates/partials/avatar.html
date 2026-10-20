@@ -5,8 +5,16 @@
     {{if .ProfilePhoto}}
 
     <img
-        src="/uploads/profiles/{{.ProfilePhoto}}"
-        class="rounded-circle border border-4 border-white avatar-image">
+        src="{{.ProfilePhotoURL}}"
+        class="rounded-circle border border-4 border-white avatar-image"
+        onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('d-none');">
+
+    <div
+        class="rounded-circle bg-success text-white border border-4 border-white d-none justify-content-center align-items-center avatar-image fw-bold">
+
+        {{.Initials}}
+
+    </div>
 
     {{else}}
 

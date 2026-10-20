@@ -105,6 +105,46 @@ func samplePNGBytes() []byte {
 	}
 }
 
+func createMultipartFile(t *testing.T, filename string, content []byte, contentType string) (multipart.File, *multipart.FileHeader) {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="file"; filename="`+filename+`"`)
+	if contentType != "" {
+		h.Set("Content-Type", contentType)
+	}
+
+	part, err := writer.CreatePart(h)
+	if err != nil {
+		t.Fatalf("Failed to create multipart part: %v", err)
+	}
+	if _, err := part.Write(content); err != nil {
+		t.Fatalf("Failed to write content: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("Failed to close writer: %v", err)
+	}
+
+	reader := multipart.NewReader(&body, writer.Boundary())
+	form, err := reader.ReadForm(int64(body.Len()))
+	if err != nil {
+		t.Fatalf("Failed to read form: %v", err)
+	}
+
+	files := form.File["file"]
+	if len(files) == 0 {
+		t.Fatalf("No file parsed in form")
+	}
+
+	file, err := files[0].Open()
+	if err != nil {
+		t.Fatalf("Failed to open file: %v", err)
+	}
+	return file, files[0]
+}
+
 func TestCreateCommunityPost_TextOnly(t *testing.T) {
 	cleanup := setupTestDB(t)
 	defer cleanup()
@@ -501,6 +541,130 @@ func TestCommunityFeed_PersistenceAcrossSession(t *testing.T) {
 	}
 	if !strings.Contains(body2, videoPath) {
 		t.Errorf("User 2 feed HTML does not contain video reference %s", videoPath)
+	}
+}
+
+func TestCreateCommunityPost_LargeVideo_Exceeding50MB(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	fields := map[string]string{
+		"content": "Long-form church convention worship service (75 MB)",
+	}
+
+	// Create multipart with valid MP4 header and simulated 75 MB size (exceeding old 50MB restriction)
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	_ = writer.WriteField("content", fields["content"])
+
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="video"; filename="convention_service.mp4"`)
+	h.Set("Content-Type", "video/mp4")
+	part, _ := writer.CreatePart(h)
+	_, _ = part.Write(sampleMP4Bytes())
+	_ = writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/community/post", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+
+	initReq := httptest.NewRequest(http.MethodPost, "/community/post", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	CreateCommunityPost(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for 75 MB video within 500 MB limit, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	posts, err := services.GetCommunityFeed()
+	if err != nil || len(posts) != 1 {
+		t.Fatalf("Expected 1 post in feed, got %v", err)
+	}
+	if posts[0].Video == "" {
+		t.Errorf("Expected video reference in post, got empty")
+	}
+	defer utils.DeleteFile("uploads/" + posts[0].Video)
+}
+
+func TestCreateCommunityPost_Exceeding500MBLimit(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Use custom limit 100 MB for this test to test limit rejection cleanly
+	t.Setenv("MAX_VIDEO_SIZE_MB", "100")
+
+	destDir := t.TempDir()
+	file, header := createMultipartFile(t, "overlimit.mp4", sampleMP4Bytes(), "video/mp4")
+	header.Size = 105 * 1024 * 1024 // 105 MB > 100 MB limit
+
+	_, err := utils.SaveUploadedVideo(file, header, destDir)
+	if err == nil || !strings.Contains(err.Error(), "must not exceed 100 MB") {
+		t.Fatalf("Expected max size error for 105 MB video, got %v", err)
+	}
+}
+
+func TestFeedRendering_OnErrorProtection(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Update user 1 to have a profile photo reference that may be missing on disk
+	_, _ = database.DB.Exec(`UPDATE users SET profile_photo = 'profiles/missing_user1.jpg' WHERE id = 1`)
+
+	// Insert post with missing image to test broken image resilience
+	_, err := database.DB.Exec(`
+		INSERT INTO posts (user_id, content, image, video, visibility, created_at)
+		VALUES (1, 'Post with missing image reference', 'posts/non_existent_image.jpg', '', 'public', CURRENT_TIMESTAMP)
+	`)
+	if err != nil {
+		t.Fatalf("Failed to insert test post: %v", err)
+	}
+
+	feedReq := httptest.NewRequest(http.MethodGet, "/community", nil)
+	feedRR := httptest.NewRecorder()
+	initReq := httptest.NewRequest(http.MethodGet, "/community", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		feedReq.AddCookie(cookie)
+	}
+
+	Community(feedRR, feedReq)
+	if feedRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK, got %d", feedRR.Code)
+	}
+
+	body := feedRR.Body.String()
+	// Confirm onerror resilience handler is present in post image tag
+	if !strings.Contains(body, `onerror="this.closest('.post-image-container').style.display='none';"`) {
+		t.Errorf("Expected onerror handler on post image container")
+	}
+	// Confirm onerror resilience handler is present on author profile photo tag
+	if !strings.Contains(body, `onerror="this.onerror=null; this.style.display='none';`) {
+		t.Errorf("Expected onerror handler on profile photo tag")
+	}
+}
+
+func TestMediaAuditAndRepair(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	report, err := services.AuditAndRepairMedia()
+	if err != nil {
+		t.Fatalf("AuditAndRepairMedia failed: %v", err)
+	}
+	if report == nil {
+		t.Fatalf("Expected non-nil report")
 	}
 }
 

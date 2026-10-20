@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"convention-management-system/handlers"
 	"convention-management-system/middleware"
@@ -1029,9 +1030,41 @@ func RegisterRoutes(mux *http.ServeMux) {
 	_ = os.MkdirAll(filepath.Join(uploadDir, "documents"), 0755)
 	_ = os.MkdirAll(filepath.Join(uploadDir, "chat"), 0755)
 
-	uploads := http.FileServer(http.Dir(uploadDir))
-	mux.Handle(
-		"/uploads/",
-		http.StripPrefix("/uploads/", uploads),
-	)
+	if uploadDir != "uploads" {
+		_ = os.MkdirAll("uploads/posts", 0755)
+		_ = os.MkdirAll("uploads/profiles", 0755)
+		_ = os.MkdirAll("uploads/covers", 0755)
+	}
+
+	uploadsFileServer := http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir)))
+
+	mux.HandleFunc("/uploads/", func(w http.ResponseWriter, r *http.Request) {
+		relPath := strings.TrimPrefix(r.URL.Path, "/uploads/")
+		fullPath := filepath.Join(uploadDir, filepath.Clean("/"+relPath))
+
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+			if uploadDir != "uploads" {
+				localFallback := filepath.Join("uploads", filepath.Clean("/"+relPath))
+				if _, lErr := os.Stat(localFallback); lErr == nil {
+					http.ServeFile(w, r, localFallback)
+					return
+				}
+			}
+
+			if s3Base := utils.GetObjectStoragePublicBaseURL(); s3Base != "" {
+				http.Redirect(w, r, strings.TrimSuffix(s3Base, "/")+"/"+strings.TrimPrefix(relPath, "/"), http.StatusTemporaryRedirect)
+				return
+			}
+
+			if strings.HasPrefix(relPath, "profiles/") {
+				w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+				w.Header().Set("Cache-Control", "public, max-age=86400")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write(utils.DefaultAvatarSVG)
+				return
+			}
+		}
+
+		uploadsFileServer.ServeHTTP(w, r)
+	})
 }

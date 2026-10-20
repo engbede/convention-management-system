@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type User struct {
 	// Identity
@@ -90,4 +93,56 @@ type User struct {
 	// Dates
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+// ProfilePhotoURL returns the browser-loadable URL for the user's profile photo.
+// Supports external URLs (Cloudinary/S3/CDN), already-prefixed paths, and local upload paths.
+func (u User) ProfilePhotoURL() string {
+	if u.ProfilePhoto == "" {
+		return ""
+	}
+	if strings.HasPrefix(u.ProfilePhoto, "http://") || strings.HasPrefix(u.ProfilePhoto, "https://") {
+		return u.ProfilePhoto
+	}
+	if cdn := getMediaBaseURL(); cdn != "" {
+		rel := u.ProfilePhoto
+		if !strings.HasPrefix(rel, "profiles/") && !strings.HasPrefix(rel, "/uploads/profiles/") {
+			rel = "profiles/" + rel
+		}
+		rel = strings.TrimPrefix(rel, "/uploads/")
+		return cdn + "/" + rel
+	}
+	if strings.HasPrefix(u.ProfilePhoto, "/uploads/") {
+		return u.ProfilePhoto
+	}
+	if strings.HasPrefix(u.ProfilePhoto, "profiles/") {
+		return "/uploads/" + u.ProfilePhoto
+	}
+	return "/uploads/profiles/" + u.ProfilePhoto
+}
+
+// CoverPhotoURL returns the browser-loadable URL for the user's cover photo.
+// Supports external URLs (Cloudinary/S3/CDN), already-prefixed paths, and local upload paths.
+func (u User) CoverPhotoURL() string {
+	if u.CoverPhoto == "" {
+		return ""
+	}
+	if strings.HasPrefix(u.CoverPhoto, "http://") || strings.HasPrefix(u.CoverPhoto, "https://") {
+		return u.CoverPhoto
+	}
+	if cdn := getMediaBaseURL(); cdn != "" {
+		rel := u.CoverPhoto
+		if !strings.HasPrefix(rel, "covers/") && !strings.HasPrefix(rel, "/uploads/covers/") {
+			rel = "covers/" + rel
+		}
+		rel = strings.TrimPrefix(rel, "/uploads/")
+		return cdn + "/" + rel
+	}
+	if strings.HasPrefix(u.CoverPhoto, "/uploads/") {
+		return u.CoverPhoto
+	}
+	if strings.HasPrefix(u.CoverPhoto, "covers/") {
+		return "/uploads/" + u.CoverPhoto
+	}
+	return "/uploads/covers/" + u.CoverPhoto
 }

@@ -19,9 +19,19 @@
         {{if .User.ProfilePhoto}}
 
         <img
-            src="/uploads/profiles/{{.User.ProfilePhoto}}"
+            src="{{.User.ProfilePhotoURL}}"
+            alt="{{.User.FullName}}"
             class="rounded-circle border"
-            style="width:50px;height:50px;object-fit:cover;">
+            style="width:50px;height:50px;object-fit:cover;"
+            onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('d-none');">
+
+        <div
+            class="rounded-circle bg-success text-white d-none justify-content-center align-items-center fw-bold"
+            style="width:50px;height:50px;">
+
+            {{.User.Initials}}
+
+        </div>
 
         {{else}}
 
@@ -91,7 +101,8 @@
                 alt="Post photo"
                 class="img-fluid w-100"
                 style="max-height: 520px; object-fit: contain; background-color: rgba(0,0,0,0.02);"
-                loading="lazy">
+                loading="lazy"
+                onerror="this.closest('.post-image-container').style.display='none';">
         </div>
         {{end}}
 

@@ -119,6 +119,69 @@ func TestPostVideoURL(t *testing.T) {
 	}
 }
 
+func TestUserProfilePhotoURL(t *testing.T) {
+	cases := []struct {
+		name     string
+		photo    string
+		expected string
+	}{
+		{
+			name:     "empty photo",
+			photo:    "",
+			expected: "",
+		},
+		{
+			name:     "bare filename",
+			photo:    "profile_1_123.jpg",
+			expected: "/uploads/profiles/profile_1_123.jpg",
+		},
+		{
+			name:     "profiles prefixed",
+			photo:    "profiles/profile_1_123.jpg",
+			expected: "/uploads/profiles/profile_1_123.jpg",
+		},
+		{
+			name:     "already full uploads prefixed",
+			photo:    "/uploads/profiles/profile_1_123.jpg",
+			expected: "/uploads/profiles/profile_1_123.jpg",
+		},
+		{
+			name:     "external Cloudinary URL",
+			photo:    "https://res.cloudinary.com/diocesan/image/upload/v1234/avatar.png",
+			expected: "https://res.cloudinary.com/diocesan/image/upload/v1234/avatar.png",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			u := models.User{ProfilePhoto: tc.photo}
+			if got := u.ProfilePhotoURL(); got != tc.expected {
+				t.Errorf("ProfilePhotoURL() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestMediaURLs_WithCDNConfigured(t *testing.T) {
+	t.Setenv("S3_PUBLIC_URL", "https://media.youthcommunity.org")
+
+	p := models.Post{
+		Image: "posts/banner.jpg",
+		Video: "posts/sermon.mp4",
+	}
+	if p.ImageURL() != "https://media.youthcommunity.org/posts/banner.jpg" {
+		t.Errorf("Expected CDN image URL, got %s", p.ImageURL())
+	}
+	if p.VideoURL() != "https://media.youthcommunity.org/posts/sermon.mp4" {
+		t.Errorf("Expected CDN video URL, got %s", p.VideoURL())
+	}
+
+	u := models.User{ProfilePhoto: "profiles/avatar.jpg"}
+	if u.ProfilePhotoURL() != "https://media.youthcommunity.org/profiles/avatar.jpg" {
+		t.Errorf("Expected CDN profile photo URL, got %s", u.ProfilePhotoURL())
+	}
+}
+
 func TestGetAllPosts_And_GetPostsByUser_WithNullableColumns(t *testing.T) {
 	cleanup := setupPostTestDB(t)
 	defer cleanup()

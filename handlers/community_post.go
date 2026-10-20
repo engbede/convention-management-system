@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -52,12 +53,16 @@ func CreateCommunityPost(
 		return
 	}
 
-	// Bound max request body to 55 MB (allows 50 MB video plus multipart overhead)
-	r.Body = http.MaxBytesReader(w, r.Body, 55<<20)
+	// Bound max request body based on configured maximum video size (default 500 MB) + 25 MB overhead
+	maxVideoBytes := utils.GetMaxVideoUploadSize()
+	maxBodyBytes := maxVideoBytes + (25 << 20)
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
+	// Keep memory buffer lean at 16 MB so server RAM is conserved while streaming to disk
+	if err := r.ParseMultipartForm(16 << 20); err != nil {
 		log.Println("ParseMultipartForm error:", err)
-		returnCommunityPostError(w, r, "Upload exceeds the maximum allowed size of 50 MB or request structure is invalid", http.StatusBadRequest)
+		errMsg := fmt.Sprintf("Upload exceeds the maximum allowed size of %d MB or request structure is invalid", utils.GetMaxVideoUploadSizeMB())
+		returnCommunityPostError(w, r, errMsg, http.StatusBadRequest)
 		return
 	}
 

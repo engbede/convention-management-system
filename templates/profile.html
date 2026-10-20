@@ -15,9 +15,11 @@
             {{if .User.CoverPhoto}}
 
 <img
-    src="/uploads/covers/{{.User.CoverPhoto}}"
+    src="{{.User.CoverPhotoURL}}"
+    alt="Cover Photo"
     class="w-100"
-    style="height:280px;object-fit:cover;">
+    style="height:280px;object-fit:cover;"
+    onerror="this.style.display='none';">
 
 {{else}}
 
@@ -60,7 +62,10 @@
             <div class="profile-avatar position-relative d-inline-block" style="margin-top:-80px; z-index:10;">
                 <button type="button" class="btn p-0 border-0 bg-transparent position-relative" data-bs-toggle="modal" data-bs-target="#facialVerificationModal" title="Update and Verify Profile Photo">
                     {{if .User.ProfilePhoto}}
-                    <img src="/uploads/profiles/{{.User.ProfilePhoto}}" class="rounded-circle border border-4 border-white shadow-sm" style="width:160px;height:160px;object-fit:cover;">
+                    <img src="{{.User.ProfilePhotoURL}}" alt="{{.User.FullName}}" class="rounded-circle border border-4 border-white shadow-sm" style="width:160px;height:160px;object-fit:cover;" onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('d-none');">
+                    <div class="rounded-circle bg-success text-white border border-4 border-white shadow-sm d-none justify-content-center align-items-center fw-bold" style="width:160px;height:160px;font-size:56px;">
+                        {{.User.Initials}}
+                    </div>
                     {{else}}
                     <div class="rounded-circle bg-success text-white border border-4 border-white shadow-sm d-flex justify-content-center align-items-center fw-bold" style="width:160px;height:160px;font-size:56px;">
                         {{.User.Initials}}

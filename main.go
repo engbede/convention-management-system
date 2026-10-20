@@ -9,6 +9,7 @@ import (
 
 	"convention-management-system/database"
 	"convention-management-system/routes"
+	"convention-management-system/services"
 )
 
 func main() {
@@ -36,6 +37,9 @@ func main() {
 	if err := database.SeedConvention(); err != nil {
 		log.Fatal(err)
 	}
+
+	// Non-destructive startup media durability audit & synchronization
+	services.AutoSyncEmbeddedMedia(database.DB)
 
 	mux := http.NewServeMux()
 	routes.RegisterRoutes(mux)

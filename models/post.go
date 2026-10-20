@@ -1,9 +1,19 @@
 package models
 
 import (
+	"os"
 	"strings"
 	"time"
 )
+
+func getMediaBaseURL() string {
+	for _, env := range []string{"S3_PUBLIC_URL", "MEDIA_BASE_URL", "CLOUDINARY_URL", "CDN_URL"} {
+		if val := strings.TrimSpace(os.Getenv(env)); val != "" {
+			return strings.TrimSuffix(val, "/")
+		}
+	}
+	return ""
+}
 
 type Post struct {
 	ID int
@@ -55,24 +65,36 @@ type ReactionCountItem struct {
 }
 
 // ImageURL returns the full, browser-loadable URL for the post image.
-// Supports external URLs (Cloudinary/S3), already-prefixed paths, and local upload paths.
+// Supports external URLs (Cloudinary/S3/CDN), already-prefixed paths, and local upload paths.
 func (p Post) ImageURL() string {
 	if p.Image == "" {
 		return ""
 	}
-	if strings.HasPrefix(p.Image, "http://") || strings.HasPrefix(p.Image, "https://") || strings.HasPrefix(p.Image, "/uploads/") {
+	if strings.HasPrefix(p.Image, "http://") || strings.HasPrefix(p.Image, "https://") {
+		return p.Image
+	}
+	if cdn := getMediaBaseURL(); cdn != "" {
+		return cdn + "/" + strings.TrimPrefix(p.Image, "/")
+	}
+	if strings.HasPrefix(p.Image, "/uploads/") {
 		return p.Image
 	}
 	return "/uploads/" + p.Image
 }
 
 // VideoURL returns the full, browser-loadable URL for the post video.
-// Supports external URLs, already-prefixed paths, and local upload paths.
+// Supports external URLs (Cloudinary/S3/CDN), already-prefixed paths, and local upload paths.
 func (p Post) VideoURL() string {
 	if p.Video == "" {
 		return ""
 	}
-	if strings.HasPrefix(p.Video, "http://") || strings.HasPrefix(p.Video, "https://") || strings.HasPrefix(p.Video, "/uploads/") {
+	if strings.HasPrefix(p.Video, "http://") || strings.HasPrefix(p.Video, "https://") {
+		return p.Video
+	}
+	if cdn := getMediaBaseURL(); cdn != "" {
+		return cdn + "/" + strings.TrimPrefix(p.Video, "/")
+	}
+	if strings.HasPrefix(p.Video, "/uploads/") {
 		return p.Video
 	}
 	return "/uploads/" + p.Video

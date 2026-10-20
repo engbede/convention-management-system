@@ -93,7 +93,7 @@ func UploadProfilePhoto(
 			return
 		}
 
-		destDir := "uploads/profiles"
+		destDir := filepath.Join(utils.GetUploadBaseDir(), "profiles")
 		if err := os.MkdirAll(destDir, 0755); err != nil {
 			returnPhotoError(w, r, "Failed creating directory", http.StatusInternalServerError)
 			return
@@ -104,6 +104,11 @@ func UploadProfilePhoto(
 		if err := os.WriteFile(fullPath, decodedBytes, 0644); err != nil {
 			returnPhotoError(w, r, "Failed saving captured photo", http.StatusInternalServerError)
 			return
+		}
+		// Also write to local uploads/profiles if distinct, ensuring local fallback availability
+		if utils.GetUploadBaseDir() != "uploads" {
+			_ = os.MkdirAll("uploads/profiles", 0755)
+			_ = os.WriteFile(filepath.Join("uploads/profiles", savedFilename), decodedBytes, 0644)
 		}
 	} else {
 		// 2. Standard Multipart File Upload (Accessible Fallback)

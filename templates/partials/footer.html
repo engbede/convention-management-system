@@ -23,6 +23,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
     let currentMediaUrl = null;
 
+    function formatBytes(bytes) {
+        if (!bytes || bytes <= 0) return "0 B";
+        const k = 1024;
+        const sizes = ["B", "KB", "MB", "GB"];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
+    }
+
     function showError(msg) {
         if (errorText && errorAlert) {
             errorText.textContent = msg;
@@ -153,8 +161,8 @@ document.addEventListener("DOMContentLoaded", function () {
             // Clear image selection if video is selected
             if (imageInput) imageInput.value = "";
 
-            if (file.size > 50 * 1024 * 1024) {
-                showError("Video size must not exceed 50 MB.");
+            if (file.size > 500 * 1024 * 1024) {
+                showError("Video size must not exceed 500 MB (" + formatBytes(file.size) + " selected).");
                 this.value = "";
                 return;
             }
@@ -200,13 +208,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            if (hasVideo && videoInput.files[0].size > 50 * 1024 * 1024) {
-                showError("Selected video exceeds the 50 MB size limit.");
+            if (hasVideo && videoInput.files[0].size > 500 * 1024 * 1024) {
+                showError("Selected video exceeds the 500 MB size limit (" + formatBytes(videoInput.files[0].size) + " selected).");
                 return;
             }
 
-            if (hasImage && imageInput.files[0].size > 5 * 1024 * 1024) {
-                showError("Selected image exceeds the 5 MB size limit.");
+            if (hasImage && imageInput.files[0].size > 10 * 1024 * 1024) {
+                showError("Selected image exceeds the 10 MB size limit.");
                 return;
             }
 
@@ -217,7 +225,7 @@ document.addEventListener("DOMContentLoaded", function () {
             xhr.open("POST", form.action || "/community/post", true);
             xhr.setRequestHeader("Accept", "application/json");
             xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-            xhr.timeout = 120000; // 2 minute bounded timeout
+            xhr.timeout = 900000; // 15 minute bounded timeout for long-form video uploads
 
             if (xhr.upload) {
                 xhr.upload.onprogress = function (event) {
@@ -232,10 +240,10 @@ document.addEventListener("DOMContentLoaded", function () {
                         }
                         if (progressStatus) {
                             if (pct < 100) {
-                                progressStatus.textContent = `Uploading media (${pct}%)...`;
+                                progressStatus.textContent = `Uploading media (${pct}% • ${formatBytes(event.loaded)} / ${formatBytes(event.total)})...`;
                             } else {
-                                progressStatus.textContent = "Processing and finalizing publication...";
-                                if (submitText) submitText.textContent = "Processing...";
+                                progressStatus.textContent = "Finalizing upload and verifying video stream on server...";
+                                if (submitText) submitText.textContent = "Finalizing...";
                             }
                         }
                     }
@@ -283,7 +291,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             xhr.ontimeout = function () {
                 setSubmittingState(false);
-                showError("Upload timed out after 2 minutes. Please verify your connection or try a smaller video.");
+                showError("Upload timed out after 15 minutes. Please verify your connection or consider compressing your video.");
             };
 
             xhr.onabort = function () {

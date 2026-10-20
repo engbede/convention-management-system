@@ -4,12 +4,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -49,6 +51,24 @@ func GetUploadBaseDir() string {
 		return "/var/data/uploads"
 	}
 	return "uploads"
+}
+
+// GetMaxVideoUploadSize returns the maximum allowed video upload size in bytes.
+// Defaults to 500 MB (500 * 1024 * 1024 bytes) to accommodate full church programmes,
+// worship conventions, sermons, and Bible studies.
+// Can be customized via MAX_VIDEO_SIZE_MB environment variable.
+func GetMaxVideoUploadSize() int64 {
+	if mbStr := strings.TrimSpace(os.Getenv("MAX_VIDEO_SIZE_MB")); mbStr != "" {
+		if mb, err := strconv.ParseInt(mbStr, 10, 64); err == nil && mb > 0 {
+			return mb * 1024 * 1024
+		}
+	}
+	return 500 * 1024 * 1024 // 500 MB default
+}
+
+// GetMaxVideoUploadSizeMB returns the maximum allowed video upload size in megabytes.
+func GetMaxVideoUploadSizeMB() int64 {
+	return GetMaxVideoUploadSize() / (1024 * 1024)
 }
 
 func resolveDestination(destination string) string {
@@ -137,14 +157,31 @@ func SaveUploadedFile(
 
 	_, err = io.Copy(dst, file)
 	if err != nil {
+		_ = os.Remove(path)
 		return "", err
+	}
+
+	// Mirror to S3-compatible cloud object storage when configured
+	if IsObjectStorageEnabled() {
+		if f, oErr := os.Open(path); oErr == nil {
+			defer f.Close()
+			s3Key := filename
+			if strings.Contains(destination, "profiles") {
+				s3Key = "profiles/" + filename
+			} else if strings.Contains(destination, "covers") {
+				s3Key = "covers/" + filename
+			} else if strings.Contains(destination, "posts") {
+				s3Key = "posts/" + filename
+			}
+			_, _ = UploadToObjectStorage(s3Key, f, header.Size, contentType)
+		}
 	}
 
 	return filename, nil
 }
 
 // SaveUploadedVideo validates and stores an uploaded video file for community posts.
-// Supports mp4, webm, mov, mkv, and avi videos up to 50 MB.
+// Supports mp4, webm, mov, mkv, and avi videos up to the configured limit (default 500 MB).
 func SaveUploadedVideo(
 	file multipart.File,
 	header *multipart.FileHeader,
@@ -157,14 +194,14 @@ func SaveUploadedVideo(
 
 	destination = resolveDestination(destination)
 
-	const maxFileSize = 50 * 1024 * 1024 // 50 MB
+	maxFileSize := GetMaxVideoUploadSize()
 
 	if header.Size <= 0 {
 		return "", errors.New("video file is empty")
 	}
 
 	if header.Size > maxFileSize {
-		return "", errors.New("video size must not exceed 50 MB")
+		return "", fmt.Errorf("video size must not exceed %d MB", GetMaxVideoUploadSizeMB())
 	}
 
 	ext := strings.ToLower(
@@ -216,7 +253,8 @@ func SaveUploadedVideo(
 		return "", err
 	}
 
-	_, copyErr := io.Copy(dst, file)
+	copyBuf := make([]byte, 64*1024)
+	_, copyErr := io.CopyBuffer(dst, file, copyBuf)
 	closeErr := dst.Close()
 	if copyErr != nil {
 		_ = os.Remove(path)
@@ -227,6 +265,18 @@ func SaveUploadedVideo(
 		return "", closeErr
 	}
 
+	// Mirror to S3-compatible cloud object storage when configured
+	if IsObjectStorageEnabled() {
+		if f, oErr := os.Open(path); oErr == nil {
+			defer f.Close()
+			s3Key := filename
+			if strings.Contains(destination, "posts") {
+				s3Key = "posts/" + filename
+			}
+			_, _ = UploadToObjectStorage(s3Key, f, header.Size, contentType)
+		}
+	}
+
 	return filename, nil
 }
 
@@ -235,13 +285,19 @@ func DeleteFile(path string) error {
 	if path == "" {
 		return nil
 	}
-	path = resolveDestination(path)
+	resolvedPath := resolveDestination(path)
 
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if IsObjectStorageEnabled() {
+		s3Key := strings.TrimPrefix(path, "uploads/")
+		s3Key = strings.TrimPrefix(s3Key, "/")
+		_ = DeleteFromObjectStorage(s3Key)
+	}
+
+	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 		return nil
 	}
 
-	return os.Remove(path)
+	return os.Remove(resolvedPath)
 }
 
 var allowedChatExtensions = map[string]string{
