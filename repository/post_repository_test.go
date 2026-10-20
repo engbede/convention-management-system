@@ -76,6 +76,49 @@ func TestPostImageURL(t *testing.T) {
 	}
 }
 
+func TestPostVideoURL(t *testing.T) {
+	cases := []struct {
+		name     string
+		video    string
+		expected string
+	}{
+		{
+			name:     "empty video",
+			video:    "",
+			expected: "",
+		},
+		{
+			name:     "standard relative upload",
+			video:    "posts/clip123.mp4",
+			expected: "/uploads/posts/clip123.mp4",
+		},
+		{
+			name:     "already prefixed uploads",
+			video:    "/uploads/posts/clip123.mp4",
+			expected: "/uploads/posts/clip123.mp4",
+		},
+		{
+			name:     "external Cloudinary URL",
+			video:    "https://res.cloudinary.com/diocesan/video/upload/v1234/test.mp4",
+			expected: "https://res.cloudinary.com/diocesan/video/upload/v1234/test.mp4",
+		},
+		{
+			name:     "external HTTP URL",
+			video:    "http://example.com/video.mp4",
+			expected: "http://example.com/video.mp4",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := models.Post{Video: tc.video}
+			if got := p.VideoURL(); got != tc.expected {
+				t.Errorf("VideoURL() = %q, want %q", got, tc.expected)
+			}
+		})
+	}
+}
+
 func TestGetAllPosts_And_GetPostsByUser_WithNullableColumns(t *testing.T) {
 	cleanup := setupPostTestDB(t)
 	defer cleanup()

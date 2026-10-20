@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
 	"strings"
@@ -11,54 +12,105 @@ import (
 	"convention-management-system/utils"
 )
 
+func isCommunityPostAPIRequest(r *http.Request) bool {
+	return r.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
+		strings.Contains(r.Header.Get("Accept"), "application/json") ||
+		strings.Contains(r.Header.Get("Content-Type"), "application/json")
+}
+
+func returnCommunityPostError(w http.ResponseWriter, r *http.Request, message string, status int) {
+	if isCommunityPostAPIRequest(r) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(status)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   message,
+		})
+		return
+	}
+	http.Error(w, message, status)
+}
+
 func CreateCommunityPost(
 	w http.ResponseWriter,
 	r *http.Request,
 ) {
-
 	if r.Method != http.MethodPost {
-
 		http.Redirect(
 			w,
 			r,
 			"/community",
 			http.StatusSeeOther,
 		)
-
 		return
 	}
 
 	session, _ := sessions.Store.Get(r, "youth-community")
-
-	log.Println("Session values:", session.Values)
-
 	userID, ok := session.Values["user_id"].(int)
-	if !ok {
-		http.Error(w, "User session is invalid", http.StatusUnauthorized)
+	if !ok || userID <= 0 {
+		returnCommunityPostError(w, r, "User session is invalid", http.StatusUnauthorized)
 		return
 	}
 
-	_ = r.ParseMultipartForm(10 << 20) // 10 MB
+	// Bound max request body to 55 MB (allows 50 MB video plus multipart overhead)
+	r.Body = http.MaxBytesReader(w, r.Body, 55<<20)
+
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		log.Println("ParseMultipartForm error:", err)
+		returnCommunityPostError(w, r, "Upload exceeds the maximum allowed size of 50 MB or request structure is invalid", http.StatusBadRequest)
+		return
+	}
 
 	content := strings.TrimSpace(r.FormValue("content"))
 	visibility := strings.TrimSpace(r.FormValue("visibility"))
-	if visibility == "" {
+	switch visibility {
+	case "public", "members", "private":
+	default:
 		visibility = "public"
 	}
 
 	var imageName string
-	file, header, err := r.FormFile("image")
-	if err == nil && file != nil && header != nil {
-		savedName, saveErr := utils.SaveUploadedFile(file, header, "uploads/posts")
-		if saveErr != nil {
-			log.Println("Image upload warning:", saveErr)
-		} else {
+	imgFile, imgHeader, imgErr := r.FormFile("image")
+	if imgErr == nil && imgFile != nil && imgHeader != nil {
+		if imgHeader.Size > 0 {
+			savedName, saveErr := utils.SaveUploadedFile(imgFile, imgHeader, "uploads/posts")
+			if saveErr != nil {
+				log.Println("Image upload error:", saveErr)
+				returnCommunityPostError(w, r, saveErr.Error(), http.StatusBadRequest)
+				return
+			}
 			imageName = "posts/" + savedName
+		} else {
+			_ = imgFile.Close()
 		}
+	} else if imgFile != nil {
+		_ = imgFile.Close()
 	}
 
-	if content == "" && imageName == "" {
-		http.Redirect(w, r, "/community", http.StatusSeeOther)
+	var videoName string
+	vidFile, vidHeader, vidErr := r.FormFile("video")
+	if vidErr == nil && vidFile != nil && vidHeader != nil {
+		if vidHeader.Size > 0 {
+			savedName, saveErr := utils.SaveUploadedVideo(vidFile, vidHeader, "uploads/posts")
+			if saveErr != nil {
+				log.Println("Video upload error:", saveErr)
+				// Clean up orphaned image uploaded in this request if video validation fails
+				if imageName != "" {
+					_ = utils.DeleteFile("uploads/" + imageName)
+				}
+				returnCommunityPostError(w, r, saveErr.Error(), http.StatusBadRequest)
+				return
+			}
+			videoName = "posts/" + savedName
+		} else {
+			_ = vidFile.Close()
+		}
+	} else if vidFile != nil {
+		_ = vidFile.Close()
+	}
+
+	if content == "" && imageName == "" && videoName == "" {
+		returnCommunityPostError(w, r, "Post cannot be empty. Please enter text or attach an image or video.", http.StatusBadRequest)
 		return
 	}
 
@@ -66,17 +118,36 @@ func CreateCommunityPost(
 		UserID:     userID,
 		Content:    content,
 		Image:      imageName,
+		Video:      videoName,
 		Visibility: visibility,
 	}
 
-	err = repository.CreatePost(&post)
+	err := repository.CreatePost(&post)
 	if err != nil {
 		log.Println("CreatePost error:", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Clean up newly created files so database failure does not leave orphan media
+		if imageName != "" {
+			_ = utils.DeleteFile("uploads/" + imageName)
+		}
+		if videoName != "" {
+			_ = utils.DeleteFile("uploads/" + videoName)
+		}
+		returnCommunityPostError(w, r, "Failed to publish post. Please try again.", http.StatusInternalServerError)
 		return
 	}
 
-	log.Println("Post created successfully")
+	log.Println("Post created successfully with id:", post.ID)
+
+	if isCommunityPostAPIRequest(r) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":  true,
+			"post_id":  post.ID,
+			"redirect": "/community",
+			"message":  "Post published successfully",
+		})
+		return
+	}
 
 	http.Redirect(w, r, "/community", http.StatusSeeOther)
 }

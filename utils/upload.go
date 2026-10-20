@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -12,11 +13,27 @@ import (
 	"strings"
 )
 
+func init() {
+	_ = mime.AddExtensionType(".mp4", "video/mp4")
+	_ = mime.AddExtensionType(".webm", "video/webm")
+	_ = mime.AddExtensionType(".mov", "video/quicktime")
+	_ = mime.AddExtensionType(".mkv", "video/x-matroska")
+	_ = mime.AddExtensionType(".avi", "video/x-msvideo")
+}
+
 var allowedExtensions = map[string]bool{
 	".jpg":  true,
 	".jpeg": true,
 	".png":  true,
 	".webp": true,
+}
+
+var allowedVideoExtensions = map[string]bool{
+	".mp4":  true,
+	".webm": true,
+	".mov":  true,
+	".mkv":  true,
+	".avi":  true,
 }
 
 // GetUploadBaseDir returns the configured upload root directory (default: "uploads").
@@ -121,6 +138,93 @@ func SaveUploadedFile(
 	_, err = io.Copy(dst, file)
 	if err != nil {
 		return "", err
+	}
+
+	return filename, nil
+}
+
+// SaveUploadedVideo validates and stores an uploaded video file for community posts.
+// Supports mp4, webm, mov, mkv, and avi videos up to 50 MB.
+func SaveUploadedVideo(
+	file multipart.File,
+	header *multipart.FileHeader,
+	destination string,
+) (string, error) {
+	if file == nil || header == nil {
+		return "", errors.New("no video file provided")
+	}
+	defer file.Close()
+
+	destination = resolveDestination(destination)
+
+	const maxFileSize = 50 * 1024 * 1024 // 50 MB
+
+	if header.Size <= 0 {
+		return "", errors.New("video file is empty")
+	}
+
+	if header.Size > maxFileSize {
+		return "", errors.New("video size must not exceed 50 MB")
+	}
+
+	ext := strings.ToLower(
+		filepath.Ext(header.Filename),
+	)
+
+	if !allowedVideoExtensions[ext] {
+		return "", errors.New("only mp4, webm, mov, mkv and avi videos are allowed")
+	}
+
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+
+	contentType := http.DetectContentType(buffer[:n])
+
+	// Validate content type: must be video/* or binary application/octet-stream container
+	if !strings.HasPrefix(contentType, "video/") && contentType != "application/octet-stream" {
+		return "", errors.New("uploaded file is not a valid video")
+	}
+
+	// Reset file pointer before copying
+	_, err = file.Seek(0, io.SeekStart)
+	if err != nil {
+		return "", err
+	}
+
+	random := make([]byte, 16)
+	_, err = rand.Read(random)
+	if err != nil {
+		return "", err
+	}
+
+	filename := hex.EncodeToString(random) + ext
+
+	if err := os.MkdirAll(destination, 0755); err != nil {
+		return "", err
+	}
+
+	path := filepath.Join(
+		destination,
+		filename,
+	)
+
+	dst, err := os.Create(path)
+	if err != nil {
+		return "", err
+	}
+
+	_, copyErr := io.Copy(dst, file)
+	closeErr := dst.Close()
+	if copyErr != nil {
+		_ = os.Remove(path)
+		return "", copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(path)
+		return "", closeErr
 	}
 
 	return filename, nil

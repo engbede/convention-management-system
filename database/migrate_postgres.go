@@ -365,6 +365,8 @@ CREATE TABLE IF NOT EXISTS friends (
 	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 	UNIQUE(user1_id, user2_id)
 );
+
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS video TEXT;
 `); err != nil {
 		return err
 	}

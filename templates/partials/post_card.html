@@ -96,15 +96,17 @@
         {{end}}
 
         {{if .Video}}
-
-        <video
-            controls
-            class="w-100 rounded-4 mb-3">
-
-            <source src="/uploads/{{.Video}}">
-
-        </video>
-
+        <div class="post-video-container rounded-4 overflow-hidden mb-3 bg-black text-center border" style="max-height: 520px;">
+            <video
+                controls
+                playsinline
+                preload="metadata"
+                class="w-100 rounded-4"
+                style="max-height: 520px; background-color: #000; display: block;">
+                <source src="{{.VideoURL}}">
+                Your browser does not support the video tag.
+            </video>
+        </div>
         {{end}}
 
         <!-- Statistics / Reactions Summary -->

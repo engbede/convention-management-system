@@ -19,7 +19,7 @@ func CreatePost(post *models.Post) error {
 	VALUES($1, $2, $3, $4, $5)
 	`
 
-	_, err := database.DB.Exec(
+	res, err := database.DB.Exec(
 		query,
 		post.UserID,
 		post.Content,
@@ -27,8 +27,17 @@ func CreatePost(post *models.Post) error {
 		post.Video,
 		post.Visibility,
 	)
+	if err != nil {
+		return err
+	}
 
-	return err
+	if res != nil {
+		if id, lErr := res.LastInsertId(); lErr == nil && id > 0 {
+			post.ID = int(id)
+		}
+	}
+
+	return nil
 }
 
 func GetAllPosts() ([]models.Post, error) {

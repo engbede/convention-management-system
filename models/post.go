@@ -66,3 +66,15 @@ func (p Post) ImageURL() string {
 	return "/uploads/" + p.Image
 }
 
+// VideoURL returns the full, browser-loadable URL for the post video.
+// Supports external URLs, already-prefixed paths, and local upload paths.
+func (p Post) VideoURL() string {
+	if p.Video == "" {
+		return ""
+	}
+	if strings.HasPrefix(p.Video, "http://") || strings.HasPrefix(p.Video, "https://") || strings.HasPrefix(p.Video, "/uploads/") {
+		return p.Video
+	}
+	return "/uploads/" + p.Video
+}
+
