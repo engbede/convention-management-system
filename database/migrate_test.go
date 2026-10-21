@@ -527,3 +527,49 @@ func TestLivePostgresMigration_Conditional(t *testing.T) {
 		t.Fatalf("MigratePostgres() idempotency run failed on live database: %v", err)
 	}
 }
+
+// 9. PostgreSQL COALESCE Boolean Type Compatibility
+func TestPostgresBooleanCOALESCETypeCompatibility(t *testing.T) {
+	// PostgreSQL strictly enforces type equality in COALESCE(col, fallback).
+	// For BOOLEAN columns, integer fallbacks like 0 or 1 fail with SQLSTATE 42804.
+	// Verify that repositories query boolean columns with boolean literals (FALSE/TRUE).
+	files := []string{
+		"../repository/profile_repository.go",
+		"../repository/user_repository.go",
+		"../repository/notice_active.go",
+		"../repository/post_repository.go",
+		"../repository/chat_repository.go",
+	}
+
+	for _, file := range files {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatalf("Failed to read %s: %v", file, err)
+		}
+		s := string(content)
+
+		// Check for forbidden COALESCE patterns on boolean columns
+		forbidden := []string{
+			"COALESCE(is_verified, 0)",
+			"COALESCE(is_verified, 1)",
+			"COALESCE(is_active, 0)",
+			"COALESCE(is_active, 1)",
+			"COALESCE(pinned, 0)",
+			"COALESCE(pinned, 1)",
+			"COALESCE(is_edited, 0)",
+			"COALESCE(is_edited, 1)",
+			"COALESCE(is_pinned, 0)",
+			"COALESCE(is_pinned, 1)",
+			"COALESCE(is_muted, 0)",
+			"COALESCE(is_muted, 1)",
+			"COALESCE(is_archived, 0)",
+			"COALESCE(is_archived, 1)",
+		}
+
+		for _, f := range forbidden {
+			if strings.Contains(s, f) {
+				t.Errorf("%s contains forbidden boolean-to-integer COALESCE: %q (violates PostgreSQL SQLSTATE 42804)", file, f)
+			}
+		}
+	}
+}

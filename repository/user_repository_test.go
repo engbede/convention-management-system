@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"convention-management-system/database"
 	"convention-management-system/models"
 )
 
@@ -323,5 +324,39 @@ func TestCreateUser_BaptismIntegerCompatibility(t *testing.T) {
 	}
 	if fetched.HolySpiritBaptized {
 		t.Errorf("Expected HolySpiritBaptized to be false")
+	}
+}
+
+func TestGetUserProfile_NullFieldHandlingAndBooleanParity(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Insert minimal user with NULL for all optional columns (including booleans)
+	res, err := database.DB.Exec(`
+		INSERT INTO users (full_name, username, password_hash)
+		VALUES ('Null Fields User', 'null_user', 'hash');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to insert minimal user: %v", err)
+	}
+
+	id, _ := res.LastInsertId()
+
+	profile, err := GetUserProfile(int(id))
+	if err != nil {
+		t.Fatalf("GetUserProfile failed on user with NULL fields: %v", err)
+	}
+
+	if profile.FullName != "Null Fields User" {
+		t.Errorf("Expected FullName 'Null Fields User', got %q", profile.FullName)
+	}
+	if profile.IsVerified != false {
+		t.Errorf("Expected default IsVerified=false, got %v", profile.IsVerified)
+	}
+	if profile.IsActive != true {
+		t.Errorf("Expected default IsActive=true, got %v", profile.IsActive)
+	}
+	if profile.Role != "member" {
+		t.Errorf("Expected default Role='member', got %q", profile.Role)
 	}
 }

@@ -58,8 +58,8 @@ func GetUserProfile(userID int) (*models.User, error) {
 		COALESCE(vision, ''),
 		COALESCE(favorite_quote, ''),
 
-		COALESCE(is_verified, 0),
-		COALESCE(is_active, 1),
+		COALESCE(is_verified, FALSE),
+		COALESCE(is_active, TRUE),
 
 		COALESCE(followers, 0),
 		COALESCE(following, 0),

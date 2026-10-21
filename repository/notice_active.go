@@ -14,7 +14,7 @@ func GetActiveNotices() ([]models.Notice, error) {
 			message,
 			audience,
 			priority,
-			COALESCE(pinned, 0),
+			COALESCE(pinned, FALSE),
 			COALESCE(start_date, ''),
 			COALESCE(end_date, ''),
 			COALESCE(created_by, ''),
