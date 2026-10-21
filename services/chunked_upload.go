@@ -370,6 +370,9 @@ func CompleteChunkedUpload(userID int, uploadID string) (targetKey string, final
 			}
 			sf.Close()
 		}
+	} else if !utils.IsObjectStorageEnabled() {
+		log.Printf("[Upload] Notice: video %s (%s) exceeds max durable DB size (%s) and S3 is not configured; file resides on local server filesystem",
+			session.TargetKey, utils.FormatBytes(session.FileSize), utils.FormatBytes(utils.GetMaxDurableVideoSize()))
 	}
 
 	// If cloud S3 is configured, stream final file to S3 in background/mirror

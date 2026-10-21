@@ -113,11 +113,10 @@
                 controls
                 playsinline
                 preload="metadata"
-                src="{{.VideoURL}}"
                 class="w-100 rounded-4"
                 style="max-height: 520px; background-color: #000; display: block;"
                 onerror="handleVideoPlayerError(this)">
-                <source src="{{.VideoURL}}" type="{{.VideoMimeType}}">
+                <source src="{{.VideoURL}}" type="{{.VideoMimeType}}" onerror="handleVideoPlayerError(this)">
                 Your browser does not support the video tag.
             </video>
             <div class="video-error-fallback d-none position-absolute top-50 start-50 translate-middle text-center p-3 text-white bg-dark bg-opacity-85 rounded-3 shadow" style="max-width: 90%;">

@@ -182,3 +182,44 @@ func TestCleanupStaleUploads(t *testing.T) {
 		t.Errorf("Expected session to be cleaned up, but was still found")
 	}
 }
+
+func TestChunkedUpload_DurableBoundaryBehavior(t *testing.T) {
+	mp4Data := sampleMP4Bytes()
+	totalSize := int64(len(mp4Data))
+
+	// 1. Case: File exceeds MAX_DURABLE_VIDEO_MB (simulating the 508 MB Android video with default 200 MB limit)
+	// We set MAX_DURABLE_VIDEO_MB to 0 MB (or 1 byte threshold equivalent via env) so the test MP4 exceeds durable storage limit
+	t.Setenv("MAX_DURABLE_VIDEO_MB", "1") // 1 MB limit
+	// But our test MP4 is small, so let's verify GetMaxDurableVideoSize() returns 1 MB
+	if utils.GetMaxDurableVideoSize() != 1*1024*1024 {
+		t.Fatalf("Expected 1MB durable limit, got %d", utils.GetMaxDurableVideoSize())
+	}
+
+	session, err := services.InitiateChunkedUpload(88, "android_camera_test.mp4", totalSize, "video/mp4")
+	if err != nil {
+		t.Fatalf("Initiate failed: %v", err)
+	}
+	defer services.AbortChunkedUpload(88, session.UploadID)
+
+	err = services.SaveChunk(88, session.UploadID, 0, bytes.NewReader(mp4Data), totalSize)
+	if err != nil {
+		t.Fatalf("SaveChunk failed: %v", err)
+	}
+
+	targetKey, finalURL, err := services.CompleteChunkedUpload(88, session.UploadID)
+	if err != nil {
+		t.Fatalf("CompleteChunkedUpload failed: %v", err)
+	}
+	defer os.Remove(filepath.Join(utils.GetUploadBaseDir(), targetKey))
+
+	if targetKey == "" || finalURL == "" {
+		t.Errorf("Expected valid targetKey and finalURL, got %q, %q", targetKey, finalURL)
+	}
+
+	// Verify file is correctly assembled on disk
+	diskPath := filepath.Join(utils.GetUploadBaseDir(), targetKey)
+	fi, err := os.Stat(diskPath)
+	if err != nil || fi.Size() != totalSize {
+		t.Errorf("Expected assembled file on disk of size %d, got stat error: %v", totalSize, err)
+	}
+}

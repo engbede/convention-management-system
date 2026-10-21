@@ -365,6 +365,9 @@ func SaveUploadedVideo(
 			}
 			_ = f.Close()
 		}
+	} else if MediaStorageSaver != nil && !IsObjectStorageEnabled() {
+		log.Printf("[Storage] Notice: video %s (%s) exceeds max durable DB size (%s) and S3 is not configured; file resides on local server filesystem",
+			s3Key, FormatBytes(header.Size), FormatBytes(GetMaxDurableVideoSize()))
 	}
 
 	// Mirror to S3-compatible cloud object storage when configured
