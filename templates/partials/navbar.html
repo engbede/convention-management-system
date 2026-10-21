@@ -53,9 +53,28 @@
                 </li>
 
                 <li class="nav-item mx-1">
-                    <a class="nav-link active" href="/community">
+                    <a class="nav-link nav-home" href="/community" title="Community Home">
                         <i class="bi bi-house-door-fill"></i>
                         Community
+                    </a>
+                </li>
+
+                <li class="nav-item mx-1">
+                    <a class="nav-link nav-post-feed" href="/community" title="Community Post Feed">
+                        <i class="bi bi-newspaper"></i>
+                        Post Feed
+                    </a>
+                </li>
+
+                <li class="nav-item mx-1 position-relative">
+                    <a class="nav-link nav-friends" href="/friends" title="Friends & Connections">
+                        <i class="bi bi-people-fill"></i>
+                        Friends
+                        {{if and .PendingFriendRequestsCount (gt .PendingFriendRequestsCount 0)}}
+                        <span class="badge rounded-pill bg-danger ms-1">
+                            {{.PendingFriendRequestsCount}}
+                        </span>
+                        {{end}}
                     </a>
                 </li>
 
@@ -177,6 +196,32 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const currentPath = window.location.pathname;
+    if (currentPath === "/community" || currentPath === "/community/") {
+        document.querySelectorAll(".nav-post-feed").forEach(el => el.classList.add("active", "fw-bold"));
+        document.querySelectorAll("#communitySidebarNav .nav-post-feed").forEach(el => el.classList.add("active", "fw-bold"));
+    } else if (currentPath.startsWith("/friends") || currentPath.startsWith("/friend") || currentPath === "/discover") {
+        document.querySelectorAll(".nav-friends").forEach(el => el.classList.add("active", "fw-bold"));
+        document.querySelectorAll("#communitySidebarNav .nav-friends").forEach(el => el.classList.add("active", "fw-bold"));
+    } else if (currentPath === "/profile") {
+        document.querySelectorAll("#communitySidebarNav .nav-profile").forEach(el => el.classList.add("active", "fw-bold"));
+    }
+
+    // Auto-close mobile navigation drawer/collapse when a link is tapped
+    document.querySelectorAll("#navbarMenu .nav-link").forEach(function(link) {
+        link.addEventListener("click", function() {
+            const navCollapse = document.getElementById("navbarMenu");
+            if (navCollapse && navCollapse.classList.contains("show") && typeof bootstrap !== "undefined" && bootstrap.Collapse) {
+                const bsCollapse = bootstrap.Collapse.getInstance(navCollapse) || new bootstrap.Collapse(navCollapse, { toggle: false });
+                bsCollapse.hide();
+            }
+        });
+    });
+});
+</script>
 
 <script>
 (function() {

@@ -76,6 +76,7 @@ func Discover(
 			"User":        user,
 			"Users":       users,
 			"UnreadCount": unread,
+			"ActiveNav":   "friends",
 		},
 	)
 }

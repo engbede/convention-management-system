@@ -408,6 +408,7 @@ type ChatViewData struct {
 	EligibleFriends            []User
 	UnreadCount                int
 	UnreadMessagesCount        int
+	PendingFriendRequestsCount int
 	IsActiveMuted              bool
 	ActiveMutedUntil           *time.Time
 	ActiveDisappearingDuration int

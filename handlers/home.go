@@ -6,18 +6,20 @@ import (
 
 	"convention-management-system/models"
 	"convention-management-system/repository"
+	"convention-management-system/services"
 	"convention-management-system/sessions"
 )
 
 type HomeViewData struct {
-	Convention          *models.Convention
-	AllConventions      []models.Convention
-	Notices             []models.Notice
-	CurrentUser         *models.User
-	IsLoggedIn          bool
-	IsAdmin             bool
-	UnreadMessagesCount int
-	UnreadNotifications int
+	Convention                 *models.Convention
+	AllConventions             []models.Convention
+	Notices                    []models.Notice
+	CurrentUser                *models.User
+	IsLoggedIn                 bool
+	IsAdmin                    bool
+	UnreadMessagesCount        int
+	UnreadNotifications        int
+	PendingFriendRequestsCount int
 }
 
 func Home(
@@ -65,15 +67,23 @@ func Home(
 		}
 	}
 
+	pendingFriends := 0
+	if currentUser != nil {
+		if reqs, err := services.GetPendingFriendRequests(currentUser.ID); err == nil {
+			pendingFriends = len(reqs)
+		}
+	}
+
 	data := HomeViewData{
-		Convention:          activeConvention,
-		AllConventions:      allConventions,
-		Notices:             notices,
-		CurrentUser:         currentUser,
-		IsLoggedIn:          isLoggedIn,
-		IsAdmin:             isAdmin,
-		UnreadMessagesCount: unreadMessages,
-		UnreadNotifications: unreadNotifications,
+		Convention:                 activeConvention,
+		AllConventions:             allConventions,
+		Notices:                    notices,
+		CurrentUser:                currentUser,
+		IsLoggedIn:                 isLoggedIn,
+		IsAdmin:                    isAdmin,
+		UnreadMessagesCount:        unreadMessages,
+		UnreadNotifications:        unreadNotifications,
+		PendingFriendRequestsCount: pendingFriends,
 	}
 
 	Render(

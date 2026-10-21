@@ -76,6 +76,10 @@ func FriendsDashboard(
 			"Outgoing": outgoing,
 
 			"UnreadCount": unread,
+
+			"PendingFriendRequestsCount": len(incoming),
+
+			"ActiveNav": "friends",
 		},
 	)
 }

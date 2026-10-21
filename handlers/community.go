@@ -23,6 +23,7 @@ func Community(
 	}
 
 	unread := 0
+	pendingRequestsCount := 0
 	var viewerUserID int
 
 	session, _ := sessions.Store.Get(
@@ -33,15 +34,20 @@ func Community(
 	if userID, ok := session.Values["user_id"].(int); ok {
 		viewerUserID = userID
 		unread, _ = services.CountUnreadNotifications(userID)
+		if pending, pErr := services.GetPendingFriendRequests(userID); pErr == nil {
+			pendingRequestsCount = len(pending)
+		}
 	}
 
 	sidebarData, _ := services.GetCommunitySidebarData(viewerUserID, false)
 
 	data := map[string]any{
-		"Posts":         posts,
-		"UnreadCount":   unread,
-		"Sidebar":       sidebarData,
-		"CurrentUserID": viewerUserID,
+		"Posts":                      posts,
+		"UnreadCount":                unread,
+		"Sidebar":                    sidebarData,
+		"CurrentUserID":              viewerUserID,
+		"PendingFriendRequestsCount": pendingRequestsCount,
+		"ActiveNav":                  "feed",
 	}
 
 	Render(

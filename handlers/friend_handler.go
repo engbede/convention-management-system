@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"convention-management-system/services"
 	"convention-management-system/sessions"
@@ -128,10 +129,14 @@ func AcceptFriendRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	target := "/friends"
+	if ref := r.Header.Get("Referer"); ref != "" && strings.Contains(ref, "friend-requests") {
+		target = "/friend-requests"
+	}
 	http.Redirect(
 		w,
 		r,
-		"/friend-requests",
+		target,
 		http.StatusSeeOther,
 	)
 }
@@ -169,10 +174,14 @@ func DeclineFriendRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	target := "/friends"
+	if ref := r.Header.Get("Referer"); ref != "" && strings.Contains(ref, "friend-requests") {
+		target = "/friend-requests"
+	}
 	http.Redirect(
 		w,
 		r,
-		"/friend-requests",
+		target,
 		http.StatusSeeOther,
 	)
 }
@@ -285,10 +294,20 @@ func RemoveFriend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if username := r.FormValue("username"); username != "" {
+		http.Redirect(
+			w,
+			r,
+			"/user/"+username,
+			http.StatusSeeOther,
+		)
+		return
+	}
+
 	http.Redirect(
 		w,
 		r,
-		"/user/"+r.FormValue("username"),
+		"/friends",
 		http.StatusSeeOther,
 	)
 }

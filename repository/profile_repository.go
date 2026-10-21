@@ -13,9 +13,9 @@ func GetUserProfile(userID int) (*models.User, error) {
 		id,
 		full_name,
 		username,
-		email,
-		phone,
-		role,
+		COALESCE(email, ''),
+		COALESCE(phone, ''),
+		COALESCE(role, 'member'),
 
 		COALESCE(bio, ''),
 		COALESCE(gender, ''),
@@ -42,8 +42,8 @@ func GetUserProfile(userID int) (*models.User, error) {
 		COALESCE(calling, ''),
 		COALESCE(spiritual_gifts, ''),
 
-		water_baptized,
-		holy_spirit_baptized,
+		COALESCE(water_baptized, 0),
+		COALESCE(holy_spirit_baptized, 0),
 
 		COALESCE(favorite_preacher, ''),
 		COALESCE(favorite_christian_book, ''),
@@ -58,11 +58,11 @@ func GetUserProfile(userID int) (*models.User, error) {
 		COALESCE(vision, ''),
 		COALESCE(favorite_quote, ''),
 
-		is_verified,
-		is_active,
+		COALESCE(is_verified, 0),
+		COALESCE(is_active, 1),
 
-		followers,
-		following,
+		COALESCE(followers, 0),
+		COALESCE(following, 0),
 
 		created_at,
 		updated_at

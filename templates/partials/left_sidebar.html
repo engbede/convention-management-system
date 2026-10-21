@@ -72,90 +72,88 @@
 
             <hr>
 
-            <div class="list-group list-group-flush">
+            <div class="list-group list-group-flush" id="communitySidebarNav">
 
                 <a href="/community"
-                    class="list-group-item list-group-item-action border-0">
+                    class="list-group-item list-group-item-action border-0 nav-home py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">🏠</span> <span>Home</span>
+                </a>
 
-                    🏠 Home
+                <a href="/community"
+                    class="list-group-item list-group-item-action border-0 nav-post-feed py-2 d-flex align-items-center {{if eq .ActiveNav "feed"}}active fw-bold{{end}}"
+                    title="Youth Community Post Feed">
+                    <i class="bi bi-newspaper me-2 text-primary fs-5"></i> <span>Post Feed</span>
+                </a>
 
+                <a href="/friends"
+                    class="list-group-item list-group-item-action border-0 nav-friends py-2 d-flex align-items-center justify-content-between {{if eq .ActiveNav "friends"}}active fw-bold{{end}}"
+                    title="Friends & Connections">
+                    <span class="d-flex align-items-center">
+                        <i class="bi bi-people-fill me-2 text-info fs-5"></i> <span>Friends</span>
+                    </span>
+                    {{if and .PendingFriendRequestsCount (gt .PendingFriendRequestsCount 0)}}
+                    <span class="badge bg-danger rounded-pill px-2 py-1 small" title="{{.PendingFriendRequestsCount}} pending friend requests">{{.PendingFriendRequestsCount}}</span>
+                    {{end}}
                 </a>
 
                 <a href="/profile"
-                    class="list-group-item list-group-item-action border-0">
-
-                    👤 My Profile
-
+                    class="list-group-item list-group-item-action border-0 nav-profile py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">👤</span> <span>My Profile</span>
                 </a>
 
                 <a href="/groups"
-                    class="list-group-item list-group-item-action border-0">
-
-                    👥 Groups
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">👥</span> <span>Groups</span>
                 </a>
 
                 <a href="/messages"
-                    class="list-group-item list-group-item-action border-0">
-
-                    💬 Messages
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center justify-content-between">
+                    <span class="d-flex align-items-center">
+                        <span class="fs-5 me-2">💬</span> <span>Messages</span>
+                    </span>
+                    {{if .UnreadMessagesCount}}
+                    <span class="badge bg-danger rounded-pill">{{.UnreadMessagesCount}}</span>
+                    {{end}}
                 </a>
 
                 <a href="/events"
-                    class="list-group-item list-group-item-action border-0">
-
-                    📅 Events
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">📅</span> <span>Events</span>
                 </a>
 
                 <a href="/programmes"
-                    class="list-group-item list-group-item-action border-0 fw-semibold text-success">
-
-                    📺 Live & Programmes
-
+                    class="list-group-item list-group-item-action border-0 fw-semibold text-success py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">📺</span> <span>Live & Programmes</span>
                 </a>
 
                 <a href="/prayer"
-                    class="list-group-item list-group-item-action border-0">
-
-                    🙏 Prayer Meetings
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">🙏</span> <span>Prayer Meetings</span>
                 </a>
 
                 <a href="/bible-study"
-                    class="list-group-item list-group-item-action border-0">
-
-                    📖 Bible Study
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">📖</span> <span>Bible Study</span>
                 </a>
 
                 <a href="/announcements"
-                    class="list-group-item list-group-item-action border-0">
-
-                    📢 Announcements
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">📢</span> <span>Announcements</span>
                 </a>
 
                 <a href="/publications"
-                    class="list-group-item list-group-item-action border-0">
-
-                    📰 Publications
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">📰</span> <span>Publications</span>
                 </a>
 
                 <a href="/saved"
-                    class="list-group-item list-group-item-action border-0">
-
-                    ⭐ Saved Posts
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">⭐</span> <span>Saved Posts</span>
                 </a>
 
                 <a href="/settings"
-                    class="list-group-item list-group-item-action border-0">
-
-                    ⚙ Settings
-
+                    class="list-group-item list-group-item-action border-0 py-2 d-flex align-items-center">
+                    <span class="fs-5 me-2">⚙</span> <span>Settings</span>
                 </a>
 
             </div>

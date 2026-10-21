@@ -79,7 +79,7 @@ func GetFriends(userID int) ([]models.Friend, error) {
 		u.id,
 		u.full_name,
 		u.username,
-		u.profile_photo
+		COALESCE(u.profile_photo, '')
 
 	FROM friends f
 
@@ -205,7 +205,7 @@ func GetMutualFriends(user1ID, user2ID int) ([]models.User, error) {
 		u.id,
 		u.full_name,
 		u.username,
-		u.profile_photo
+		COALESCE(u.profile_photo, '')
 
 	FROM users u
 
@@ -298,7 +298,7 @@ func GetPendingFriendRequests(userID int) ([]models.FriendRequest, error) {
 		u.id,
 		u.full_name,
 		u.username,
-		u.profile_photo
+		COALESCE(u.profile_photo, '')
 
 	FROM friend_requests fr
 

@@ -170,6 +170,11 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 
 	hasAcceptedTerms, activeTermsVer, _, _ := services.CheckTermsAcceptance(currentUserID)
 
+	pendingFriendsCount := 0
+	if reqs, err := services.GetPendingFriendRequests(currentUserID); err == nil {
+		pendingFriendsCount = len(reqs)
+	}
+
 	data := models.ChatViewData{
 		CurrentUser:                currentUser,
 		Error:                      inboxError,
@@ -187,6 +192,7 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 		EligibleFriends:            eligibleFriends,
 		UnreadCount:                unreadNotifications,
 		UnreadMessagesCount:        unreadMsgs,
+		PendingFriendRequestsCount: pendingFriendsCount,
 		IsActiveMuted:              isActiveMuted,
 		ActiveMutedUntil:           activeMutedUntil,
 		ActiveDisappearingDuration: activeDisappearingDuration,

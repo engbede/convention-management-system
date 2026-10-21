@@ -32,7 +32,7 @@ func GetPendingFriendRequests(userID int) ([]models.FriendRequest, error) {
 		u.id,
 		u.full_name,
 		u.username,
-		u.profile_photo
+		COALESCE(u.profile_photo, '')
 
 	FROM friend_requests fr
 
@@ -110,7 +110,7 @@ func GetSentFriendRequests(userID int) ([]models.FriendRequest, error) {
 		u.id,
 		u.full_name,
 		u.username,
-		u.profile_photo
+		COALESCE(u.profile_photo, '')
 
 	FROM friend_requests fr
 

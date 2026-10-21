@@ -58,6 +58,7 @@ func Render(
 		"edit_profile.html",
 		"notifications.html",
 		"friends_dashboard.html",
+		"friend_requests.html",
 		"discover.html":
 
 		tmpl = template.Must(
@@ -72,6 +73,7 @@ func Render(
 				"templates/edit_profile.html",
 				"templates/notifications.html",
 				"templates/friends_dashboard.html",
+				"templates/friend_requests.html",
 				"templates/discover.html",
 			),
 		)

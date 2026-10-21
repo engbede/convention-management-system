@@ -13,7 +13,7 @@ func FriendRequests(w http.ResponseWriter, r *http.Request) {
 
 	userID, ok := session.Values["user_id"].(int)
 	if !ok {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+		http.Redirect(w, r, "/community/login", http.StatusSeeOther)
 		return
 	}
 
@@ -35,9 +35,11 @@ func FriendRequests(w http.ResponseWriter, r *http.Request) {
 		w,
 		"friend_requests.html",
 		map[string]any{
-			"User":        user,
-			"Requests":    requests,
-			"UnreadCount": unread,
+			"User":                       user,
+			"Requests":                   requests,
+			"UnreadCount":                unread,
+			"PendingFriendRequestsCount": len(requests),
+			"ActiveNav":                  "friends",
 		},
 	)
 }

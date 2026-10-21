@@ -448,7 +448,16 @@ func RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc(
 		"/friends",
-		handlers.FriendsDashboard,
+		middleware.RequireLogin(
+			handlers.FriendsDashboard,
+		),
+	)
+
+	mux.HandleFunc(
+		"/friend-requests",
+		middleware.RequireLogin(
+			handlers.FriendRequests,
+		),
 	)
 
 	mux.HandleFunc(
@@ -941,6 +950,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/friends/decline", handlers.DeclineFriendRequest)
 	mux.HandleFunc("/friends/cancel", handlers.CancelFriendRequest)
 	mux.HandleFunc("/friends/remove", handlers.RemoveFriend)
+
+	// Aliases for template compatibility
+	mux.HandleFunc("/friend/accept", handlers.AcceptFriendRequest)
+	mux.HandleFunc("/friend/decline", handlers.DeclineFriendRequest)
+	mux.HandleFunc("/friend/cancel", handlers.CancelFriendRequest)
+	mux.HandleFunc("/friend/remove", handlers.RemoveFriend)
 	mux.HandleFunc("/signup", handlers.ShowSignup)
 	mux.HandleFunc("/groups", middleware.RequireLogin(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/messages", http.StatusSeeOther)

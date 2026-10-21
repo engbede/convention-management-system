@@ -126,6 +126,8 @@ func TestRouteAccessibility_CommunityProtection(t *testing.T) {
 
 	communityProtectedRoutes := []string{
 		"/community",
+		"/friends",
+		"/friend-requests",
 		"/messages",
 		"/notifications",
 		"/profile",

@@ -16,62 +16,66 @@ import (
 
 // ProgrammesListViewData models template context for /programmes
 type ProgrammesListViewData struct {
-	LiveProgrammes      []models.Programme
-	UpcomingProgrammes  []models.Programme
-	PastProgrammes      []models.Programme
-	AllProgrammes       []models.Programme
-	CurrentTab          string
-	CurrentCategory     string
-	CurrentUser         *models.User
-	IsLoggedIn          bool
-	IsAdmin             bool
-	UnreadMessagesCount int
-	UnreadCount         int
-	UnreadNotifications int
+	LiveProgrammes             []models.Programme
+	UpcomingProgrammes         []models.Programme
+	PastProgrammes             []models.Programme
+	AllProgrammes              []models.Programme
+	CurrentTab                 string
+	CurrentCategory            string
+	CurrentUser                *models.User
+	IsLoggedIn                 bool
+	IsAdmin                    bool
+	UnreadMessagesCount        int
+	UnreadCount                int
+	UnreadNotifications        int
+	PendingFriendRequestsCount int
 }
 
 // ProgrammeViewData models template context for /programmes/view
 type ProgrammeViewData struct {
-	Programme           *models.Programme
-	ChatMessages        []models.ProgrammeChatMessage
-	PrayerRequests      []models.ProgrammePrayerRequest
-	Moderators          []models.ProgrammeModerator
-	CurrentUser         *models.User
-	IsLoggedIn          bool
-	IsAdmin             bool
-	CanManage           bool
-	IsModerator         bool
-	UnreadMessagesCount int
-	UnreadCount         int
-	UnreadNotifications int
-	ErrorMessage        string
-	SuccessMessage      string
+	Programme                  *models.Programme
+	ChatMessages               []models.ProgrammeChatMessage
+	PrayerRequests             []models.ProgrammePrayerRequest
+	Moderators                 []models.ProgrammeModerator
+	CurrentUser                *models.User
+	IsLoggedIn                 bool
+	IsAdmin                    bool
+	CanManage                  bool
+	IsModerator                bool
+	UnreadMessagesCount        int
+	UnreadCount                int
+	UnreadNotifications        int
+	PendingFriendRequestsCount int
+	ErrorMessage               string
+	SuccessMessage             string
 }
 
 // ProgrammeFormData models template context for /programmes/new and /programmes/edit
 type ProgrammeFormData struct {
-	Programme           *models.Programme
-	IsEdit              bool
-	CurrentUser         *models.User
-	IsLoggedIn          bool
-	IsAdmin             bool
-	UnreadMessagesCount int
-	UnreadCount         int
-	UnreadNotifications int
-	ErrorMessage        string
+	Programme                  *models.Programme
+	IsEdit                     bool
+	CurrentUser                *models.User
+	IsLoggedIn                 bool
+	IsAdmin                    bool
+	UnreadMessagesCount        int
+	UnreadCount                int
+	UnreadNotifications        int
+	PendingFriendRequestsCount int
+	ErrorMessage               string
 }
 
 // PublicLiveViewData models template context for /live public viewing page
 type PublicLiveViewData struct {
-	LiveProgramme       *models.Programme
-	NextProgramme       *models.Programme
-	ActiveConvention    *models.Convention
-	CurrentUser         *models.User
-	IsLoggedIn          bool
-	IsAdmin             bool
-	UnreadMessagesCount int
-	UnreadCount         int
-	UnreadNotifications int
+	LiveProgramme              *models.Programme
+	NextProgramme              *models.Programme
+	ActiveConvention           *models.Convention
+	CurrentUser                *models.User
+	IsLoggedIn                 bool
+	IsAdmin                    bool
+	UnreadMessagesCount        int
+	UnreadCount                int
+	UnreadNotifications        int
+	PendingFriendRequestsCount int
 }
 
 func isCurrentUserAdmin(r *http.Request) bool {
