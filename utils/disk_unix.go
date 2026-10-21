@@ -13,3 +13,4 @@ func GetAvailableDiskSpace(path string) (uint64, error) {
 	// Available blocks * block size = available bytes
 	return stat.Bavail * uint64(stat.Bsize), nil
 }
+

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -22,6 +23,15 @@ var DefaultAvatarSVG = []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="
   <circle cx="64" cy="64" r="64" fill="#198754"/>
   <circle cx="64" cy="48" r="22" fill="#ffffff" opacity="0.95"/>
   <path d="M24,112 C24,88 42,78 64,78 C86,78 104,88 104,112 Z" fill="#ffffff" opacity="0.95"/>
+</svg>`)
+
+// DefaultPostImageSVG provides a clean fallback image when a historical post image is missing.
+var DefaultPostImageSVG = []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400" width="100%" height="100%">
+  <rect width="600" height="400" fill="#f8f9fa"/>
+  <rect x="150" y="80" width="300" height="200" rx="12" fill="#e9ecef" stroke="#dee2e6" stroke-width="2"/>
+  <circle cx="210" cy="140" r="22" fill="#adb5bd"/>
+  <path d="M160,260 L240,180 L310,240 L360,200 L440,260 Z" fill="#6c757d" opacity="0.6"/>
+  <text x="300" y="320" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="14" fill="#6c757d" text-anchor="middle">Community Media Unavailable</text>
 </svg>`)
 
 // GetObjectStoragePublicBaseURL returns the configured public CDN or S3 base URL, if any.
@@ -155,15 +165,33 @@ func signS3Request(req *http.Request, cfg *S3Config, payloadHash string) {
 	req.Header.Set("x-amz-content-sha256", payloadHash)
 
 	host := req.URL.Host
-	canonicalHeaders := fmt.Sprintf("host:%s\nx-amz-content-sha256:%s\nx-amz-date:%s\n", host, payloadHash, amzDate)
-	signedHeaders := "host;x-amz-content-sha256;x-amz-date"
+	var canonicalHeaders strings.Builder
+	var signedHeaders []string
+
 	if ct := req.Header.Get("Content-Type"); ct != "" {
-		canonicalHeaders = fmt.Sprintf("content-type:%s\n%s", ct, canonicalHeaders)
-		signedHeaders = "content-type;" + signedHeaders
+		canonicalHeaders.WriteString(fmt.Sprintf("content-type:%s\n", ct))
+		signedHeaders = append(signedHeaders, "content-type")
 	}
 
+	canonicalHeaders.WriteString(fmt.Sprintf("host:%s\n", host))
+	signedHeaders = append(signedHeaders, "host")
+
+	if acl := req.Header.Get("x-amz-acl"); acl != "" {
+		canonicalHeaders.WriteString(fmt.Sprintf("x-amz-acl:%s\n", acl))
+		signedHeaders = append(signedHeaders, "x-amz-acl")
+	}
+
+	canonicalHeaders.WriteString(fmt.Sprintf("x-amz-content-sha256:%s\n", payloadHash))
+	signedHeaders = append(signedHeaders, "x-amz-content-sha256")
+
+	canonicalHeaders.WriteString(fmt.Sprintf("x-amz-date:%s\n", amzDate))
+	signedHeaders = append(signedHeaders, "x-amz-date")
+
+	signedHeadersStr := strings.Join(signedHeaders, ";")
+	canonicalHeadersStr := canonicalHeaders.String()
+
 	canonicalQuery := buildCanonicalQuery(req.URL.RawQuery)
-	canonicalReq := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s", req.Method, req.URL.Path, canonicalQuery, canonicalHeaders, signedHeaders, payloadHash)
+	canonicalReq := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s", req.Method, req.URL.Path, canonicalQuery, canonicalHeadersStr, signedHeadersStr, payloadHash)
 	canonicalHash := sha256Hex([]byte(canonicalReq))
 
 	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", dateStamp, cfg.Region)
@@ -175,7 +203,7 @@ func signS3Request(req *http.Request, cfg *S3Config, payloadHash string) {
 	kSigning := hmacSHA256(kService, "aws4_request")
 	signature := hex.EncodeToString(hmacSHA256(kSigning, stringToSign))
 
-	authHeader := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", cfg.AccessKey, credentialScope, signedHeaders, signature)
+	authHeader := fmt.Sprintf("AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s", cfg.AccessKey, credentialScope, signedHeadersStr, signature)
 	req.Header.Set("Authorization", authHeader)
 }
 
@@ -203,6 +231,7 @@ func UploadToObjectStorage(key string, reader io.Reader, size int64, contentType
 		contentType = "application/octet-stream"
 	}
 	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("x-amz-acl", "public-read")
 
 	payloadHash := sha256Hex(bodyBytes)
 	signS3Request(req, cfg, payloadHash)
@@ -288,6 +317,7 @@ func InitiateS3MultipartUpload(key, contentType string) (string, error) {
 		contentType = "application/octet-stream"
 	}
 	req.Header.Set("Content-Type", contentType)
+	req.Header.Set("x-amz-acl", "public-read")
 
 	signS3Request(req, cfg, sha256Hex([]byte("")))
 
@@ -429,3 +459,56 @@ func AbortS3MultipartUpload(key, uploadID string) error {
 	defer resp.Body.Close()
 	return nil
 }
+
+// GeneratePresignedGetURL creates a presigned GET URL with SigV4 query parameters.
+func GeneratePresignedGetURL(key string, expire time.Duration) (string, error) {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return "", errors.New("S3 object storage is not configured")
+	}
+
+	cleanKey := strings.TrimPrefix(key, "/")
+	if cfg.PublicURL != "" {
+		return fmt.Sprintf("%s/%s", cfg.PublicURL, cleanKey), nil
+	}
+
+	now := time.Now().UTC()
+	dateStamp := now.Format("20060102")
+	amzDate := now.Format("20060102T150405Z")
+	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", dateStamp, cfg.Region)
+
+	if expire <= 0 {
+		expire = 24 * time.Hour
+	}
+	expiresSec := int(expire.Seconds())
+
+	u, err := url.Parse(cfg.Endpoint)
+	if err != nil {
+		return "", err
+	}
+	host := u.Host
+
+	q := url.Values{}
+	q.Set("X-Amz-Algorithm", "AWS4-HMAC-SHA256")
+	q.Set("X-Amz-Credential", fmt.Sprintf("%s/%s", cfg.AccessKey, credentialScope))
+	q.Set("X-Amz-Date", amzDate)
+	q.Set("X-Amz-Expires", strconv.Itoa(expiresSec))
+	q.Set("X-Amz-SignedHeaders", "host")
+
+	canonicalQuery := buildCanonicalQuery(q.Encode())
+	canonicalHeaders := fmt.Sprintf("host:%s\n", host)
+	canonicalURI := fmt.Sprintf("/%s/%s", cfg.Bucket, cleanKey)
+	canonicalReq := fmt.Sprintf("GET\n%s\n%s\n%s\nhost\nUNSIGNED-PAYLOAD", canonicalURI, canonicalQuery, canonicalHeaders)
+	canonicalHash := sha256Hex([]byte(canonicalReq))
+
+	stringToSign := fmt.Sprintf("AWS4-HMAC-SHA256\n%s\n%s\n%s", amzDate, credentialScope, canonicalHash)
+
+	kDate := hmacSHA256([]byte("AWS4"+cfg.SecretKey), dateStamp)
+	kRegion := hmacSHA256(kDate, cfg.Region)
+	kService := hmacSHA256(kRegion, "s3")
+	kSigning := hmacSHA256(kService, "aws4_request")
+	signature := hex.EncodeToString(hmacSHA256(kSigning, stringToSign))
+
+	return fmt.Sprintf("%s/%s/%s?%s&X-Amz-Signature=%s", cfg.Endpoint, cfg.Bucket, cleanKey, canonicalQuery, signature), nil
+}
+

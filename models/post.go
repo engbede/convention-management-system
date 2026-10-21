@@ -74,12 +74,19 @@ func (p Post) ImageURL() string {
 		return p.Image
 	}
 	if cdn := getMediaBaseURL(); cdn != "" {
-		return cdn + "/" + strings.TrimPrefix(p.Image, "/")
+		rel := p.Image
+		if !strings.HasPrefix(rel, "posts/") && !strings.HasPrefix(rel, "/uploads/posts/") {
+			rel = "posts/" + strings.TrimPrefix(rel, "/")
+		}
+		rel = strings.TrimPrefix(rel, "/uploads/")
+		return cdn + "/" + rel
 	}
-	if strings.HasPrefix(p.Image, "/uploads/") {
-		return p.Image
+	rel := strings.TrimPrefix(p.Image, "/uploads/")
+	rel = strings.TrimPrefix(rel, "/")
+	if !strings.HasPrefix(rel, "posts/") {
+		rel = "posts/" + rel
 	}
-	return "/uploads/" + p.Image
+	return "/uploads/" + rel
 }
 
 // VideoURL returns the full, browser-loadable URL for the post video.
@@ -92,11 +99,18 @@ func (p Post) VideoURL() string {
 		return p.Video
 	}
 	if cdn := getMediaBaseURL(); cdn != "" {
-		return cdn + "/" + strings.TrimPrefix(p.Video, "/")
+		rel := p.Video
+		if !strings.HasPrefix(rel, "posts/") && !strings.HasPrefix(rel, "/uploads/posts/") {
+			rel = "posts/" + strings.TrimPrefix(rel, "/")
+		}
+		rel = strings.TrimPrefix(rel, "/uploads/")
+		return cdn + "/" + rel
 	}
-	if strings.HasPrefix(p.Video, "/uploads/") {
-		return p.Video
+	rel := strings.TrimPrefix(p.Video, "/uploads/")
+	rel = strings.TrimPrefix(rel, "/")
+	if !strings.HasPrefix(rel, "posts/") {
+		rel = "posts/" + rel
 	}
-	return "/uploads/" + p.Video
+	return "/uploads/" + rel
 }
 

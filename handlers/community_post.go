@@ -123,7 +123,7 @@ func CreateCommunityPost(
 			cleanKey = strings.TrimPrefix(cleanKey, "/")
 			if strings.HasPrefix(cleanKey, "posts/") && !strings.Contains(cleanKey, "..") {
 				diskPath := filepath.Join(utils.GetUploadBaseDir(), cleanKey)
-				if _, err := os.Stat(diskPath); err == nil || utils.IsObjectStorageEnabled() {
+				if _, err := os.Stat(diskPath); err == nil || utils.IsObjectStorageEnabled() || repository.HasMediaBlob(cleanKey) {
 					videoName = cleanKey
 				} else {
 					log.Println("Referenced video_key not found in storage:", cleanKey)

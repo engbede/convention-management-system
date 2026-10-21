@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"convention-management-system/handlers"
 	"convention-management-system/middleware"
+	"convention-management-system/repository"
 	"convention-management-system/utils"
 )
 
@@ -1046,31 +1048,133 @@ func RegisterRoutes(mux *http.ServeMux) {
 
 	uploadsFileServer := http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir)))
 
+	serveMedia := func(w http.ResponseWriter, r *http.Request, filePath string, customContentType string) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Range, Accept-Encoding, Accept, Content-Type, Origin")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, Content-Type")
+		w.Header().Set("Accept-Ranges", "bytes")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		ext := strings.ToLower(filepath.Ext(filePath))
+		switch ext {
+		case ".mp4":
+			w.Header().Set("Content-Type", "video/mp4")
+		case ".webm":
+			w.Header().Set("Content-Type", "video/webm")
+		case ".mov":
+			w.Header().Set("Content-Type", "video/quicktime")
+		case ".mkv":
+			w.Header().Set("Content-Type", "video/x-matroska")
+		case ".avi":
+			w.Header().Set("Content-Type", "video/x-msvideo")
+		case ".jpg", ".jpeg":
+			w.Header().Set("Content-Type", "image/jpeg")
+		case ".png":
+			w.Header().Set("Content-Type", "image/png")
+		case ".gif":
+			w.Header().Set("Content-Type", "image/gif")
+		case ".webp":
+			w.Header().Set("Content-Type", "image/webp")
+		case ".svg":
+			w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+		default:
+			if customContentType != "" {
+				w.Header().Set("Content-Type", customContentType)
+			}
+		}
+
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		http.ServeFile(w, r, filePath)
+	}
+
 	mux.HandleFunc("/uploads/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodOptions {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Range, Accept-Encoding, Accept, Content-Type, Origin")
+			w.Header().Set("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, Content-Type")
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
 		relPath := strings.TrimPrefix(r.URL.Path, "/uploads/")
+		relPath = strings.TrimPrefix(relPath, "/")
 		fullPath := filepath.Join(uploadDir, filepath.Clean("/"+relPath))
 
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			if uploadDir != "uploads" {
-				localFallback := filepath.Join("uploads", filepath.Clean("/"+relPath))
-				if _, lErr := os.Stat(localFallback); lErr == nil {
-					http.ServeFile(w, r, localFallback)
-					return
-				}
-			}
+		// 1. Direct file on disk
+		if fi, err := os.Stat(fullPath); err == nil && !fi.IsDir() {
+			serveMedia(w, r, fullPath, "")
+			return
+		}
 
-			if s3Base := utils.GetObjectStoragePublicBaseURL(); s3Base != "" {
-				http.Redirect(w, r, strings.TrimSuffix(s3Base, "/")+"/"+strings.TrimPrefix(relPath, "/"), http.StatusTemporaryRedirect)
+		// 2. Check local fallback directory if uploadDir is different
+		if uploadDir != "uploads" {
+			localFallback := filepath.Join("uploads", filepath.Clean("/"+relPath))
+			if fi, lErr := os.Stat(localFallback); lErr == nil && !fi.IsDir() {
+				serveMedia(w, r, localFallback, "")
 				return
 			}
+		}
 
-			if strings.HasPrefix(relPath, "profiles/") {
-				w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
-				w.Header().Set("Cache-Control", "public, max-age=86400")
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write(utils.DefaultAvatarSVG)
+		// 3. Check subdirectories if requested without folder prefix (e.g. /uploads/pic.jpg -> /uploads/posts/pic.jpg)
+		for _, sub := range []string{"posts", "profiles", "covers", "chat"} {
+			subPath := filepath.Join(uploadDir, sub, filepath.Clean("/"+relPath))
+			if fi, err := os.Stat(subPath); err == nil && !fi.IsDir() {
+				serveMedia(w, r, subPath, "")
 				return
 			}
+		}
+
+		// 4. Check PostgreSQL durable media storage
+		if data, contentType, err := repository.GetMediaBlob(relPath); err == nil && len(data) > 0 {
+			// Restore file to disk cache
+			_ = os.MkdirAll(filepath.Dir(fullPath), 0755)
+			_ = os.WriteFile(fullPath, data, 0644)
+
+			serveMedia(w, r, fullPath, contentType)
+			return
+		}
+
+		// 5. Cloud object storage redirect if configured
+		if s3Base := utils.GetObjectStoragePublicBaseURL(); s3Base != "" {
+			http.Redirect(w, r, strings.TrimSuffix(s3Base, "/")+"/"+strings.TrimPrefix(relPath, "/"), http.StatusTemporaryRedirect)
+			return
+		} else if utils.IsObjectStorageEnabled() {
+			if presignedURL, pErr := utils.GeneratePresignedGetURL(relPath, 6*time.Hour); pErr == nil && presignedURL != "" {
+				http.Redirect(w, r, presignedURL, http.StatusTemporaryRedirect)
+				return
+			}
+		}
+
+		// 6. Graceful fallbacks for missing media
+		ext := strings.ToLower(filepath.Ext(relPath))
+		isVideo := ext == ".mp4" || ext == ".webm" || ext == ".mov" || ext == ".mkv" || ext == ".avi"
+
+		if strings.HasPrefix(relPath, "profiles/") || strings.Contains(relPath, "profile") {
+			w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(utils.DefaultAvatarSVG)
+			return
+		}
+
+		if strings.HasPrefix(relPath, "posts/") && !isVideo {
+			w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write(utils.DefaultPostImageSVG)
+			return
+		}
+
+		if isVideo {
+			http.Error(w, "Video media file not found", http.StatusNotFound)
+			return
 		}
 
 		uploadsFileServer.ServeHTTP(w, r)

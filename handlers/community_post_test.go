@@ -14,6 +14,7 @@ import (
 
 	"convention-management-system/database"
 	"convention-management-system/models"
+	"convention-management-system/repository"
 	"convention-management-system/services"
 	"convention-management-system/sessions"
 	"convention-management-system/utils"
@@ -667,4 +668,181 @@ func TestMediaAuditAndRepair(t *testing.T) {
 		t.Fatalf("Expected non-nil report")
 	}
 }
+
+func TestCreateCommunityPost_ImagePersistence_SurvivesRestart(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Post an image
+	pngImage := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52}
+	req, rr := makeMultipartPostReq(t, 1, map[string]string{"content": "Durable image test"}, "image", "faith.png", pngImage, "image/png", true)
+	CreateCommunityPost(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from CreateCommunityPost, got %d. Body: %s", rr.Code, rr.Body.String())
+	}
+
+	posts, err := repository.GetAllPosts()
+	if err != nil || len(posts) == 0 {
+		t.Fatalf("Expected at least 1 post, err: %v", err)
+	}
+	latestPost := posts[0]
+	if latestPost.Image == "" {
+		t.Fatalf("Expected post.Image to be non-empty")
+	}
+
+	// 2. Verify media is in database durable storage
+	data, ctype, err := repository.GetMediaBlob(latestPost.Image)
+	if err != nil || len(data) == 0 {
+		t.Fatalf("Expected image blob in database media_storage, got err: %v", err)
+	}
+	if !strings.Contains(ctype, "image/") {
+		t.Errorf("Expected image/ content type, got %s", ctype)
+	}
+
+	// 3. Simulate container restart / ephemeral disk wipe: delete from disk
+	baseDir := utils.GetUploadBaseDir()
+	diskPath := filepath.Join(baseDir, filepath.Clean("/"+latestPost.Image))
+	_ = os.Remove(diskPath)
+
+	if _, err := os.Stat(diskPath); !os.IsNotExist(err) {
+		t.Fatalf("Failed to remove disk file to simulate container wipe")
+	}
+
+	// 4. Run startup synchronization (as occurs on Render boot)
+	services.AutoSyncEmbeddedMedia(database.DB)
+
+	// 5. Verify file was restored from database to disk
+	if _, err := os.Stat(diskPath); os.IsNotExist(err) {
+		t.Errorf("Expected AutoSyncEmbeddedMedia to restore missing file %s to disk", diskPath)
+	}
+
+	// Clean up test file
+	_ = os.Remove(diskPath)
+}
+
+func TestMediaURL_Normalization(t *testing.T) {
+	// Post ImageURL normalization
+	testCasesPost := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"abc.jpg", "/uploads/posts/abc.jpg"},
+		{"posts/abc.jpg", "/uploads/posts/abc.jpg"},
+		{"/uploads/abc.jpg", "/uploads/posts/abc.jpg"},
+		{"/uploads/posts/abc.jpg", "/uploads/posts/abc.jpg"},
+		{"https://cdn.church.org/banner.jpg", "https://cdn.church.org/banner.jpg"},
+	}
+
+	for _, tc := range testCasesPost {
+		p := models.Post{Image: tc.input}
+		got := p.ImageURL()
+		if got != tc.expected {
+			t.Errorf("Post.ImageURL(%q) = %q, expected %q", tc.input, got, tc.expected)
+		}
+	}
+
+	// Post VideoURL normalization
+	testCasesVideo := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"sermon.mp4", "/uploads/posts/sermon.mp4"},
+		{"posts/sermon.mp4", "/uploads/posts/sermon.mp4"},
+		{"/uploads/sermon.mp4", "/uploads/posts/sermon.mp4"},
+		{"/uploads/posts/sermon.mp4", "/uploads/posts/sermon.mp4"},
+		{"https://cdn.church.org/sermon.mp4", "https://cdn.church.org/sermon.mp4"},
+	}
+
+	for _, tc := range testCasesVideo {
+		p := models.Post{Video: tc.input}
+		got := p.VideoURL()
+		if got != tc.expected {
+			t.Errorf("Post.VideoURL(%q) = %q, expected %q", tc.input, got, tc.expected)
+		}
+	}
+
+	// User ProfilePhotoURL normalization
+	testCasesUser := []struct {
+		input    string
+		expected string
+	}{
+		{"", ""},
+		{"pastor.jpg", "/uploads/profiles/pastor.jpg"},
+		{"profiles/pastor.jpg", "/uploads/profiles/pastor.jpg"},
+		{"/uploads/pastor.jpg", "/uploads/profiles/pastor.jpg"},
+		{"/uploads/profiles/pastor.jpg", "/uploads/profiles/pastor.jpg"},
+		{"https://cdn.church.org/pastor.jpg", "https://cdn.church.org/pastor.jpg"},
+	}
+
+	for _, tc := range testCasesUser {
+		u := models.User{ProfilePhoto: tc.input}
+		got := u.ProfilePhotoURL()
+		if got != tc.expected {
+			t.Errorf("User.ProfilePhotoURL(%q) = %q, expected %q", tc.input, got, tc.expected)
+		}
+	}
+}
+
+func TestCreateCommunityPost_VideoPersistsToDurableStorage(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	utils.SetMediaStorageHooks(repository.SaveMediaBlob, repository.DeleteMediaBlob)
+
+	fields := map[string]string{
+		"content":    "Testing video durable storage",
+		"visibility": "public",
+	}
+
+	mp4Data := sampleMP4Bytes()
+	req, rr := makeMultipartPostReq(t, 1, fields, "video", "test_clip.mp4", mp4Data, "video/mp4", false)
+	CreateCommunityPost(rr, req)
+
+	if rr.Code != http.StatusSeeOther && rr.Code != http.StatusOK {
+		t.Fatalf("Expected post creation to succeed, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	posts, err := services.GetCommunityFeed()
+	if err != nil || len(posts) != 1 {
+		t.Fatalf("Expected 1 post in feed, got %v", err)
+	}
+
+	videoRef := posts[0].Video
+	if videoRef == "" {
+		t.Fatalf("Expected video reference in post, got empty")
+	}
+
+	// Verify video was persisted into database media_storage
+	if !repository.HasMediaBlob(videoRef) {
+		t.Fatalf("Expected HasMediaBlob(%q) to be true for uploaded video", videoRef)
+	}
+
+	data, ctype, err := repository.GetMediaBlob(videoRef)
+	if err != nil {
+		t.Fatalf("Failed to retrieve media blob for %s: %v", videoRef, err)
+	}
+	if !strings.Contains(ctype, "video/") && ctype != "application/octet-stream" {
+		t.Errorf("Expected video content type in durable store, got %q", ctype)
+	}
+	if !bytes.Equal(data, mp4Data) {
+		t.Errorf("Durable store bytes do not match uploaded mp4 data")
+	}
+
+	// Simulate container restart/redeploy: delete local disk file
+	diskPath := filepath.Join("uploads", videoRef)
+	_ = os.Remove(diskPath)
+
+	// Verify HasMediaBlob is still true even when disk file is deleted
+	if !repository.HasMediaBlob(videoRef) {
+		t.Errorf("HasMediaBlob must remain true after ephemeral disk removal")
+	}
+
+	defer utils.DeleteFile("uploads/" + videoRef)
+	defer repository.DeleteMediaBlob(videoRef)
+}
+
+
 

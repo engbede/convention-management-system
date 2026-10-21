@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"convention-management-system/repository"
 	"convention-management-system/utils"
 )
 
@@ -358,6 +359,16 @@ func CompleteChunkedUpload(userID int, uploadID string) (targetKey string, final
 		if !strings.HasPrefix(detected, "video/") && detected != "application/octet-stream" {
 			_ = os.Remove(finalDestPath)
 			return "", "", errors.New("uploaded file is corrupt or not a valid video stream")
+		}
+	}
+
+	// Persist chunked videos up to 50 MB to durable database media storage so they survive Render redeployments
+	if session.FileSize <= 50*1024*1024 {
+		if sf, oErr := os.Open(finalDestPath); oErr == nil {
+			if vData, rErr := io.ReadAll(sf); rErr == nil && len(vData) > 0 {
+				_ = repository.SaveMediaBlob(session.TargetKey, session.ContentType, vData)
+			}
+			sf.Close()
 		}
 	}
 

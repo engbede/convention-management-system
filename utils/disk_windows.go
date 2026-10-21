@@ -6,3 +6,4 @@ package utils
 func GetAvailableDiskSpace(path string) (uint64, error) {
 	return 100 * 1024 * 1024 * 1024, nil // 100 GB placeholder
 }
+

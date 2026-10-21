@@ -107,16 +107,32 @@
         {{end}}
 
         {{if .Video}}
-        <div class="post-video-container rounded-4 overflow-hidden mb-3 bg-black text-center border" style="max-height: 520px;">
+        <div class="post-video-container rounded-4 overflow-hidden mb-3 bg-black text-center border position-relative" style="max-height: 520px;">
             <video
                 controls
                 playsinline
                 preload="metadata"
+                src="{{.VideoURL}}"
                 class="w-100 rounded-4"
-                style="max-height: 520px; background-color: #000; display: block;">
-                <source src="{{.VideoURL}}">
+                style="max-height: 520px; background-color: #000; display: block;"
+                onerror="var c=this.closest('.post-video-container');if(c){var f=c.querySelector('.video-error-fallback');if(f)f.classList.remove('d-none');}">
+                <source src="{{.VideoURL}}" type="video/mp4">
+                <source src="{{.VideoURL}}" type="video/webm">
+                <source src="{{.VideoURL}}" type="video/quicktime">
                 Your browser does not support the video tag.
             </video>
+            <div class="video-error-fallback d-none position-absolute top-50 start-50 translate-middle text-center p-3 text-white bg-dark bg-opacity-75 rounded-3 shadow">
+                <i class="bi bi-play-circle-fill text-warning fs-3 mb-2 d-block"></i>
+                <div class="small mb-2">Video playback could not load</div>
+                <div class="d-flex gap-2 justify-content-center">
+                    <button type="button" class="btn btn-sm btn-outline-light" onclick="var c=this.closest('.post-video-container');var v=c.querySelector('video');var f=c.querySelector('.video-error-fallback');if(f)f.classList.add('d-none');if(v){v.load();v.play().catch(function(){});}">
+                        <i class="bi bi-arrow-clockwise me-1"></i> Retry
+                    </button>
+                    <a href="{{.VideoURL}}" class="btn btn-sm btn-light" download target="_blank">
+                        <i class="bi bi-download me-1"></i> Open Video
+                    </a>
+                </div>
+            </div>
         </div>
         {{end}}
 

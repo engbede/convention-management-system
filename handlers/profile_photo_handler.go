@@ -110,6 +110,16 @@ func UploadProfilePhoto(
 			_ = os.MkdirAll("uploads/profiles", 0755)
 			_ = os.WriteFile(filepath.Join("uploads/profiles", savedFilename), decodedBytes, 0644)
 		}
+
+		// Mirror to S3 when enabled
+		if utils.IsObjectStorageEnabled() {
+			_, _ = utils.UploadToObjectStorage("profiles/"+savedFilename, bytes.NewReader(decodedBytes), int64(len(decodedBytes)), "image/jpeg")
+		}
+
+		// Persist to durable database media storage
+		if utils.MediaStorageSaver != nil {
+			_ = utils.MediaStorageSaver("profiles/"+savedFilename, "image/jpeg", decodedBytes)
+		}
 	} else {
 		// 2. Standard Multipart File Upload (Accessible Fallback)
 		file, header, err := r.FormFile("profile_photo")

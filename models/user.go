@@ -107,18 +107,17 @@ func (u User) ProfilePhotoURL() string {
 	if cdn := getMediaBaseURL(); cdn != "" {
 		rel := u.ProfilePhoto
 		if !strings.HasPrefix(rel, "profiles/") && !strings.HasPrefix(rel, "/uploads/profiles/") {
-			rel = "profiles/" + rel
+			rel = "profiles/" + strings.TrimPrefix(rel, "/")
 		}
 		rel = strings.TrimPrefix(rel, "/uploads/")
 		return cdn + "/" + rel
 	}
-	if strings.HasPrefix(u.ProfilePhoto, "/uploads/") {
-		return u.ProfilePhoto
+	rel := strings.TrimPrefix(u.ProfilePhoto, "/uploads/")
+	rel = strings.TrimPrefix(rel, "/")
+	if !strings.HasPrefix(rel, "profiles/") {
+		rel = "profiles/" + rel
 	}
-	if strings.HasPrefix(u.ProfilePhoto, "profiles/") {
-		return "/uploads/" + u.ProfilePhoto
-	}
-	return "/uploads/profiles/" + u.ProfilePhoto
+	return "/uploads/" + rel
 }
 
 // CoverPhotoURL returns the browser-loadable URL for the user's cover photo.
@@ -133,16 +132,15 @@ func (u User) CoverPhotoURL() string {
 	if cdn := getMediaBaseURL(); cdn != "" {
 		rel := u.CoverPhoto
 		if !strings.HasPrefix(rel, "covers/") && !strings.HasPrefix(rel, "/uploads/covers/") {
-			rel = "covers/" + rel
+			rel = "covers/" + strings.TrimPrefix(rel, "/")
 		}
 		rel = strings.TrimPrefix(rel, "/uploads/")
 		return cdn + "/" + rel
 	}
-	if strings.HasPrefix(u.CoverPhoto, "/uploads/") {
-		return u.CoverPhoto
+	rel := strings.TrimPrefix(u.CoverPhoto, "/uploads/")
+	rel = strings.TrimPrefix(rel, "/")
+	if !strings.HasPrefix(rel, "covers/") {
+		rel = "covers/" + rel
 	}
-	if strings.HasPrefix(u.CoverPhoto, "covers/") {
-		return "/uploads/" + u.CoverPhoto
-	}
-	return "/uploads/covers/" + u.CoverPhoto
+	return "/uploads/" + rel
 }

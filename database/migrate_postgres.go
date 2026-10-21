@@ -777,6 +777,22 @@ ALTER TABLE call_logs ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP WITH TIME ZO
 		return err
 	}
 
+	// ----------------------------
+	// Media Storage (Durable Storage for Ephemeral Deployments)
+	// ----------------------------
+	if err := execPostgresMigration("media_storage", `
+CREATE TABLE IF NOT EXISTS media_storage (
+	media_key VARCHAR(512) PRIMARY KEY,
+	content_type VARCHAR(128) NOT NULL,
+	file_size BIGINT NOT NULL,
+	data BYTEA NOT NULL,
+	created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pg_media_storage_created_at ON media_storage(created_at);
+`); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -1,11 +1,13 @@
 package utils
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -14,6 +16,23 @@ import (
 	"strconv"
 	"strings"
 )
+
+// MediaStorageSaverFunc persists media bytes into a durable store (such as PostgreSQL).
+type MediaStorageSaverFunc func(mediaKey string, contentType string, data []byte) error
+
+// MediaStorageDeleterFunc removes media from the durable store.
+type MediaStorageDeleterFunc func(mediaKey string) error
+
+var (
+	MediaStorageSaver   MediaStorageSaverFunc
+	MediaStorageDeleter MediaStorageDeleterFunc
+)
+
+// SetMediaStorageHooks registers durable persistence callbacks.
+func SetMediaStorageHooks(saver MediaStorageSaverFunc, deleter MediaStorageDeleterFunc) {
+	MediaStorageSaver = saver
+	MediaStorageDeleter = deleter
+}
 
 func init() {
 	_ = mime.AddExtensionType(".mp4", "video/mp4")
@@ -39,13 +58,23 @@ var allowedVideoExtensions = map[string]bool{
 }
 
 // GetUploadBaseDir returns the configured upload root directory (default: "uploads").
-// Supports Render persistent disks or environment variables UPLOADS_DIR / STORAGE_PATH.
+// Supports Render persistent disks or environment variables UPLOADS_DIR / STORAGE_PATH / RENDER_DISK_PATH / DATA_DIR.
 func GetUploadBaseDir() string {
 	if dir := strings.TrimSpace(os.Getenv("UPLOADS_DIR")); dir != "" {
 		return dir
 	}
 	if dir := strings.TrimSpace(os.Getenv("STORAGE_PATH")); dir != "" {
 		return dir
+	}
+	if dir := strings.TrimSpace(os.Getenv("RENDER_DISK_PATH")); dir != "" {
+		return dir
+	}
+	if dir := strings.TrimSpace(os.Getenv("DATA_DIR")); dir != "" {
+		return dir
+	}
+	if fi, err := os.Stat("/var/data"); err == nil && fi.IsDir() {
+		_ = os.MkdirAll("/var/data/uploads", 0755)
+		return "/var/data/uploads"
 	}
 	if fi, err := os.Stat("/var/data/uploads"); err == nil && fi.IsDir() {
 		return "/var/data/uploads"
@@ -109,13 +138,12 @@ func SaveUploadedFile(
 ) (string, error) {
 	destination = resolveDestination(destination)
 
-
 	defer file.Close()
 
-	const maxFileSize = 5 * 1024 * 1024 // 5 MB
+	const maxFileSize = 10 * 1024 * 1024 // 10 MB
 
 	if header.Size > maxFileSize {
-		return "", errors.New("image size must not exceed 5 MB")
+		return "", errors.New("image size must not exceed 10 MB")
 	}
 
 	buffer := make([]byte, 512)
@@ -167,27 +195,46 @@ func SaveUploadedFile(
 		return "", err
 	}
 
-	defer dst.Close()
-
-	_, err = io.Copy(dst, file)
-	if err != nil {
+	copyBuf := make([]byte, 64*1024)
+	_, copyErr := io.CopyBuffer(dst, file, copyBuf)
+	closeErr := dst.Close()
+	if copyErr != nil {
 		_ = os.Remove(path)
-		return "", err
+		return "", copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(path)
+		return "", closeErr
+	}
+
+	var data []byte
+	if f, rErr := os.Open(path); rErr == nil {
+		data, _ = io.ReadAll(f)
+		_ = f.Close()
+	}
+
+	s3Key := filename
+	if strings.Contains(destination, "profiles") {
+		s3Key = "profiles/" + filename
+	} else if strings.Contains(destination, "covers") {
+		s3Key = "covers/" + filename
+	} else if strings.Contains(destination, "posts") {
+		s3Key = "posts/" + filename
+	} else if strings.Contains(destination, "chat") {
+		s3Key = "chat/" + filename
 	}
 
 	// Mirror to S3-compatible cloud object storage when configured
-	if IsObjectStorageEnabled() {
-		if f, oErr := os.Open(path); oErr == nil {
-			defer f.Close()
-			s3Key := filename
-			if strings.Contains(destination, "profiles") {
-				s3Key = "profiles/" + filename
-			} else if strings.Contains(destination, "covers") {
-				s3Key = "covers/" + filename
-			} else if strings.Contains(destination, "posts") {
-				s3Key = "posts/" + filename
-			}
-			_, _ = UploadToObjectStorage(s3Key, f, header.Size, contentType)
+	if IsObjectStorageEnabled() && len(data) > 0 {
+		if _, uErr := UploadToObjectStorage(s3Key, bytes.NewReader(data), int64(len(data)), contentType); uErr != nil {
+			log.Printf("[Storage] S3 upload error for %s: %v", s3Key, uErr)
+		}
+	}
+
+	// Persist to durable database media storage
+	if MediaStorageSaver != nil && len(data) > 0 {
+		if sErr := MediaStorageSaver(s3Key, contentType, data); sErr != nil {
+			log.Printf("[Storage] Durable media saver error for %s: %v", s3Key, sErr)
 		}
 	}
 
@@ -279,14 +326,27 @@ func SaveUploadedVideo(
 		return "", closeErr
 	}
 
+	s3Key := filename
+	if strings.Contains(destination, "posts") {
+		s3Key = "posts/" + filename
+	}
+
+	// Persist video files up to 50 MB to durable database media storage so they survive Render redeployments
+	if MediaStorageSaver != nil && header.Size <= 50*1024*1024 {
+		if f, rErr := os.Open(path); rErr == nil {
+			if vData, err := io.ReadAll(f); err == nil && len(vData) > 0 {
+				if sErr := MediaStorageSaver(s3Key, contentType, vData); sErr != nil {
+					log.Printf("[Storage] Durable media saver error for video %s: %v", s3Key, sErr)
+				}
+			}
+			_ = f.Close()
+		}
+	}
+
 	// Mirror to S3-compatible cloud object storage when configured
 	if IsObjectStorageEnabled() {
 		if f, oErr := os.Open(path); oErr == nil {
 			defer f.Close()
-			s3Key := filename
-			if strings.Contains(destination, "posts") {
-				s3Key = "posts/" + filename
-			}
 			_, _ = UploadToObjectStorage(s3Key, f, header.Size, contentType)
 		}
 	}
@@ -301,10 +361,15 @@ func DeleteFile(path string) error {
 	}
 	resolvedPath := resolveDestination(path)
 
+	s3Key := strings.TrimPrefix(path, "uploads/")
+	s3Key = strings.TrimPrefix(s3Key, "/")
+
 	if IsObjectStorageEnabled() {
-		s3Key := strings.TrimPrefix(path, "uploads/")
-		s3Key = strings.TrimPrefix(s3Key, "/")
 		_ = DeleteFromObjectStorage(s3Key)
+	}
+
+	if MediaStorageDeleter != nil {
+		_ = MediaStorageDeleter(s3Key)
 	}
 
 	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
@@ -329,10 +394,10 @@ var allowedChatExtensions = map[string]string{
 	".webm": "voice",
 	".aac":  "voice",
 	// Videos -> "video"
-	".mp4":  "video",
-	".mov":  "video",
-	".avi":  "video",
-	".mkv":  "video",
+	".mp4": "video",
+	".mov": "video",
+	".avi": "video",
+	".mkv": "video",
 	// Documents / Files -> "file"
 	".pdf":  "file",
 	".doc":  "file",
@@ -435,13 +500,33 @@ func SaveChatAttachment(
 	if err != nil {
 		return "", "", "", err
 	}
-	defer dst.Close()
 
-	_, err = io.Copy(dst, file)
-	if err != nil {
-		return "", "", "", err
+	copyBuf := make([]byte, 64*1024)
+	_, copyErr := io.CopyBuffer(dst, file, copyBuf)
+	closeErr := dst.Close()
+	if copyErr != nil {
+		_ = os.Remove(path)
+		return "", "", "", copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(path)
+		return "", "", "", closeErr
+	}
+
+	var data []byte
+	if f, rErr := os.Open(path); rErr == nil {
+		data, _ = io.ReadAll(f)
+		_ = f.Close()
+	}
+
+	mediaKey := "chat/" + filename
+	if IsObjectStorageEnabled() && len(data) > 0 {
+		_, _ = UploadToObjectStorage(mediaKey, bytes.NewReader(data), int64(len(data)), detectedType)
+	}
+
+	if MediaStorageSaver != nil && len(data) > 0 {
+		_ = MediaStorageSaver(mediaKey, detectedType, data)
 	}
 
 	return filename, msgType, detectedType, nil
 }
-

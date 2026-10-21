@@ -1490,6 +1490,23 @@ func migrateGroupGovernanceAndModeration() error {
 	// Add expires_at column to call_logs if not present
 	_ = addColumn(`ALTER TABLE call_logs ADD COLUMN expires_at DATETIME`)
 
+	// Media Storage (Durable Storage for Ephemeral Deployments)
+	mediaQueries := []string{
+		`CREATE TABLE IF NOT EXISTS media_storage (
+			media_key TEXT PRIMARY KEY,
+			content_type TEXT NOT NULL,
+			file_size INTEGER NOT NULL,
+			data BLOB NOT NULL,
+			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_media_storage_created_at ON media_storage(created_at);`,
+	}
+	for _, q := range mediaQueries {
+		if err := execMigration(q); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

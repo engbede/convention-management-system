@@ -18,6 +18,7 @@ import (
 	"convention-management-system/repository"
 	"convention-management-system/services"
 	"convention-management-system/sessions"
+	"convention-management-system/utils"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -58,6 +59,8 @@ func setupTestDB(t *testing.T) func() {
 	if err != nil {
 		t.Fatalf("Failed to insert test users: %v", err)
 	}
+
+	utils.SetMediaStorageHooks(repository.SaveMediaBlob, repository.DeleteMediaBlob)
 
 	return func() {
 		db.Close()

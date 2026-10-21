@@ -17,7 +17,9 @@ import (
 	"testing"
 
 	"convention-management-system/database"
+	"convention-management-system/repository"
 	"convention-management-system/sessions"
+	"convention-management-system/utils"
 )
 
 func setupProfilePhotoTestDB(t *testing.T) func() {
@@ -40,6 +42,8 @@ func setupProfilePhotoTestDB(t *testing.T) func() {
 	if err := database.MigrateSQLite(); err != nil {
 		t.Fatalf("migration failed: %v", err)
 	}
+
+	utils.SetMediaStorageHooks(repository.SaveMediaBlob, repository.DeleteMediaBlob)
 
 	// Seed user
 	_, err = testDB.Exec(`
@@ -118,6 +122,15 @@ func TestUploadProfilePhoto_Base64FacialLiveness(t *testing.T) {
 		t.Errorf("expected file %s to exist on disk: %v", fullPath, err)
 	}
 	_ = os.Remove(fullPath)
+
+	// Verify photo was durably persisted into database media_storage
+	blobData, ctype, err := repository.GetMediaBlob("profiles/" + savedFile)
+	if err != nil || len(blobData) == 0 {
+		t.Errorf("expected profile photo to be durably persisted in database: %v", err)
+	}
+	if !strings.Contains(ctype, "image/") {
+		t.Errorf("expected image content type in media_storage, got %s", ctype)
+	}
 }
 
 func TestUploadProfilePhoto_MultipartFallback(t *testing.T) {
@@ -155,5 +168,20 @@ func TestUploadProfilePhoto_MultipartFallback(t *testing.T) {
 	if resp["success"] != true {
 		t.Errorf("expected success=true, got %v", resp)
 	}
+
+	savedFile, ok := resp["profile_photo"].(string)
+	if !ok || savedFile == "" {
+		t.Fatalf("expected profile_photo filename in response, got %v", resp["profile_photo"])
+	}
+
+	// Verify multipart upload was durably persisted into database media_storage
+	blobData, ctype, err := repository.GetMediaBlob("profiles/" + savedFile)
+	if err != nil || len(blobData) == 0 {
+		t.Errorf("expected multipart profile photo to be durably persisted in database: %v", err)
+	}
+	if !strings.Contains(ctype, "image/") {
+		t.Errorf("expected image content type in media_storage, got %s", ctype)
+	}
+	_ = os.Remove(filepath.Join("uploads/profiles", savedFile))
 }
 
