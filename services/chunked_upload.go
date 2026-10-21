@@ -362,8 +362,8 @@ func CompleteChunkedUpload(userID int, uploadID string) (targetKey string, final
 		}
 	}
 
-	// Persist chunked videos up to 50 MB to durable database media storage so they survive Render redeployments
-	if session.FileSize <= 50*1024*1024 {
+	// Persist chunked videos up to max durable size (default 200 MB) to durable database media storage so they survive Render redeployments
+	if session.FileSize <= utils.GetMaxDurableVideoSize() {
 		if sf, oErr := os.Open(finalDestPath); oErr == nil {
 			if vData, rErr := io.ReadAll(sf); rErr == nil && len(vData) > 0 {
 				_ = repository.SaveMediaBlob(session.TargetKey, session.ContentType, vData)

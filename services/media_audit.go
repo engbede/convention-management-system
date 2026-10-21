@@ -206,8 +206,8 @@ func AutoSyncEmbeddedMedia(db *sql.DB) {
 			mediaKey := folder + "/" + name
 			filePath := filepath.Join(dir, name)
 
-			// Skip files larger than 50 MB to prevent high memory usage during startup sync
-			if fi, sErr := entry.Info(); sErr == nil && fi.Size() > 50*1024*1024 {
+			// Skip files larger than max durable video size to prevent high memory usage during startup sync
+			if fi, sErr := entry.Info(); sErr == nil && fi.Size() > utils.GetMaxDurableVideoSize() {
 				continue
 			}
 

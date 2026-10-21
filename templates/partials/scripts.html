@@ -103,6 +103,67 @@ document.addEventListener("DOMContentLoaded", function () {
 
 });
 
+window.handleVideoPlayerError = window.handleVideoPlayerError || function(el) {
+    var container = el.closest('.post-video-container');
+    if (!container) return;
+    var video = container.querySelector('video');
+    var fallback = container.querySelector('.video-error-fallback');
+    var errorText = container.querySelector('.video-error-text');
+    var openBtn = container.querySelector('.video-open-btn');
+    if (fallback) fallback.classList.remove('d-none');
+
+    var videoUrl = video ? (video.getAttribute('data-original-src') || video.src || (video.querySelector('source') ? video.querySelector('source').src : '')) : '';
+    if (!videoUrl) return;
+
+    fetch(videoUrl, { method: 'HEAD' })
+        .then(function(resp) {
+            if (resp.status === 404) {
+                if (errorText) errorText.textContent = 'This video file is no longer available on the server.';
+                if (openBtn) {
+                    openBtn.classList.add('disabled', 'opacity-50');
+                    openBtn.setAttribute('aria-disabled', 'true');
+                    openBtn.removeAttribute('href');
+                }
+            } else if (!resp.ok) {
+                if (errorText) errorText.textContent = 'Video stream error (Server returned HTTP ' + resp.status + ').';
+            } else {
+                if (errorText) errorText.textContent = 'Video format or codec is not supported by your browser.';
+            }
+        })
+        .catch(function() {
+            if (errorText) errorText.textContent = 'Network error while retrieving video stream.';
+        });
+};
+
+window.retryVideoPlayback = window.retryVideoPlayback || function(btn) {
+    var container = btn.closest('.post-video-container');
+    if (!container) return;
+    var video = container.querySelector('video');
+    var fallback = container.querySelector('.video-error-fallback');
+    var errorText = container.querySelector('.video-error-text');
+    if (!video) return;
+
+    var originalSrc = video.getAttribute('data-original-src');
+    if (!originalSrc) {
+        originalSrc = video.src || (video.querySelector('source') ? video.querySelector('source').src : '');
+        video.setAttribute('data-original-src', originalSrc);
+    }
+    if (!originalSrc) return;
+
+    var cleanUrl = originalSrc.split('?')[0];
+    var cacheBustedUrl = cleanUrl + '?retry=' + Date.now();
+
+    if (errorText) errorText.textContent = 'Retrying video stream...';
+    if (fallback) fallback.classList.add('d-none');
+
+    video.src = cacheBustedUrl;
+    var sources = video.querySelectorAll('source');
+    for (var i = 0; i < sources.length; i++) {
+        sources[i].src = cacheBustedUrl;
+    }
+    video.load();
+    video.play().catch(function() {});
+};
 </script>
 
 {{end}}

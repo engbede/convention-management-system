@@ -115,20 +115,20 @@
                 src="{{.VideoURL}}"
                 class="w-100 rounded-4"
                 style="max-height: 520px; background-color: #000; display: block;"
-                onerror="var c=this.closest('.post-video-container');if(c){var f=c.querySelector('.video-error-fallback');if(f)f.classList.remove('d-none');}">
-                <source src="{{.VideoURL}}" type="video/mp4">
-                <source src="{{.VideoURL}}" type="video/webm">
-                <source src="{{.VideoURL}}" type="video/quicktime">
+                onerror="handleVideoPlayerError(this)">
+                <source src="{{.VideoURL}}" type="video/mp4" onerror="handleVideoPlayerError(this)">
+                <source src="{{.VideoURL}}" type="video/webm" onerror="handleVideoPlayerError(this)">
+                <source src="{{.VideoURL}}" type="video/quicktime" onerror="handleVideoPlayerError(this)">
                 Your browser does not support the video tag.
             </video>
-            <div class="video-error-fallback d-none position-absolute top-50 start-50 translate-middle text-center p-3 text-white bg-dark bg-opacity-75 rounded-3 shadow">
-                <i class="bi bi-play-circle-fill text-warning fs-3 mb-2 d-block"></i>
-                <div class="small mb-2">Video playback could not load</div>
+            <div class="video-error-fallback d-none position-absolute top-50 start-50 translate-middle text-center p-3 text-white bg-dark bg-opacity-85 rounded-3 shadow" style="max-width: 90%;">
+                <i class="bi bi-exclamation-circle-fill text-warning fs-3 mb-2 d-block"></i>
+                <div class="small mb-2 fw-semibold video-error-text">Video playback could not load</div>
                 <div class="d-flex gap-2 justify-content-center">
-                    <button type="button" class="btn btn-sm btn-outline-light" onclick="var c=this.closest('.post-video-container');var v=c.querySelector('video');var f=c.querySelector('.video-error-fallback');if(f)f.classList.add('d-none');if(v){v.load();v.play().catch(function(){});}">
+                    <button type="button" class="btn btn-sm btn-outline-light video-retry-btn" onclick="retryVideoPlayback(this)">
                         <i class="bi bi-arrow-clockwise me-1"></i> Retry
                     </button>
-                    <a href="{{.VideoURL}}" class="btn btn-sm btn-light" download target="_blank">
+                    <a href="{{.VideoURL}}" class="btn btn-sm btn-light video-open-btn" download target="_blank">
                         <i class="bi bi-download me-1"></i> Open Video
                     </a>
                 </div>
@@ -800,6 +800,68 @@
             }
         });
     }
+
+    window.handleVideoPlayerError = function(el) {
+        var container = el.closest('.post-video-container');
+        if (!container) return;
+        var video = container.querySelector('video');
+        var fallback = container.querySelector('.video-error-fallback');
+        var errorText = container.querySelector('.video-error-text');
+        var openBtn = container.querySelector('.video-open-btn');
+        if (fallback) fallback.classList.remove('d-none');
+
+        var videoUrl = video ? (video.getAttribute('data-original-src') || video.src || (video.querySelector('source') ? video.querySelector('source').src : '')) : '';
+        if (!videoUrl) return;
+
+        fetch(videoUrl, { method: 'HEAD' })
+            .then(function(resp) {
+                if (resp.status === 404) {
+                    if (errorText) errorText.textContent = 'This video file is no longer available on the server.';
+                    if (openBtn) {
+                        openBtn.classList.add('disabled', 'opacity-50');
+                        openBtn.setAttribute('aria-disabled', 'true');
+                        openBtn.removeAttribute('href');
+                    }
+                } else if (!resp.ok) {
+                    if (errorText) errorText.textContent = 'Video stream error (Server returned HTTP ' + resp.status + ').';
+                } else {
+                    if (errorText) errorText.textContent = 'Video format or codec is not supported by your browser.';
+                }
+            })
+            .catch(function() {
+                if (errorText) errorText.textContent = 'Network error while retrieving video stream.';
+            });
+    };
+
+    window.retryVideoPlayback = function(btn) {
+        var container = btn.closest('.post-video-container');
+        if (!container) return;
+        var video = container.querySelector('video');
+        var fallback = container.querySelector('.video-error-fallback');
+        var errorText = container.querySelector('.video-error-text');
+        if (!video) return;
+
+        var originalSrc = video.getAttribute('data-original-src');
+        if (!originalSrc) {
+            originalSrc = video.src || (video.querySelector('source') ? video.querySelector('source').src : '');
+            video.setAttribute('data-original-src', originalSrc);
+        }
+        if (!originalSrc) return;
+
+        var cleanUrl = originalSrc.split('?')[0];
+        var cacheBustedUrl = cleanUrl + '?retry=' + Date.now();
+
+        if (errorText) errorText.textContent = 'Retrying video stream...';
+        if (fallback) fallback.classList.add('d-none');
+
+        video.src = cacheBustedUrl;
+        var sources = video.querySelectorAll('source');
+        for (var i = 0; i < sources.length; i++) {
+            sources[i].src = cacheBustedUrl;
+        }
+        video.load();
+        video.play().catch(function() {});
+    };
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {

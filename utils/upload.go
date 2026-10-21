@@ -100,6 +100,17 @@ func GetMaxVideoUploadSizeMB() int64 {
 	return GetMaxVideoUploadSize() / (1024 * 1024)
 }
 
+// GetMaxDurableVideoSize returns the maximum video size in bytes that will be mirrored
+// to PostgreSQL durable database storage (default: 200 MB, configurable via MAX_DURABLE_VIDEO_MB).
+func GetMaxDurableVideoSize() int64 {
+	if mbStr := strings.TrimSpace(os.Getenv("MAX_DURABLE_VIDEO_MB")); mbStr != "" {
+		if mb, err := strconv.ParseInt(mbStr, 10, 64); err == nil && mb > 0 {
+			return mb * 1024 * 1024
+		}
+	}
+	return 200 * 1024 * 1024 // 200 MB default
+}
+
 // FormatBytes formats byte count into human-readable representation (B, KB, MB, GB).
 func FormatBytes(b int64) string {
 	const unit = 1024
@@ -331,8 +342,8 @@ func SaveUploadedVideo(
 		s3Key = "posts/" + filename
 	}
 
-	// Persist video files up to 50 MB to durable database media storage so they survive Render redeployments
-	if MediaStorageSaver != nil && header.Size <= 50*1024*1024 {
+	// Persist video files up to max durable size (default 200 MB) to durable database media storage so they survive Render redeployments
+	if MediaStorageSaver != nil && header.Size <= GetMaxDurableVideoSize() {
 		if f, rErr := os.Open(path); rErr == nil {
 			if vData, err := io.ReadAll(f); err == nil && len(vData) > 0 {
 				if sErr := MediaStorageSaver(s3Key, contentType, vData); sErr != nil {

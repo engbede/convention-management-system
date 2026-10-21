@@ -1108,12 +1108,13 @@ func RegisterRoutes(mux *http.ServeMux) {
 	}
 
 	mux.HandleFunc("/uploads/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Range, Accept-Encoding, Accept, Content-Type, Origin")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, Content-Type")
+		w.Header().Set("Accept-Ranges", "bytes")
+
 		if r.Method == http.MethodOptions {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Range, Accept-Encoding, Accept, Content-Type, Origin")
-			w.Header().Set("Access-Control-Expose-Headers", "Content-Range, Content-Length, Accept-Ranges, Content-Type")
-			w.Header().Set("Accept-Ranges", "bytes")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
