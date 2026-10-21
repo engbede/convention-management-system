@@ -1,306 +1,541 @@
 {{template "header" .}}
-
 {{template "navbar" .}}
 
-<div class="container mt-5">
-
-    <h2 class="fw-bold mb-4">
-        👥 Friends Dashboard
-    </h2>
-
+<div class="container mt-4 mb-5">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h2 class="fw-bold mb-1">
+                <i class="bi bi-people-fill text-primary me-2"></i>Friends &amp; Connections
+            </h2>
+            <p class="text-muted mb-0">Manage your friendships, respond to incoming requests, and track sent requests.</p>
+        </div>
+        <div>
+            <a href="/discover" class="btn btn-outline-primary rounded-pill px-3 shadow-sm">
+                <i class="bi bi-compass me-1"></i> Discover People
+            </a>
+        </div>
+    </div>
 
     <!-- SUMMARY CARDS -->
-
-    <div class="row mb-4">
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card shadow-sm border-0 rounded-4 text-center">
-
-                <div class="card-body">
-
-                    <h3>
-                        {{len .Friends}}
-                    </h3>
-
-                    <p class="text-muted mb-0">
-                        My Friends
-                    </p>
-
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm border-0 rounded-4 text-center cursor-pointer h-100 summary-card active" id="card-friends" role="button" onclick="switchTab('my-friends-tab')">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <span class="p-2 rounded-circle bg-primary-subtle text-primary me-2">
+                            <i class="bi bi-people-fill fs-5"></i>
+                        </span>
+                        <h3 class="fw-bold mb-0" id="friends-count-stat">{{len .Friends}}</h3>
+                    </div>
+                    <p class="text-muted mb-0 fw-medium">My Friends</p>
                 </div>
-
             </div>
-
         </div>
 
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card shadow-sm border-0 rounded-4 text-center">
-
-                <div class="card-body">
-
-                    <h3>
-                        {{len .Incoming}}
-                    </h3>
-
-                    <p class="text-muted mb-0">
-                        Friend Requests
-                    </p>
-
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm border-0 rounded-4 text-center cursor-pointer h-100 summary-card" id="card-incoming" role="button" onclick="switchTab('incoming-tab')">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <span class="p-2 rounded-circle bg-success-subtle text-success me-2">
+                            <i class="bi bi-inbox-fill fs-5"></i>
+                        </span>
+                        <h3 class="fw-bold mb-0" id="incoming-count-stat">{{len .Incoming}}</h3>
+                    </div>
+                    <p class="text-muted mb-0 fw-medium">Incoming Requests</p>
                 </div>
-
             </div>
-
         </div>
 
-
-        <div class="col-md-4 mb-3">
-
-            <div class="card shadow-sm border-0 rounded-4 text-center">
-
-                <div class="card-body">
-
-                    <h3>
-                        {{len .Outgoing}}
-                    </h3>
-
-                    <p class="text-muted mb-0">
-                        Sent Requests
-                    </p>
-
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm border-0 rounded-4 text-center cursor-pointer h-100 summary-card" id="card-outgoing" role="button" onclick="switchTab('outgoing-tab')">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center justify-content-center mb-2">
+                        <span class="p-2 rounded-circle bg-warning-subtle text-warning me-2">
+                            <i class="bi bi-send-fill fs-5"></i>
+                        </span>
+                        <h3 class="fw-bold mb-0" id="outgoing-count-stat">{{len .Outgoing}}</h3>
+                    </div>
+                    <p class="text-muted mb-0 fw-medium">Sent Requests</p>
                 </div>
-
             </div>
-
         </div>
-
     </div>
 
+    <!-- TABS NAVIGATION -->
+    <ul class="nav nav-pills nav-fill bg-white p-2 rounded-4 shadow-sm mb-4 border" id="friendsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active rounded-pill fw-semibold py-2" id="my-friends-tab" data-bs-toggle="pill" data-bs-target="#my-friends-content" type="button" role="tab" aria-controls="my-friends-content" aria-selected="true">
+                <i class="bi bi-people me-1"></i> My Friends 
+                <span class="badge bg-secondary rounded-pill ms-1" id="badge-friends-count">{{len .Friends}}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-semibold py-2" id="incoming-tab" data-bs-toggle="pill" data-bs-target="#incoming-content" type="button" role="tab" aria-controls="incoming-content" aria-selected="false">
+                <i class="bi bi-inbox me-1"></i> Incoming Requests 
+                <span class="badge bg-success rounded-pill ms-1" id="badge-incoming-count">{{len .Incoming}}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link rounded-pill fw-semibold py-2" id="outgoing-tab" data-bs-toggle="pill" data-bs-target="#outgoing-content" type="button" role="tab" aria-controls="outgoing-content" aria-selected="false">
+                <i class="bi bi-send me-1"></i> Sent Requests 
+                <span class="badge bg-warning text-dark rounded-pill ms-1" id="badge-outgoing-count">{{len .Outgoing}}</span>
+            </button>
+        </li>
+    </ul>
 
+    <!-- TAB CONTENTS -->
+    <div class="tab-content" id="friendsTabsContent">
 
-    <!-- INCOMING REQUESTS -->
+        <!-- TAB 1: MY FRIENDS -->
+        <div class="tab-pane fade show active" id="my-friends-content" role="tabpanel" aria-labelledby="my-friends-tab">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="fw-bold mb-0">
+                            <i class="bi bi-people text-primary me-2"></i>My Friends
+                        </h4>
+                        <span class="text-muted small">Connected Community Members</span>
+                    </div>
+                    <hr class="my-3">
 
-    <div class="card shadow-sm border-0 rounded-4 mb-4">
+                    {{if .Friends}}
+                    <div class="row g-3" id="friends-grid">
+                        {{range .Friends}}
+                        <div class="col-12 col-md-6 col-lg-4 friend-item-card" id="friend-card-{{.User.ID}}">
+                            <div class="card border rounded-4 shadow-sm h-100 hover-shadow transition">
+                                <div class="card-body text-center p-3">
+                                    <div class="position-relative d-inline-block mb-2">
+                                        {{if .User.ProfilePhoto}}
+                                        <img src="{{.User.ProfilePhotoURL}}" alt="{{.User.FullName}}"
+                                             class="rounded-circle border"
+                                             style="width:72px;height:72px;object-fit:cover;"
+                                             onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('d-none');">
+                                        <div class="rounded-circle bg-success text-white d-none justify-content-center align-items-center fw-bold mx-auto"
+                                             style="width:72px;height:72px;font-size:26px;">
+                                            {{.User.Initials}}
+                                        </div>
+                                        {{else}}
+                                        <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold mx-auto"
+                                             style="width:72px;height:72px;font-size:26px;">
+                                            {{.User.Initials}}
+                                        </div>
+                                        {{end}}
+                                    </div>
 
-        <div class="card-body">
+                                    <h5 class="fw-bold mb-0 text-truncate" title="{{.User.FullName}}">
+                                        {{.User.FullName}}
+                                    </h5>
+                                    <p class="text-muted small mb-3">
+                                        @{{.User.Username}}
+                                    </p>
 
-            <h4>
-                📥 Friend Requests
-            </h4>
-
-            <hr>
-
-
-            {{if .Incoming}}
-
-                {{range .Incoming}}
-
-                <div class="d-flex align-items-center justify-content-between mb-3">
-
-
-                    <div class="d-flex align-items-center">
-
-
-                        {{if .Sender.ProfilePhoto}}
-
-                        <img
-                        src="/uploads/profiles/{{.Sender.ProfilePhoto}}"
-                        class="rounded-circle me-3"
-                        style="width:60px;height:60px;object-fit:cover;">
-
-                        {{else}}
-
-                        <div
-                        class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center me-3 fw-bold"
-                        style="width:60px;height:60px;">
-
-                            {{.Sender.Initials}}
-
+                                    <div class="d-flex justify-content-center gap-2 flex-wrap">
+                                        <a href="/user/{{.User.Username}}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                                            <i class="bi bi-person me-1"></i> Profile
+                                        </a>
+                                        <a href="/messages/start?user_id={{.User.ID}}" class="btn btn-primary btn-sm rounded-pill px-3">
+                                            <i class="bi bi-chat-dots me-1"></i> Message
+                                        </a>
+                                        <form action="/friends/remove" method="POST" class="d-inline friend-action-form" data-type="friend" data-id="{{.User.ID}}">
+                                            <input type="hidden" name="user_id" value="{{.User.ID}}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-2" title="Remove Friend" onclick="return confirm('Remove @{{.User.Username}} from your friends?');">
+                                                <i class="bi bi-person-x"></i>
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-
                         {{end}}
-
-
-
-                        <div>
-
-                            <h6 class="mb-0">
-                                {{.Sender.FullName}}
-                            </h6>
-
-                            <small>
-                                @{{.Sender.Username}}
-                            </small>
-
+                    </div>
+                    {{else}}
+                    <div class="text-center py-5">
+                        <div class="mb-3">
+                            <span class="p-3 bg-light rounded-circle text-muted d-inline-block">
+                                <i class="bi bi-people fs-1"></i>
+                            </span>
                         </div>
-
-
+                        <h5 class="fw-bold text-muted">You haven't added any friends yet</h5>
+                        <p class="text-muted small mb-3">Connect with youth community members, join discussions, and fellowship together.</p>
+                        <a href="/discover" class="btn btn-primary rounded-pill px-4">
+                            <i class="bi bi-compass me-1"></i> Find Community Members
+                        </a>
                     </div>
-
-
-
-                    <div>
-
-                        <form action="/friend/accept" method="POST" class="d-inline">
-
-                            <input
-                            type="hidden"
-                            name="request_id"
-                            value="{{.ID}}">
-
-                            <button class="btn btn-success btn-sm">
-                                Accept
-                            </button>
-
-                        </form>
-
-
-                        <form action="/friend/decline" method="POST" class="d-inline">
-
-                            <input
-                            type="hidden"
-                            name="request_id"
-                            value="{{.ID}}">
-
-                            <button class="btn btn-outline-danger btn-sm">
-                                Decline
-                            </button>
-
-                        </form>
-
-
-                    </div>
-
-
+                    {{end}}
                 </div>
-
-
-                {{end}}
-
-
-            {{else}}
-
-            <p class="text-muted">
-                No pending friend requests.
-            </p>
-
-            {{end}}
-
-
-        </div>
-
-    </div>
-
-
-
-
-    <!-- MY FRIENDS -->
-
-
-    <div class="card shadow-sm border-0 rounded-4 mb-4">
-
-
-        <div class="card-body">
-
-
-            <h4>
-                👥 My Friends
-            </h4>
-
-            <hr>
-
-
-            {{if .Friends}}
-
-
-            <div class="row">
-
-
-            {{range .Friends}}
-
-
-                <div class="col-md-4 mb-3">
-
-
-                    <div class="card border-0 shadow-sm">
-
-
-                        <div class="card-body text-center">
-
-
-                            {{if .User.ProfilePhoto}}
-
-                            <img
-                            src="/uploads/profiles/{{.User.ProfilePhoto}}"
-                            class="rounded-circle"
-                            style="width:80px;height:80px;object-fit:cover;">
-
-                            {{else}}
-
-                            <div
-                            class="rounded-circle bg-success text-white mx-auto d-flex justify-content-center align-items-center fw-bold"
-                            style="width:80px;height:80px;font-size:30px;">
-
-                                {{.User.Initials}}
-
-                            </div>
-
-                            {{end}}
-
-
-                            <h5 class="mt-3">
-                                {{.User.FullName}}
-                            </h5>
-
-
-                            <p class="text-muted">
-                                @{{.User.Username}}
-                            </p>
-
-
-                            <div class="d-flex justify-content-center gap-2 mt-2">
-                                <a href="/user/{{.User.Username}}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
-                                    <i class="bi bi-person me-1"></i> Profile
-                                </a>
-                                <a href="/messages/start?user_id={{.User.ID}}" class="btn btn-primary btn-sm rounded-pill px-3">
-                                    <i class="bi bi-chat-dots me-1"></i> Message
-                                </a>
-                            </div>
-
-
-                        </div>
-
-
-                    </div>
-
-
-                </div>
-
-
-            {{end}}
-
-
             </div>
-
-
-            {{else}}
-
-            <p class="text-muted">
-                You have no friends yet.
-            </p>
-
-            {{end}}
-
-
         </div>
 
+        <!-- TAB 2: INCOMING REQUESTS -->
+        <div class="tab-pane fade" id="incoming-content" role="tabpanel" aria-labelledby="incoming-tab">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="fw-bold mb-0">
+                            <i class="bi bi-inbox text-success me-2"></i>Incoming Friend Requests
+                        </h4>
+                        <span class="text-muted small">Members who want to connect with you</span>
+                    </div>
+                    <hr class="my-3">
+
+                    <div id="incoming-requests-list">
+                        {{if .Incoming}}
+                            {{range .Incoming}}
+                            <div class="card border rounded-4 mb-3 p-3 shadow-sm incoming-request-row" id="incoming-row-{{.ID}}">
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="position-relative me-3">
+                                            {{if .Sender.ProfilePhoto}}
+                                            <img src="{{.Sender.ProfilePhotoURL}}" alt="{{.Sender.FullName}}"
+                                                 class="rounded-circle border"
+                                                 style="width:56px;height:56px;object-fit:cover;"
+                                                 onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('d-none');">
+                                            <div class="rounded-circle bg-success text-white d-none justify-content-center align-items-center fw-bold"
+                                                 style="width:56px;height:56px;font-size:22px;">
+                                                {{.Sender.Initials}}
+                                            </div>
+                                            {{else}}
+                                            <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold"
+                                                 style="width:56px;height:56px;font-size:22px;">
+                                                {{.Sender.Initials}}
+                                            </div>
+                                            {{end}}
+                                        </div>
+
+                                        <div>
+                                            <h6 class="fw-bold mb-0">
+                                                <a href="/user/{{.Sender.Username}}" class="text-decoration-none text-dark">
+                                                    {{.Sender.FullName}}
+                                                </a>
+                                            </h6>
+                                            <div class="text-muted small mb-1">
+                                                @{{.Sender.Username}}
+                                            </div>
+                                            <div class="text-muted small" style="font-size: 0.78rem;">
+                                                <i class="bi bi-clock me-1"></i>Received {{.CreatedAt.Format "Jan 02, 2006 at 15:04"}}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <a href="/user/{{.Sender.Username}}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                                            <i class="bi bi-person me-1"></i> View Profile
+                                        </a>
+
+                                        <form action="/friends/accept" method="POST" class="d-inline friend-action-form" data-type="incoming" data-action="accept" data-id="{{.ID}}">
+                                            <input type="hidden" name="request_id" value="{{.ID}}">
+                                            <input type="hidden" name="sender_id" value="{{.Sender.ID}}">
+                                            <button type="submit" class="btn btn-success btn-sm rounded-pill px-3 shadow-sm">
+                                                <i class="bi bi-check-lg me-1"></i> Accept
+                                            </button>
+                                        </form>
+
+                                        <form action="/friends/decline" method="POST" class="d-inline friend-action-form" data-type="incoming" data-action="decline" data-id="{{.ID}}">
+                                            <input type="hidden" name="request_id" value="{{.ID}}">
+                                            <input type="hidden" name="sender_id" value="{{.Sender.ID}}">
+                                            <button type="submit" class="btn btn-outline-danger btn-sm rounded-pill px-3">
+                                                <i class="bi bi-x-lg me-1"></i> Decline
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        {{else}}
+                            <div class="text-center py-5 empty-incoming-state">
+                                <div class="mb-3">
+                                    <span class="p-3 bg-light rounded-circle text-muted d-inline-block">
+                                        <i class="bi bi-inbox fs-1"></i>
+                                    </span>
+                                </div>
+                                <h5 class="fw-bold text-muted">No pending friend requests</h5>
+                                <p class="text-muted small mb-0">When members send you friend requests, they will appear here.</p>
+                            </div>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: SENT REQUESTS -->
+        <div class="tab-pane fade" id="outgoing-content" role="tabpanel" aria-labelledby="outgoing-tab">
+            <div class="card shadow-sm border-0 rounded-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h4 class="fw-bold mb-0">
+                            <i class="bi bi-send text-warning me-2"></i>Sent Friend Requests
+                        </h4>
+                        <span class="text-muted small">Requests you sent that are awaiting response</span>
+                    </div>
+                    <hr class="my-3">
+
+                    <div id="outgoing-requests-list">
+                        {{if .Outgoing}}
+                            {{range .Outgoing}}
+                            <div class="card border rounded-4 mb-3 p-3 shadow-sm outgoing-request-row" id="outgoing-row-{{.ID}}">
+                                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="position-relative me-3">
+                                            {{if .Receiver.ProfilePhoto}}
+                                            <img src="{{.Receiver.ProfilePhotoURL}}" alt="{{.Receiver.FullName}}"
+                                                 class="rounded-circle border"
+                                                 style="width:56px;height:56px;object-fit:cover;"
+                                                 onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.classList.remove('d-none');">
+                                            <div class="rounded-circle bg-success text-white d-none justify-content-center align-items-center fw-bold"
+                                                 style="width:56px;height:56px;font-size:22px;">
+                                                {{.Receiver.Initials}}
+                                            </div>
+                                            {{else}}
+                                            <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold"
+                                                 style="width:56px;height:56px;font-size:22px;">
+                                                {{.Receiver.Initials}}
+                                            </div>
+                                            {{end}}
+                                        </div>
+
+                                        <div>
+                                            <div class="d-flex align-items-center gap-2 mb-1">
+                                                <h6 class="fw-bold mb-0">
+                                                    <a href="/user/{{.Receiver.Username}}" class="text-decoration-none text-dark">
+                                                        {{.Receiver.FullName}}
+                                                    </a>
+                                                </h6>
+                                                <span class="badge bg-warning text-dark rounded-pill small">
+                                                    <i class="bi bi-clock me-1"></i>Pending
+                                                </span>
+                                            </div>
+                                            <div class="text-muted small mb-1">
+                                                @{{.Receiver.Username}}
+                                            </div>
+                                            <div class="text-muted small" style="font-size: 0.78rem;">
+                                                <i class="bi bi-send me-1"></i>Sent {{.CreatedAt.Format "Jan 02, 2006 at 15:04"}}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                                        <a href="/user/{{.Receiver.Username}}" class="btn btn-outline-secondary btn-sm rounded-pill px-3">
+                                            <i class="bi bi-person me-1"></i> View Profile
+                                        </a>
+
+                                        <form action="/friends/cancel" method="POST" class="d-inline friend-action-form" data-type="outgoing" data-action="cancel" data-id="{{.ID}}">
+                                            <input type="hidden" name="request_id" value="{{.ID}}">
+                                            <input type="hidden" name="receiver_id" value="{{.Receiver.ID}}">
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="return confirm('Cancel friend request to @{{.Receiver.Username}}?');">
+                                                <i class="bi bi-x-circle me-1"></i> Cancel Request
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        {{else}}
+                            <div class="text-center py-5 empty-outgoing-state">
+                                <div class="mb-3">
+                                    <span class="p-3 bg-light rounded-circle text-muted d-inline-block">
+                                        <i class="bi bi-send fs-1"></i>
+                                    </span>
+                                </div>
+                                <h5 class="fw-bold text-muted">No sent requests pending</h5>
+                                <p class="text-muted small mb-3">You don't have any outstanding friend requests awaiting approval.</p>
+                                <a href="/discover" class="btn btn-outline-primary rounded-pill px-4">
+                                    <i class="bi bi-compass me-1"></i> Discover Members to Connect
+                                </a>
+                            </div>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
 
     </div>
-
-
-
 </div>
 
+<!-- Progressive Enhancement Script -->
+<script>
+function switchTab(tabId) {
+    const tabEl = document.getElementById(tabId);
+    if (tabEl) {
+        const tab = new bootstrap.Tab(tabEl);
+        tab.show();
+    }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    // Sync summary card active borders with current tab
+    const tabButtons = document.querySelectorAll('#friendsTabs button[data-bs-toggle="pill"]');
+    tabButtons.forEach(btn => {
+        btn.addEventListener('shown.bs.tab', function(e) {
+            document.querySelectorAll('.summary-card').forEach(c => c.classList.remove('border-primary', 'shadow'));
+            if (e.target.id === 'my-friends-tab') {
+                document.getElementById('card-friends')?.classList.add('border-primary', 'shadow');
+            } else if (e.target.id === 'incoming-tab') {
+                document.getElementById('card-incoming')?.classList.add('border-primary', 'shadow');
+            } else if (e.target.id === 'outgoing-tab') {
+                document.getElementById('card-outgoing')?.classList.add('border-primary', 'shadow');
+            }
+        });
+    });
+
+    // Hash navigation (e.g. #incoming or #sent)
+    const hash = window.location.hash;
+    if (hash === '#incoming' || hash === '#requests') {
+        switchTab('incoming-tab');
+    } else if (hash === '#sent' || hash === '#outgoing') {
+        switchTab('outgoing-tab');
+    }
+
+    // Progressive AJAX enhancement for friend actions
+    document.querySelectorAll('.friend-action-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const formData = new FormData(form);
+            const rowType = form.dataset.type;
+            const action = form.dataset.action;
+            const id = form.dataset.id;
+            const submitBtn = form.querySelector('button[type="submit"]');
+
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.dataset.originalHtml = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span>Processing...';
+            }
+
+            fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    if (rowType === 'incoming') {
+                        const row = document.getElementById('incoming-row-' + id);
+                        if (row) {
+                            row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                            row.style.opacity = '0';
+                            row.style.transform = 'translateY(-10px)';
+                            setTimeout(() => {
+                                row.remove();
+                                updateCounts('incoming', -1);
+                                if (action === 'accept') {
+                                    updateCounts('friends', 1);
+                                }
+                            }, 300);
+                        }
+                    } else if (rowType === 'outgoing') {
+                        const row = document.getElementById('outgoing-row-' + id);
+                        if (row) {
+                            row.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                            row.style.opacity = '0';
+                            row.style.transform = 'translateY(-10px)';
+                            setTimeout(() => {
+                                row.remove();
+                                updateCounts('outgoing', -1);
+                            }, 300);
+                        }
+                    } else if (rowType === 'friend') {
+                        const card = document.getElementById('friend-card-' + id);
+                        if (card) {
+                            card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+                            card.style.opacity = '0';
+                            card.style.transform = 'scale(0.95)';
+                            setTimeout(() => {
+                                card.remove();
+                                updateCounts('friends', -1);
+                            }, 300);
+                        }
+                    } else {
+                        window.location.reload();
+                    }
+                } else {
+                    alert(data.error || 'Operation failed');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = submitBtn.dataset.originalHtml;
+                    }
+                }
+            })
+            .catch(() => {
+                // Network failure or non-JSON fallback: standard submit
+                form.submit();
+            });
+
+            e.preventDefault();
+        });
+    });
+
+    function updateCounts(type, delta) {
+        if (type === 'incoming') {
+            const stat = document.getElementById('incoming-count-stat');
+            const badge = document.getElementById('badge-incoming-count');
+            if (stat && badge) {
+                const count = Math.max(0, parseInt(stat.textContent.trim() || '0') + delta);
+                stat.textContent = count;
+                badge.textContent = count;
+                if (count === 0) {
+                    const list = document.getElementById('incoming-requests-list');
+                    if (list && !list.querySelector('.incoming-request-row')) {
+                        list.innerHTML = `
+                            <div class="text-center py-5 empty-incoming-state">
+                                <div class="mb-3">
+                                    <span class="p-3 bg-light rounded-circle text-muted d-inline-block">
+                                        <i class="bi bi-inbox fs-1"></i>
+                                    </span>
+                                </div>
+                                <h5 class="fw-bold text-muted">No pending friend requests</h5>
+                                <p class="text-muted small mb-0">When members send you friend requests, they will appear here.</p>
+                            </div>
+                        `;
+                    }
+                }
+            }
+        } else if (type === 'outgoing') {
+            const stat = document.getElementById('outgoing-count-stat');
+            const badge = document.getElementById('badge-outgoing-count');
+            if (stat && badge) {
+                const count = Math.max(0, parseInt(stat.textContent.trim() || '0') + delta);
+                stat.textContent = count;
+                badge.textContent = count;
+                if (count === 0) {
+                    const list = document.getElementById('outgoing-requests-list');
+                    if (list && !list.querySelector('.outgoing-request-row')) {
+                        list.innerHTML = `
+                            <div class="text-center py-5 empty-outgoing-state">
+                                <div class="mb-3">
+                                    <span class="p-3 bg-light rounded-circle text-muted d-inline-block">
+                                        <i class="bi bi-send fs-1"></i>
+                                    </span>
+                                </div>
+                                <h5 class="fw-bold text-muted">No sent requests pending</h5>
+                                <p class="text-muted small mb-3">You don't have any outstanding friend requests awaiting approval.</p>
+                                <a href="/discover" class="btn btn-outline-primary rounded-pill px-4">
+                                    <i class="bi bi-compass me-1"></i> Discover Members to Connect
+                                </a>
+                            </div>
+                        `;
+                    }
+                }
+            }
+        } else if (type === 'friends') {
+            const stat = document.getElementById('friends-count-stat');
+            const badge = document.getElementById('badge-friends-count');
+            if (stat && badge) {
+                const count = Math.max(0, parseInt(stat.textContent.trim() || '0') + delta);
+                stat.textContent = count;
+                badge.textContent = count;
+            }
+        }
+    }
+});
+</script>
+
+<style>
+.cursor-pointer { cursor: pointer; }
+.transition { transition: all 0.2s ease-in-out; }
+.hover-shadow:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.1) !important; }
+</style>
 
 {{template "footer" .}}

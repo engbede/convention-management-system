@@ -79,31 +79,86 @@
             </p>
             {{end}}
 
-            <!-- FOLLOW BUTTON -->
+            <!-- ACTION BUTTONS: FOLLOW & FRIENDSHIP -->
             {{if ne .CurrentUserID .User.ID}}
+            <div class="d-flex justify-content-center align-items-center gap-2 mt-3 flex-wrap">
 
+                <!-- Follow / Unfollow -->
                 {{if .IsFollowing}}
-
-                <form action="/unfollow" method="POST" class="mt-3">
+                <form action="/unfollow" method="POST" class="d-inline">
                     <input type="hidden" name="user_id" value="{{.User.ID}}">
                     <input type="hidden" name="username" value="{{.User.Username}}">
-                    <button class="btn btn-outline-danger">
-                        Unfollow
+                    <button class="btn btn-outline-danger rounded-pill px-3">
+                        <i class="bi bi-person-dash me-1"></i> Unfollow
                     </button>
                 </form>
-
                 {{else}}
-
-                <form action="/follow" method="POST" class="mt-3">
+                <form action="/follow" method="POST" class="d-inline">
                     <input type="hidden" name="user_id" value="{{.User.ID}}">
                     <input type="hidden" name="username" value="{{.User.Username}}">
-                    <button class="btn btn-success">
-                        Follow
+                    <button class="btn btn-outline-success rounded-pill px-3">
+                        <i class="bi bi-person-plus me-1"></i> Follow
                     </button>
                 </form>
-
                 {{end}}
 
+                <!-- Friend Status Actions -->
+                {{if eq .FriendStatus "none"}}
+                <form action="/friends/request" method="POST" class="d-inline">
+                    <input type="hidden" name="receiver_id" value="{{.User.ID}}">
+                    <input type="hidden" name="username" value="{{.User.Username}}">
+                    <button class="btn btn-primary rounded-pill px-3 shadow-sm">
+                        <i class="bi bi-person-plus-fill me-1"></i> Add Friend
+                    </button>
+                </form>
+                {{else if eq .FriendStatus "pending"}}
+                <span class="badge bg-warning text-dark py-2 px-3 rounded-pill fs-6 d-inline-flex align-items-center">
+                    <i class="bi bi-clock-history me-1"></i> Request Sent
+                </span>
+                <form action="/friends/cancel" method="POST" class="d-inline">
+                    <input type="hidden" name="receiver_id" value="{{.User.ID}}">
+                    <input type="hidden" name="username" value="{{.User.Username}}">
+                    <button class="btn btn-outline-secondary btn-sm rounded-pill px-3" onclick="return confirm('Cancel friend request?');">
+                        <i class="bi bi-x-circle me-1"></i> Cancel Request
+                    </button>
+                </form>
+                {{else if eq .FriendStatus "received"}}
+                <div class="d-inline-flex align-items-center gap-2">
+                    <form action="/friends/accept" method="POST" class="d-inline">
+                        <input type="hidden" name="request_id" value="{{.IncomingRequestID}}">
+                        <input type="hidden" name="sender_id" value="{{.User.ID}}">
+                        <input type="hidden" name="username" value="{{.User.Username}}">
+                        <button class="btn btn-success rounded-pill px-3 shadow-sm">
+                            <i class="bi bi-check-lg me-1"></i> Accept Request
+                        </button>
+                    </form>
+                    <form action="/friends/decline" method="POST" class="d-inline">
+                        <input type="hidden" name="request_id" value="{{.IncomingRequestID}}">
+                        <input type="hidden" name="sender_id" value="{{.User.ID}}">
+                        <input type="hidden" name="username" value="{{.User.Username}}">
+                        <button class="btn btn-outline-danger rounded-pill px-3">
+                            <i class="bi bi-x-lg me-1"></i> Decline
+                        </button>
+                    </form>
+                </div>
+                {{else if eq .FriendStatus "friends"}}
+                <span class="badge bg-success-subtle text-success border border-success-subtle py-2 px-3 rounded-pill fs-6 d-inline-flex align-items-center">
+                    <i class="bi bi-people-fill me-1"></i> Friends
+                </span>
+                <a href="/messages/start?user_id={{.User.ID}}" class="btn btn-primary rounded-pill px-3">
+                    <i class="bi bi-chat-dots-fill me-1"></i> Message
+                </a>
+                <form action="/friends/remove" method="POST" class="d-inline">
+                    <input type="hidden" name="friend_id" value="{{.User.ID}}">
+                    <input type="hidden" name="user_id" value="{{.User.ID}}">
+                    <input type="hidden" name="username" value="{{.User.Username}}">
+                    <button class="btn btn-outline-danger btn-sm rounded-pill px-2" title="Remove Friend" onclick="return confirm('Remove @{{.User.Username}} from your friends?');">
+                        <i class="bi bi-person-x"></i>
+                    </button>
+                </form>
+                {{end}}
+
+            </div>
             {{end}}
 
         </div>

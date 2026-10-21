@@ -520,6 +520,20 @@ func RegisterRoutes(mux *http.ServeMux) {
 	)
 
 	mux.HandleFunc(
+		"/api/notifications/read",
+		middleware.RequireLogin(
+			handlers.MarkNotificationsReadAPI,
+		),
+	)
+
+	mux.HandleFunc(
+		"/notifications/read-all",
+		middleware.RequireLogin(
+			handlers.MarkNotificationsReadAPI,
+		),
+	)
+
+	mux.HandleFunc(
 		"/community",
 		middleware.RequireLogin(
 			handlers.Community,

@@ -3,9 +3,29 @@ package repository
 import (
 	"convention-management-system/database"
 	"convention-management-system/models"
+	"convention-management-system/utils"
 )
 
+// CreateNotification inserts a new notification for a recipient.
+// Avoids duplicate unread friend request notifications.
 func CreateNotification(notification models.Notification) error {
+	if database.DB == nil {
+		return nil
+	}
+
+	// Avoid duplicate unread friend request notifications from the same sender
+	if notification.Type == "friend_request_received" || notification.Type == "friend_request" {
+		var exists int
+		err := database.DB.QueryRow(`
+			SELECT COUNT(*) FROM notifications
+			WHERE sender_id = $1 AND receiver_id = $2
+			  AND type IN ('friend_request_received', 'friend_request')
+			  AND is_read = FALSE
+		`, notification.SenderID, notification.ReceiverID).Scan(&exists)
+		if err == nil && exists > 0 {
+			return nil
+		}
+	}
 
 	query := `
 	INSERT INTO notifications (
@@ -14,16 +34,12 @@ func CreateNotification(notification models.Notification) error {
 		post_id,
 		comment_id,
 		type,
-		message
+		message,
+		is_read,
+		created_at
 	)
-	VALUES ($1, $2, $3, $4, $5, $6)
+	VALUES ($1, $2, $3, $4, $5, $6, FALSE, CURRENT_TIMESTAMP)
 	`
-	println("================================")
-	println("Creating notification")
-	println("SenderID   =", notification.SenderID)
-	println("ReceiverID =", notification.ReceiverID)
-	println("Type       =", notification.Type)
-	println("================================")
 
 	_, err := database.DB.Exec(
 		query,
@@ -35,19 +51,30 @@ func CreateNotification(notification models.Notification) error {
 		notification.Message,
 	)
 
-	if err != nil {
-		println("================================")
-		println("CreateNotification failed:")
-		println(err.Error())
-		println("================================")
-	} else {
-		println("Notification inserted successfully")
+	return err
+}
+
+// MarkNotificationsAsRead marks all unread notifications for a user as read.
+func MarkNotificationsAsRead(userID int) error {
+	if database.DB == nil {
+		return nil
 	}
+
+	_, err := database.DB.Exec(`
+		UPDATE notifications
+		SET is_read = TRUE
+		WHERE receiver_id = $1
+		  AND is_read = FALSE
+	`, userID)
 
 	return err
 }
 
+// CountUnreadNotifications returns the count of unread notifications for a user.
 func CountUnreadNotifications(userID int) (int, error) {
+	if database.DB == nil {
+		return 0, nil
+	}
 
 	query := `
 	SELECT COUNT(*)
@@ -57,16 +84,15 @@ func CountUnreadNotifications(userID int) (int, error) {
 	`
 
 	var count int
-
-	err := database.DB.QueryRow(
-		query,
-		userID,
-	).Scan(&count)
-
+	err := database.DB.QueryRow(query, userID).Scan(&count)
 	return count, err
 }
 
+// GetNotificationsByUser returns all notifications for a user in reverse chronological order.
 func GetNotificationsByUser(userID int) ([]models.Notification, error) {
+	if database.DB == nil {
+		return nil, nil
+	}
 
 	query := `
 	SELECT
@@ -97,11 +123,8 @@ func GetNotificationsByUser(userID int) ([]models.Notification, error) {
 	defer rows.Close()
 
 	var notifications []models.Notification
-
 	for rows.Next() {
-
 		var notification models.Notification
-
 		err := rows.Scan(
 			&notification.ID,
 			&notification.SenderID,
@@ -118,23 +141,16 @@ func GetNotificationsByUser(userID int) ([]models.Notification, error) {
 			&notification.Sender.ProfilePhoto,
 		)
 		if err != nil {
-			println("================================")
-			println("Scan error:")
-			println(err.Error())
-			println("================================")
 			return nil, err
 		}
 
+		notification.Sender.Initials = utils.Initials(notification.Sender.FullName)
 		notifications = append(notifications, notification)
 	}
 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
-	println("================================")
-	println("Notifications found:", len(notifications))
-	println("================================")
 
 	return notifications, nil
 }

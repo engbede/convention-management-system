@@ -174,51 +174,40 @@ func GetSentFriendRequests(userID int) ([]models.FriendRequest, error) {
 }
 
 func SendFriendRequest(senderID, receiverID int) error {
-
-	err := repository.SendFriendRequest(
-		senderID,
-		receiverID,
-	)
-
+	res, err := repository.SendFriendRequest(senderID, receiverID)
 	if err != nil {
 		return err
 	}
 
-	return NotifyFriendRequest(
-		senderID,
-		receiverID,
-	)
+	if res != nil && res.IsMutualFriend {
+		// Mutual agreement: reciprocal request was auto-accepted
+		_ = NotifyFriendAccepted(senderID, receiverID)
+		_ = NotifyFriendAccepted(receiverID, senderID)
+		return nil
+	}
+
+	return NotifyFriendRequest(senderID, receiverID)
 }
 
-func AcceptFriendRequest(requestID, senderID, receiverID int) error {
-
-	err := repository.AcceptFriendRequest(
-		requestID,
-	)
-
+func AcceptFriendRequest(requestID, receiverID int) error {
+	senderID, _, _, err := repository.AcceptFriendRequest(requestID, receiverID)
 	if err != nil {
 		return err
 	}
 
-	return NotifyFriendAccepted(
-		receiverID,
-		senderID,
-	)
+	return NotifyFriendAccepted(receiverID, senderID)
 }
 
-func DeclineFriendRequest(requestID int) error {
-
-	return repository.DeclineFriendRequest(
-		requestID,
-	)
+func DeclineFriendRequest(requestID, receiverID int) error {
+	return repository.DeclineFriendRequest(requestID, receiverID)
 }
 
 func CancelFriendRequest(senderID, receiverID int) error {
+	return repository.CancelFriendRequestByUsers(senderID, receiverID)
+}
 
-	return repository.CancelFriendRequest(
-		senderID,
-		receiverID,
-	)
+func CancelFriendRequestByID(requestID, senderID int) error {
+	return repository.CancelFriendRequest(requestID, senderID)
 }
 
 func RemoveFriend(user1ID, user2ID int) error {

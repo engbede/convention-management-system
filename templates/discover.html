@@ -57,46 +57,33 @@
                     </a>
 
                     {{if eq .FriendStatus "none"}}
-
-<form action="/friend/request" method="POST" class="d-inline">
-
-    <input
-        type="hidden"
-        name="receiver_id"
-        value="{{.ID}}">
-
-    <button
-        class="btn btn-success btn-sm">
-        Add Friend
-    </button>
-
-</form>
-
-{{else if eq .FriendStatus "pending"}}
-
-<button
-    class="btn btn-secondary btn-sm"
-    disabled>
-    Pending
-</button>
-
-{{else if eq .FriendStatus "received"}}
-
-<a
-    href="/friends"
-    class="btn btn-warning btn-sm">
-    Respond
-</a>
-
-{{else if eq .FriendStatus "friends"}}
-
-<button
-    class="btn btn-primary btn-sm"
-    disabled>
-    Friends
-</button>
-
-{{end}}
+                    <form action="/friends/request" method="POST" class="d-inline">
+                        <input type="hidden" name="receiver_id" value="{{.ID}}">
+                        <button class="btn btn-success btn-sm">
+                            <i class="bi bi-person-plus me-1"></i> Add Friend
+                        </button>
+                    </form>
+                    {{else if eq .FriendStatus "pending"}}
+                    <div class="d-inline-flex align-items-center gap-1">
+                        <span class="badge bg-warning text-dark py-1 px-2 rounded-pill">
+                            <i class="bi bi-clock me-1"></i> Pending
+                        </span>
+                        <form action="/friends/cancel" method="POST" class="d-inline">
+                            <input type="hidden" name="receiver_id" value="{{.ID}}">
+                            <button class="btn btn-outline-secondary btn-sm" title="Cancel Friend Request" onclick="return confirm('Cancel friend request?');">
+                                <i class="bi bi-x-circle"></i> Cancel
+                            </button>
+                        </form>
+                    </div>
+                    {{else if eq .FriendStatus "received"}}
+                    <a href="/friends#incoming" class="btn btn-warning btn-sm">
+                        <i class="bi bi-inbox me-1"></i> Respond
+                    </a>
+                    {{else if eq .FriendStatus "friends"}}
+                    <span class="btn btn-outline-primary btn-sm disabled">
+                        <i class="bi bi-people-fill me-1"></i> Friends
+                    </span>
+                    {{end}}
 
                 </div>
 

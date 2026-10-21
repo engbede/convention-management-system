@@ -24,6 +24,10 @@ func CountUnreadNotifications(userID int) (int, error) {
 	return repository.CountUnreadNotifications(userID)
 }
 
+func MarkNotificationsAsRead(userID int) error {
+	return repository.MarkNotificationsAsRead(userID)
+}
+
 func NotifyFollow(senderID, receiverID int) error {
 
 	notification := models.Notification{

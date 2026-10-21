@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"convention-management-system/database"
 	"convention-management-system/models"
 	"convention-management-system/services"
 	"convention-management-system/sessions"
@@ -59,6 +60,19 @@ func PublicProfile(
 		)
 
 	}
+
+	friendStatus := "none"
+	var incomingRequestID int
+	if currentUserID != 0 && currentUserID != user.ID {
+		friendStatus, _ = services.GetFriendStatus(currentUserID, user.ID)
+		if friendStatus == "received" && database.DB != nil {
+			_ = database.DB.QueryRow(`
+				SELECT id FROM friend_requests
+				WHERE sender_id = $1 AND receiver_id = $2 AND status = 'pending'
+			`, user.ID, currentUserID).Scan(&incomingRequestID)
+		}
+	}
+
 	unread := 0
 
 	if currentUserID != 0 {
@@ -69,11 +83,13 @@ func PublicProfile(
 		w,
 		"public_profile.html",
 		map[string]any{
-			"User":          user,
-			"Posts":         posts,
-			"CurrentUserID": currentUserID,
-			"IsFollowing":   isFollowing,
-			"UnreadCount":   unread,
+			"User":              user,
+			"Posts":             posts,
+			"CurrentUserID":     currentUserID,
+			"IsFollowing":       isFollowing,
+			"FriendStatus":      friendStatus,
+			"IncomingRequestID": incomingRequestID,
+			"UnreadCount":       unread,
 		},
 	)
 }

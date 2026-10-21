@@ -7,22 +7,17 @@ import (
 	"convention-management-system/sessions"
 )
 
+// Notifications renders the notification list page and automatically marks all
+// unread notifications as read so that the badge count updates accurately.
 func Notifications(w http.ResponseWriter, r *http.Request) {
-
 	session, _ := sessions.Store.Get(
 		r,
 		"youth-community",
 	)
 
 	userID, ok := session.Values["user_id"].(int)
-
-	println("================================")
-	println("Notification page opened")
-	println("Logged-in user ID =", userID)
-	println("================================")
-
-	if !ok {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
+	if !ok || userID <= 0 {
+		http.Redirect(w, r, "/community/login", http.StatusSeeOther)
 		return
 	}
 
@@ -34,10 +29,8 @@ func Notifications(w http.ResponseWriter, r *http.Request) {
 
 	unread, _ := services.CountUnreadNotifications(userID)
 
-	println("================================")
-	println("Handler received:", len(notifications), "notifications")
-	println("Unread:", unread)
-	println("================================")
+	// Mark notifications as read once viewed
+	_ = services.MarkNotificationsAsRead(userID)
 
 	Render(
 		w,
@@ -47,4 +40,42 @@ func Notifications(w http.ResponseWriter, r *http.Request) {
 			"UnreadCount":   unread,
 		},
 	)
+}
+
+// MarkNotificationsReadAPI marks all unread notifications for the authenticated user as read.
+// Supports both AJAX/JSON requests and standard form posts / redirects.
+func MarkNotificationsReadAPI(w http.ResponseWriter, r *http.Request) {
+	session, _ := sessions.Store.Get(r, "youth-community")
+	userID, ok := session.Values["user_id"].(int)
+	if !ok || userID <= 0 {
+		if isFriendJSON(r) {
+			sendFriendJSONError(w, http.StatusUnauthorized, "Authentication required")
+			return
+		}
+		http.Redirect(w, r, "/community/login", http.StatusSeeOther)
+		return
+	}
+
+	if err := services.MarkNotificationsAsRead(userID); err != nil {
+		if isFriendJSON(r) {
+			sendFriendJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isFriendJSON(r) {
+		sendFriendJSON(w, http.StatusOK, map[string]any{
+			"success": true,
+			"message": "Notifications marked as read",
+		})
+		return
+	}
+
+	if ref := r.Header.Get("Referer"); ref != "" {
+		http.Redirect(w, r, ref, http.StatusSeeOther)
+		return
+	}
+	http.Redirect(w, r, "/notifications", http.StatusSeeOther)
 }
