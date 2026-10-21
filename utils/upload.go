@@ -337,6 +337,19 @@ func SaveUploadedVideo(
 		return "", closeErr
 	}
 
+	// Verify container and codec integrity (e.g. valid MP4 ftyp/moov atoms, minimum size)
+	diskF, err := os.Open(path)
+	if err != nil {
+		_ = os.Remove(path)
+		return "", err
+	}
+	_, valErr := ValidateVideoIntegrity(diskF, header.Size, header.Filename)
+	_ = diskF.Close()
+	if valErr != nil {
+		_ = os.Remove(path)
+		return "", valErr
+	}
+
 	s3Key := filename
 	if strings.Contains(destination, "posts") {
 		s3Key = "posts/" + filename

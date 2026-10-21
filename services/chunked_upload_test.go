@@ -14,13 +14,7 @@ import (
 )
 
 func sampleMP4Bytes() []byte {
-	return []byte{
-		0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p',
-		'm', 'p', '4', '2', 0x00, 0x00, 0x00, 0x00,
-		'm', 'p', '4', '2', 'i', 's', 'o', 'm',
-		0x00, 0x00, 0x00, 0x08, 'm', 'd', 'a', 't',
-		0x01, 0x02, 0x03, 0x04,
-	}
+	return utils.GenerateValidTestMP4()
 }
 
 func TestInitiateChunkedUpload_Limits(t *testing.T) {

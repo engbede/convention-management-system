@@ -2,6 +2,7 @@ package models
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -113,4 +114,33 @@ func (p Post) VideoURL() string {
 	}
 	return "/uploads/" + rel
 }
+
+// VideoMimeType returns the browser MIME type corresponding to the video URL for HTML5 video playback.
+func (p Post) VideoMimeType() string {
+	rawURL := strings.ToLower(p.VideoURL())
+	clean := strings.Split(rawURL, "?")[0]
+	ext := filepath.Ext(clean)
+	switch ext {
+	case ".webm":
+		return "video/webm"
+	case ".mov":
+		return "video/quicktime"
+	case ".mkv":
+		return "video/x-matroska"
+	case ".avi":
+		return "video/x-msvideo"
+	default:
+		return "video/mp4"
+	}
+}
+
+// IsWebPlayableVideo returns true if the video container is natively supported by modern web browsers.
+// Containers like MKV and AVI are not supported in HTML5 video tags and require external players or conversion.
+func (p Post) IsWebPlayableVideo() bool {
+	rawURL := strings.ToLower(p.VideoURL())
+	clean := strings.Split(rawURL, "?")[0]
+	ext := filepath.Ext(clean)
+	return ext == ".mp4" || ext == ".webm" || ext == ".mov" || ext == ""
+}
+
 

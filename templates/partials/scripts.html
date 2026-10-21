@@ -110,28 +110,51 @@ window.handleVideoPlayerError = window.handleVideoPlayerError || function(el) {
     var fallback = container.querySelector('.video-error-fallback');
     var errorText = container.querySelector('.video-error-text');
     var openBtn = container.querySelector('.video-open-btn');
+    var downloadBtn = container.querySelector('.video-download-btn');
+    var retryBtn = container.querySelector('.video-retry-btn');
+
+    // Ignore if aborted by user navigation
+    if (video && video.error && video.error.code === 1) { // MEDIA_ERR_ABORTED
+        return;
+    }
+
     if (fallback) fallback.classList.remove('d-none');
 
-    var videoUrl = video ? (video.getAttribute('data-original-src') || video.src || (video.querySelector('source') ? video.querySelector('source').src : '')) : '';
+    var videoUrl = container.getAttribute('data-video-url') || (video ? (video.getAttribute('data-original-src') || video.src || (video.querySelector('source') ? video.querySelector('source').src : '')) : '');
     if (!videoUrl) return;
 
     fetch(videoUrl, { method: 'HEAD' })
         .then(function(resp) {
             if (resp.status === 404) {
                 if (errorText) errorText.textContent = 'This video file is no longer available on the server.';
+                if (retryBtn) retryBtn.classList.add('d-none');
                 if (openBtn) {
                     openBtn.classList.add('disabled', 'opacity-50');
                     openBtn.setAttribute('aria-disabled', 'true');
                     openBtn.removeAttribute('href');
                 }
+                if (downloadBtn) downloadBtn.classList.add('d-none');
+            } else if (resp.status === 401 || resp.status === 403) {
+                if (errorText) errorText.textContent = 'You do not have permission to view this video.';
+                if (retryBtn) retryBtn.classList.add('d-none');
             } else if (!resp.ok) {
                 if (errorText) errorText.textContent = 'Video stream error (Server returned HTTP ' + resp.status + ').';
+                if (retryBtn) retryBtn.classList.remove('d-none');
             } else {
-                if (errorText) errorText.textContent = 'Video format or codec is not supported by your browser.';
+                // HTTP 200 OK - file exists, but decoding failed in browser
+                var contentLength = parseInt(resp.headers.get('content-length') || '0', 10);
+                if (contentLength > 0 && contentLength < 4096) {
+                    if (errorText) errorText.textContent = 'This video file is incomplete or corrupted on the server.';
+                    if (retryBtn) retryBtn.classList.add('d-none');
+                } else {
+                    if (errorText) errorText.textContent = 'Video format or codec is not supported by your browser.';
+                    if (downloadBtn) downloadBtn.classList.remove('d-none');
+                }
             }
         })
         .catch(function() {
             if (errorText) errorText.textContent = 'Network error while retrieving video stream.';
+            if (retryBtn) retryBtn.classList.remove('d-none');
         });
 };
 
@@ -143,9 +166,19 @@ window.retryVideoPlayback = window.retryVideoPlayback || function(btn) {
     var errorText = container.querySelector('.video-error-text');
     if (!video) return;
 
+    var retries = parseInt(btn.dataset.retries || '0', 10);
+    if (retries >= 3) {
+        if (errorText) errorText.textContent = 'Unable to stream video after multiple attempts. Please try opening or downloading the video directly.';
+        btn.classList.add('d-none');
+        return;
+    }
+    btn.dataset.retries = retries + 1;
+    btn.disabled = true;
+    setTimeout(function() { btn.disabled = false; }, 2000);
+
     var originalSrc = video.getAttribute('data-original-src');
     if (!originalSrc) {
-        originalSrc = video.src || (video.querySelector('source') ? video.querySelector('source').src : '');
+        originalSrc = container.getAttribute('data-video-url') || video.src || (video.querySelector('source') ? video.querySelector('source').src : '');
         video.setAttribute('data-original-src', originalSrc);
     }
     if (!originalSrc) return;

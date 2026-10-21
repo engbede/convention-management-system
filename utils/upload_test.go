@@ -56,17 +56,9 @@ func createMultipartFile(t *testing.T, filename string, content []byte, contentT
 func TestSaveUploadedVideo_Success(t *testing.T) {
 	destDir := t.TempDir()
 
-	// MP4 dummy content with standard ISO BMFF / ftyp box
-	// 4 bytes size (0x00000018), 'ftyp', 'mp42', minor_version 0, 'mp42', 'isom'
-	mp4Header := []byte{
-		0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p',
-		'm', 'p', '4', '2', 0x00, 0x00, 0x00, 0x00,
-		'm', 'p', '4', '2', 'i', 's', 'o', 'm',
-		0x00, 0x00, 0x00, 0x08, 'm', 'd', 'a', 't',
-		0x01, 0x02, 0x03, 0x04,
-	}
+	mp4Data := utils.GenerateValidTestMP4()
 
-	file, header := createMultipartFile(t, "sample.mp4", mp4Header, "video/mp4")
+	file, header := createMultipartFile(t, "sample.mp4", mp4Data, "video/mp4")
 	savedName, err := utils.SaveUploadedVideo(file, header, destDir)
 	if err != nil {
 		t.Fatalf("Expected successful video save, got err: %v", err)
@@ -80,9 +72,57 @@ func TestSaveUploadedVideo_Success(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Saved file does not exist on disk: %v", err)
 	}
-	if fi.Size() != int64(len(mp4Header)) {
-		t.Errorf("Expected file size %d, got %d", len(mp4Header), fi.Size())
+	if fi.Size() != int64(len(mp4Data)) {
+		t.Errorf("Expected file size %d, got %d", len(mp4Data), fi.Size())
 	}
+}
+
+func TestValidateVideoIntegrity(t *testing.T) {
+	t.Run("Valid MP4 container with moov and ftyp", func(t *testing.T) {
+		mp4 := utils.GenerateValidTestMP4()
+		r := bytes.NewReader(mp4)
+		meta, err := utils.ValidateVideoIntegrity(r, int64(len(mp4)), "clip.mp4")
+		if err != nil {
+			t.Fatalf("Expected valid MP4 to pass integrity check, got err: %v", err)
+		}
+		if meta.Container != "mp4" {
+			t.Errorf("Expected container mp4, got %s", meta.Container)
+		}
+		if !meta.IsWebPlayable {
+			t.Errorf("Expected avc1 MP4 to be web playable")
+		}
+	})
+
+	t.Run("Truncated MP4 missing moov atom fails", func(t *testing.T) {
+		// Mock 36-byte file with only ftyp and incomplete mdat (missing moov atom)
+		brokenBytes := []byte{
+			0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p',
+			'm', 'p', '4', '2', 0x00, 0x00, 0x00, 0x00,
+			'm', 'p', '4', '2', 'i', 's', 'o', 'm',
+			0x00, 0x00, 0x00, 0x08, 'm', 'd', 'a', 't',
+			0x01, 0x02, 0x03, 0x04,
+		}
+		r := bytes.NewReader(brokenBytes)
+		_, err := utils.ValidateVideoIntegrity(r, int64(len(brokenBytes)), "broken.mp4")
+		if err == nil || !strings.Contains(err.Error(), "too small") {
+			t.Errorf("Expected too small error for 36-byte file, got: %v", err)
+		}
+	})
+
+	t.Run("Larger MP4 without moov atom fails with missing moov error", func(t *testing.T) {
+		// 500-byte file with ftyp but no moov atom
+		data := make([]byte, 500)
+		copy(data[0:8], []byte{0x00, 0x00, 0x00, 0x18, 'f', 't', 'y', 'p'})
+		copy(data[8:24], []byte("isom\x00\x00\x02\x00isomiso2"))
+		// mdat takes up remaining 476 bytes
+		copy(data[24:32], []byte{0x00, 0x00, 0x01, 0xDC, 'm', 'd', 'a', 't'})
+
+		r := bytes.NewReader(data)
+		_, err := utils.ValidateVideoIntegrity(r, int64(len(data)), "recording.mp4")
+		if err == nil || !strings.Contains(err.Error(), "missing movie header") {
+			t.Errorf("Expected missing moov atom error, got: %v", err)
+		}
+	})
 }
 
 func TestSaveUploadedVideo_WebM(t *testing.T) {
@@ -95,6 +135,8 @@ func TestSaveUploadedVideo_WebM(t *testing.T) {
 		0x04, 0x42, 0xF3, 0x81, 0x08, 0x42, 0x82, 0x84,
 		'w', 'e', 'b', 'm',
 	}
+	// Pad with dummy EBML payload to reach valid minimum size
+	webmHeader = append(webmHeader, make([]byte, 120)...)
 
 	file, header := createMultipartFile(t, "clip.webm", webmHeader, "video/webm")
 	savedName, err := utils.SaveUploadedVideo(file, header, destDir)

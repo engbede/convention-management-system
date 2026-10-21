@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -350,23 +349,24 @@ func CompleteChunkedUpload(userID int, uploadID string) (targetKey string, final
 
 	// Format & integrity verification
 	verifyFile, err := os.Open(finalDestPath)
-	if err == nil {
-		magic := make([]byte, 512)
-		n, _ := verifyFile.Read(magic)
-		verifyFile.Close()
-
-		detected := http.DetectContentType(magic[:n])
-		if !strings.HasPrefix(detected, "video/") && detected != "application/octet-stream" {
-			_ = os.Remove(finalDestPath)
-			return "", "", errors.New("uploaded file is corrupt or not a valid video stream")
-		}
+	if err != nil {
+		_ = os.Remove(finalDestPath)
+		return "", "", fmt.Errorf("failed opening assembled file for verification: %w", err)
+	}
+	_, valErr := utils.ValidateVideoIntegrity(verifyFile, totalWritten, session.OriginalName)
+	_ = verifyFile.Close()
+	if valErr != nil {
+		_ = os.Remove(finalDestPath)
+		return "", "", fmt.Errorf("video validation failed: %w", valErr)
 	}
 
 	// Persist chunked videos up to max durable size (default 200 MB) to durable database media storage so they survive Render redeployments
 	if session.FileSize <= utils.GetMaxDurableVideoSize() {
 		if sf, oErr := os.Open(finalDestPath); oErr == nil {
 			if vData, rErr := io.ReadAll(sf); rErr == nil && len(vData) > 0 {
-				_ = repository.SaveMediaBlob(session.TargetKey, session.ContentType, vData)
+				if sErr := repository.SaveMediaBlob(session.TargetKey, session.ContentType, vData); sErr != nil {
+					log.Printf("[Upload] Warning: failed persisting video %s to database: %v", session.TargetKey, sErr)
+				}
 			}
 			sf.Close()
 		}
@@ -375,7 +375,9 @@ func CompleteChunkedUpload(userID int, uploadID string) (targetKey string, final
 	// If cloud S3 is configured, stream final file to S3 in background/mirror
 	if utils.IsObjectStorageEnabled() {
 		if sf, sErr := os.Open(finalDestPath); sErr == nil {
-			_, _ = utils.UploadToObjectStorage(session.TargetKey, sf, totalWritten, session.ContentType)
+			if _, uErr := utils.UploadToObjectStorage(session.TargetKey, sf, totalWritten, session.ContentType); uErr != nil {
+				log.Printf("[Upload] S3 upload error for %s: %v", session.TargetKey, uErr)
+			}
 			sf.Close()
 		}
 	}

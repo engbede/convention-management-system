@@ -196,6 +196,12 @@ document.addEventListener("DOMContentLoaded", function () {
             // Clear image selection if video is selected
             if (imageInput) imageInput.value = "";
 
+            if (file.size < 4096) {
+                showError("The selected video file is too small or empty. Please select a valid video recording.");
+                this.value = "";
+                return;
+            }
+
             if (file.size > maxVideoSize) {
                 showError("Video size must not exceed " + formatBytes(maxVideoSize) + " (" + formatBytes(file.size) + " selected).");
                 this.value = "";
@@ -225,6 +231,15 @@ document.addEventListener("DOMContentLoaded", function () {
 
             container.appendChild(video);
             container.appendChild(removeBtn);
+
+            const lowerName = file.name.toLowerCase();
+            if (lowerName.endsWith('.mkv') || lowerName.endsWith('.avi')) {
+                const notice = document.createElement("div");
+                notice.className = "alert alert-warning py-2 px-3 mt-2 small text-start";
+                notice.innerHTML = '<i class="bi bi-info-circle-fill me-1"></i><strong>Format Notice:</strong> MKV and AVI files cannot stream directly in web browsers. Community members will be provided a download button to play this video in an external media player (like VLC). We recommend MP4 (H.264) for instant web playback.';
+                container.appendChild(notice);
+            }
+
             preview.appendChild(container);
         });
     }
