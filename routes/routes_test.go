@@ -536,5 +536,70 @@ func TestUploadsRoute_DurableVideoRestorationAndStreaming(t *testing.T) {
 	_ = repository.DeleteMediaBlob(testBlobKey)
 }
 
+func TestServeMedia_AudioMimeTypes(t *testing.T) {
+	mux, cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	_ = os.MkdirAll("uploads/chat", 0755)
+
+	testFiles := []struct {
+		filename    string
+		expectedSub string
+	}{
+		{filename: "voice-1.webm", expectedSub: "audio/webm"},
+		{filename: "voice-2.ogg", expectedSub: "audio/ogg"},
+		{filename: "voice-3.mp3", expectedSub: "audio/mpeg"},
+		{filename: "voice-4.wav", expectedSub: "audio/wav"},
+		{filename: "voice-5.m4a", expectedSub: "audio/"},
+	}
+	defer func() {
+		for _, tf := range testFiles {
+			_ = os.Remove(filepath.Join("uploads", "chat", tf.filename))
+		}
+	}()
+
+	fakeAudioData := []byte("RIFF-FAKE-AUDIO-DATA-BYTES-STREAM-FOR-VOICE-NOTE-CHECK")
+
+	for _, tf := range testFiles {
+		filePath := filepath.Join("uploads", "chat", tf.filename)
+		if err := os.WriteFile(filePath, fakeAudioData, 0644); err != nil {
+			t.Fatalf("Failed to write test file %s: %v", filePath, err)
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/uploads/chat/"+tf.filename, nil)
+		rr := httptest.NewRecorder()
+		mux.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Errorf("Expected 200 OK for %s, got %d", tf.filename, rr.Code)
+		}
+
+		ctype := rr.Header().Get("Content-Type")
+		if !strings.Contains(ctype, tf.expectedSub) {
+			t.Errorf("For file %s, expected Content-Type containing %q, got %q", tf.filename, tf.expectedSub, ctype)
+		}
+
+		if rr.Header().Get("Accept-Ranges") != "bytes" {
+			t.Errorf("For file %s, expected Accept-Ranges 'bytes', got %q", tf.filename, rr.Header().Get("Accept-Ranges"))
+		}
+	}
+
+	// Test Byte-Range request on WebM voice note
+	reqRange := httptest.NewRequest(http.MethodGet, "/uploads/chat/voice-1.webm", nil)
+	reqRange.Header.Set("Range", "bytes=0-9")
+	rrRange := httptest.NewRecorder()
+	mux.ServeHTTP(rrRange, reqRange)
+
+	if rrRange.Code != http.StatusPartialContent {
+		t.Errorf("Expected 206 Partial Content for range request, got %d", rrRange.Code)
+	}
+	if !strings.Contains(rrRange.Header().Get("Content-Type"), "audio/webm") {
+		t.Errorf("Expected audio/webm on range request, got %q", rrRange.Header().Get("Content-Type"))
+	}
+	if !bytes.Equal(rrRange.Body.Bytes(), fakeAudioData[:10]) {
+		t.Errorf("Expected byte-range chunk %q, got %q", fakeAudioData[:10], rrRange.Body.Bytes())
+	}
+}
+
 
 

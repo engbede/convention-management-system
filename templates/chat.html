@@ -201,6 +201,26 @@
 [data-bs-theme="dark"] .chat-attachment-file .text-muted {
     color: #94a3b8 !important;
 }
+[data-bs-theme="dark"] .conversation-group-heading {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #94a3b8 !important;
+}
+[data-bs-theme="dark"] .message-date-separator .badge {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+    color: #94a3b8 !important;
+}
+[data-bs-theme="dark"] .chat-attachment-voice.bg-light {
+    background-color: #1e293b !important;
+    border-color: #334155 !important;
+}
+[data-bs-theme="dark"] .chat-attachment-voice .text-dark {
+    color: #f8fafc !important;
+}
+[data-bs-theme="dark"] .chat-attachment-voice .text-muted {
+    color: #94a3b8 !important;
+}
 [data-bs-theme="dark"] .offcanvas {
     background-color: #0f172a !important;
     color: #f8fafc !important;
@@ -369,9 +389,80 @@
 
                 <!-- Conversation Items -->
                 <div class="flex-grow-1 overflow-y-auto" id="conversationList">
-                    {{if .Conversations}}
+                    {{if .ConversationGroups}}
+                        {{range .ConversationGroups}}
+                        <div class="conversation-group" data-group="{{.Heading}}">
+                            <div class="px-3 py-1 bg-light border-bottom text-muted text-uppercase fw-bold small conversation-group-heading" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                                {{.Heading}}
+                            </div>
+                            {{range .Conversations}}
+                            <a href="/messages?c={{.ID}}" class="list-group-item list-group-item-action p-3 border-bottom d-flex align-items-center gap-3 text-decoration-none {{if .IsActive}}bg-light border-start border-4 border-success{{end}} conversation-item" data-name="{{if eq .Type "group"}}{{.Title}}{{else}}{{.OtherUser.FullName}}{{end}}" data-type="{{.Type}}" data-category="{{.Category}}" data-timestamp="{{if not .LastMessageTime.IsZero}}{{.LastMessageTime.Format "2006-01-02T15:04:05Z07:00"}}{{end}}">
+                                <!-- Avatar -->
+                                <div class="position-relative flex-shrink-0">
+                                    {{if eq .Type "group"}}
+                                        {{if eq .Category "bible_study"}}
+                                            <div class="rounded-circle bg-primary-subtle text-primary border border-primary d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.3rem;">
+                                                <i class="bi bi-book-half"></i>
+                                            </div>
+                                        {{else if eq .Category "prayer"}}
+                                            <div class="rounded-circle bg-warning-subtle text-warning-emphasis border border-warning d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.3rem;">
+                                                <i class="bi bi-heart-pulse-fill"></i>
+                                            </div>
+                                        {{else if eq .Category "evangelism"}}
+                                            <div class="rounded-circle bg-danger-subtle text-danger border border-danger d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.3rem;">
+                                                <i class="bi bi-megaphone-fill"></i>
+                                            </div>
+                                        {{else}}
+                                            <div class="rounded-circle bg-success-subtle text-success border border-success d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.3rem;">
+                                                <i class="bi bi-people-fill"></i>
+                                            </div>
+                                        {{end}}
+                                    {{else}}
+                                        {{if .OtherUser.ProfilePhoto}}
+                                            <img src="/uploads/profiles/{{.OtherUser.ProfilePhoto}}" alt="{{.OtherUser.FullName}}" class="rounded-circle object-fit-cover shadow-sm" style="width: 48px; height: 48px;">
+                                        {{else}}
+                                            <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.1rem;">
+                                                {{.OtherUser.Initials}}
+                                            </div>
+                                        {{end}}
+                                    {{end}}
+                                </div>
+
+                                <!-- Conversation Content -->
+                                <div class="flex-grow-1 overflow-hidden" style="min-width: 0;">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <h6 class="mb-0 fw-semibold text-truncate text-dark d-flex align-items-center" style="min-width: 0;">
+                                            <span class="conv-item-title text-truncate">{{if eq .Type "group"}}{{.Title}}{{else}}{{.OtherUser.FullName}}{{end}}</span>
+                                            {{if .IsPinned}}<i class="bi bi-pin-angle-fill text-warning ms-1 small flex-shrink-0" title="Pinned chat"></i>{{end}}
+                                            {{if eq .Type "group"}}
+                                                <span class="badge bg-light text-secondary border rounded-pill ms-2 flex-shrink-0" style="font-size: 0.65rem;">
+                                                    <i class="bi bi-people me-1"></i>{{.MemberCount}}
+                                                </span>
+                                            {{end}}
+                                            {{if .IsMuted}}<i class="bi bi-bell-slash text-muted ms-1 small flex-shrink-0" title="Muted"></i>{{end}}
+                                            {{if gt .DisappearingDuration 0}}<i class="bi bi-clock-history text-muted ms-1 small flex-shrink-0" title="Disappearing messages enabled"></i>{{end}}
+                                            {{if .IsArchived}}<i class="bi bi-archive text-muted ms-1 small flex-shrink-0" title="Archived"></i>{{end}}
+                                        </h6>
+                                        <small class="text-muted conv-item-time flex-shrink-0 ms-1" style="font-size: 0.72rem;">
+                                            {{.RelativeTime}}
+                                        </small>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <p class="mb-0 text-muted text-truncate small conv-item-preview" style="max-width: 170px;">
+                                            {{if .LastMessage}}{{.LastMessage}}{{else}}<em class="text-secondary">No messages yet</em>{{end}}
+                                        </p>
+                                        {{if gt .UnreadCount 0}}
+                                            <span class="badge rounded-pill bg-danger shadow-sm flex-shrink-0 ms-1">{{.UnreadCount}}</span>
+                                        {{end}}
+                                    </div>
+                                </div>
+                            </a>
+                            {{end}}
+                        </div>
+                        {{end}}
+                    {{else if .Conversations}}
                         {{range .Conversations}}
-                        <a href="/messages?c={{.ID}}" class="list-group-item list-group-item-action p-3 border-bottom d-flex align-items-center gap-3 text-decoration-none {{if .IsActive}}bg-light border-start border-4 border-success{{end}} conversation-item" data-name="{{if eq .Type "group"}}{{.Title}}{{else}}{{.OtherUser.FullName}}{{end}}" data-type="{{.Type}}" data-category="{{.Category}}">
+                        <a href="/messages?c={{.ID}}" class="list-group-item list-group-item-action p-3 border-bottom d-flex align-items-center gap-3 text-decoration-none {{if .IsActive}}bg-light border-start border-4 border-success{{end}} conversation-item" data-name="{{if eq .Type "group"}}{{.Title}}{{else}}{{.OtherUser.FullName}}{{end}}" data-type="{{.Type}}" data-category="{{.Category}}" data-timestamp="{{if not .LastMessageTime.IsZero}}{{.LastMessageTime.Format "2006-01-02T15:04:05Z07:00"}}{{end}}">
                             <!-- Avatar -->
                             <div class="position-relative flex-shrink-0">
                                 {{if eq .Type "group"}}
@@ -404,30 +495,30 @@
                             </div>
 
                             <!-- Conversation Content -->
-                            <div class="flex-grow-1 overflow-hidden">
+                            <div class="flex-grow-1 overflow-hidden" style="min-width: 0;">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <h6 class="mb-0 fw-semibold text-truncate text-dark d-flex align-items-center">
-                                        <span class="conv-item-title">{{if eq .Type "group"}}{{.Title}}{{else}}{{.OtherUser.FullName}}{{end}}</span>
-                                        {{if .IsPinned}}<i class="bi bi-pin-angle-fill text-warning ms-1 small" title="Pinned chat"></i>{{end}}
+                                    <h6 class="mb-0 fw-semibold text-truncate text-dark d-flex align-items-center" style="min-width: 0;">
+                                        <span class="conv-item-title text-truncate">{{if eq .Type "group"}}{{.Title}}{{else}}{{.OtherUser.FullName}}{{end}}</span>
+                                        {{if .IsPinned}}<i class="bi bi-pin-angle-fill text-warning ms-1 small flex-shrink-0" title="Pinned chat"></i>{{end}}
                                         {{if eq .Type "group"}}
-                                            <span class="badge bg-light text-secondary border rounded-pill ms-2" style="font-size: 0.65rem;">
+                                            <span class="badge bg-light text-secondary border rounded-pill ms-2 flex-shrink-0" style="font-size: 0.65rem;">
                                                 <i class="bi bi-people me-1"></i>{{.MemberCount}}
                                             </span>
                                         {{end}}
-                                        {{if .IsMuted}}<i class="bi bi-bell-slash text-muted ms-1 small" title="Muted"></i>{{end}}
-                                        {{if gt .DisappearingDuration 0}}<i class="bi bi-clock-history text-muted ms-1 small" title="Disappearing messages enabled"></i>{{end}}
-                                        {{if .IsArchived}}<i class="bi bi-archive text-muted ms-1 small" title="Archived"></i>{{end}}
+                                        {{if .IsMuted}}<i class="bi bi-bell-slash text-muted ms-1 small flex-shrink-0" title="Muted"></i>{{end}}
+                                        {{if gt .DisappearingDuration 0}}<i class="bi bi-clock-history text-muted ms-1 small flex-shrink-0" title="Disappearing messages enabled"></i>{{end}}
+                                        {{if .IsArchived}}<i class="bi bi-archive text-muted ms-1 small flex-shrink-0" title="Archived"></i>{{end}}
                                     </h6>
-                                    <small class="text-muted" style="font-size: 0.75rem;">
-                                        {{if not .LastMessageTime.IsZero}}{{.LastMessageTime.Format "15:04"}}{{end}}
+                                    <small class="text-muted conv-item-time flex-shrink-0 ms-1" style="font-size: 0.72rem;">
+                                        {{.RelativeTime}}
                                     </small>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <p class="mb-0 text-muted text-truncate small" style="max-width: 170px;">
+                                    <p class="mb-0 text-muted text-truncate small conv-item-preview" style="max-width: 170px;">
                                         {{if .LastMessage}}{{.LastMessage}}{{else}}<em class="text-secondary">No messages yet</em>{{end}}
                                     </p>
                                     {{if gt .UnreadCount 0}}
-                                        <span class="badge rounded-pill bg-danger shadow-sm">{{.UnreadCount}}</span>
+                                        <span class="badge rounded-pill bg-danger shadow-sm flex-shrink-0 ms-1">{{.UnreadCount}}</span>
                                     {{end}}
                                 </div>
                             </div>
@@ -986,7 +1077,17 @@
                             </div>
                         {{end}}
                         {{if .Messages}}
+                            {{$prevDate := ""}}
                             {{range .Messages}}
+                                {{$msgDate := .DateKey}}
+                                {{if and $msgDate (ne $msgDate $prevDate)}}
+                                    {{$prevDate = $msgDate}}
+                                    <div class="d-flex justify-content-center my-3 message-date-separator" data-date="{{$msgDate}}">
+                                        <span class="badge bg-white text-secondary border shadow-sm rounded-pill px-3 py-1 small fw-medium" style="font-size: 0.75rem;">
+                                            {{.DateSeparatorLabel}}
+                                        </span>
+                                    </div>
+                                {{end}}
                                 {{if eq .MessageType "system"}}
                                     <!-- System Notification Message -->
                                     <div class="text-center my-2">
@@ -996,7 +1097,7 @@
                                     </div>
                                 {{else if eq .SenderID $.CurrentUser.ID}}
                                     <!-- Outgoing Message (Me) -->
-                                    <div class="d-flex justify-content-end mb-3 message-bubble" data-message-id="{{.ID}}" data-client-id="{{.ClientMessageID}}">
+                                    <div class="d-flex justify-content-end mb-3 message-bubble" data-message-id="{{.ID}}" data-client-id="{{.ClientMessageID}}" data-created-at="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
                                         <div class="text-end" style="max-width: 75%;">
                                             {{if .IsDeleted}}
                                                 <div class="bg-light border text-muted fst-italic p-3 rounded-4 shadow-sm text-start message-content-box" style="border-bottom-right-radius: 4px !important;">
@@ -1060,7 +1161,7 @@
                                                                 </div>
                                                             </div>
                                                         {{else if eq .MessageType "voice"}}
-                                                            <div class="chat-attachment-voice mb-2 p-2 rounded-3 bg-white bg-opacity-25 border border-white border-opacity-25" style="max-width: min(320px, 100%);">
+                                                            <div class="chat-attachment-voice mb-2 p-2 rounded-3 bg-white bg-opacity-25 border border-white border-opacity-25" style="max-width: min(320px, 100%); width: 100%;">
                                                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                                                     <span class="small fw-semibold d-flex align-items-center gap-1 text-white" style="font-size: 0.78rem;">
                                                                         <i class="bi bi-mic-fill text-warning"></i> Voice Note
@@ -1072,10 +1173,11 @@
                                                                         </a>
                                                                     </div>
                                                                 </div>
-                                                                <audio controls class="w-100 rounded-pill" style="height: 36px; outline: none;">
-                                                                    <source src="{{.AttachmentURL}}" type="{{.AttachmentType}}">
+                                                                <audio controls preload="metadata" class="w-100 rounded-pill voice-audio-player" style="height: 36px; outline: none; min-width: 160px;" onerror="const errNotice = this.nextElementSibling; if (errNotice) errNotice.classList.remove('d-none');">
+                                                                    <source src="{{.AttachmentURL}}" type="{{if .AttachmentType}}{{.AttachmentType}}{{else}}audio/webm{{end}}">
                                                                     Audio not supported.
                                                                 </audio>
+                                                                <div class="small text-danger d-none audio-error-msg mt-1" style="font-size: 0.72rem;"><i class="bi bi-exclamation-triangle me-1"></i>Playback error</div>
                                                             </div>
                                                         {{else if eq .MessageType "file"}}
                                                             <div class="chat-attachment-file mb-2 p-2 rounded-3 bg-white bg-opacity-25 border border-white border-opacity-50 text-white" style="max-width: min(340px, 100%); min-width: min(220px, 100%);">
@@ -1137,8 +1239,8 @@
                                                     </div>
                                                 </div>
                                             {{end}}
-                                            <small class="text-muted me-1 mt-1 d-inline-block" style="font-size: 0.72rem;">
-                                                {{.CreatedAt.Format "15:04"}}
+                                            <small class="text-muted me-1 mt-1 d-inline-block text-nowrap" style="font-size: 0.72rem;">
+                                                {{.FormattedTime}}
                                                 {{if .HasExpiration}}
                                                     <i class="bi bi-clock-history text-secondary ms-1" style="font-size: 0.7rem;" title="Disappears in {{.FormattedRemainingTime}}"></i>
                                                 {{end}}
@@ -1154,7 +1256,7 @@
                                     </div>
                                 {{else}}
                                     <!-- Incoming Message (Other) -->
-                                    <div class="d-flex justify-content-start mb-3 gap-2 message-bubble" data-message-id="{{.ID}}" data-client-id="{{.ClientMessageID}}">
+                                    <div class="d-flex justify-content-start mb-3 gap-2 message-bubble" data-message-id="{{.ID}}" data-client-id="{{.ClientMessageID}}" data-created-at="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
                                         {{if .Sender.ProfilePhoto}}
                                             <img src="/uploads/profiles/{{.Sender.ProfilePhoto}}" alt="{{.Sender.FullName}}" class="rounded-circle object-fit-cover shadow-sm align-self-end mb-3" style="width: 32px; height: 32px;">
                                         {{else}}
@@ -1231,7 +1333,7 @@
                                                                 </div>
                                                             </div>
                                                         {{else if eq .MessageType "voice"}}
-                                                            <div class="chat-attachment-voice mb-2 p-2 rounded-3 bg-light border" style="max-width: min(320px, 100%);">
+                                                            <div class="chat-attachment-voice mb-2 p-2 rounded-3 bg-light border" style="max-width: min(320px, 100%); width: 100%;">
                                                                 <div class="d-flex align-items-center justify-content-between mb-1">
                                                                     <span class="small fw-semibold d-flex align-items-center gap-1 text-dark" style="font-size: 0.78rem;">
                                                                         <i class="bi bi-mic-fill text-warning"></i> Voice Note
@@ -1243,10 +1345,11 @@
                                                                         </a>
                                                                     </div>
                                                                 </div>
-                                                                <audio controls class="w-100 rounded-pill" style="height: 36px; outline: none;">
-                                                                    <source src="{{.AttachmentURL}}" type="{{.AttachmentType}}">
+                                                                <audio controls preload="metadata" class="w-100 rounded-pill voice-audio-player" style="height: 36px; outline: none; min-width: 160px;" onerror="const errNotice = this.nextElementSibling; if (errNotice) errNotice.classList.remove('d-none');">
+                                                                    <source src="{{.AttachmentURL}}" type="{{if .AttachmentType}}{{.AttachmentType}}{{else}}audio/webm{{end}}">
                                                                     Audio not supported.
                                                                 </audio>
+                                                                <div class="small text-danger d-none audio-error-msg mt-1" style="font-size: 0.72rem;"><i class="bi bi-exclamation-triangle me-1"></i>Playback error</div>
                                                             </div>
                                                         {{else if eq .MessageType "file"}}
                                                             <div class="chat-attachment-file mb-2 p-2 rounded-3 bg-light border text-dark" style="max-width: min(340px, 100%); min-width: min(220px, 100%);">
@@ -1316,8 +1419,8 @@
                                                     </div>
                                                 </div>
                                             {{end}}
-                                            <small class="text-muted ms-1 mt-1 d-inline-block" style="font-size: 0.72rem;">
-                                                {{.CreatedAt.Format "15:04"}}
+                                            <small class="text-muted ms-1 mt-1 d-inline-block text-nowrap" style="font-size: 0.72rem;">
+                                                {{.FormattedTime}}
                                                 {{if .HasExpiration}}
                                                     <i class="bi bi-clock-history text-secondary ms-1" style="font-size: 0.7rem;" title="Disappears in {{.FormattedRemainingTime}}"></i>
                                                 {{end}}
@@ -3584,30 +3687,60 @@ document.addEventListener("DOMContentLoaded", function () {
     // Sidebar conversation search & category filter pills
     const searchInput = document.getElementById("chatSearchInput");
     const filterPills = document.querySelectorAll(".filter-pill");
-    const convItems = document.querySelectorAll(".conversation-item");
     let currentCategoryFilter = "all";
 
     function applyConversationFilters() {
         const query = searchInput ? searchInput.value.toLowerCase().trim() : "";
-        convItems.forEach(item => {
-            const itemType = item.getAttribute("data-type") || "direct";
-            const itemCat = item.getAttribute("data-category") || "";
-            const name = (item.getAttribute("data-name") || "").toLowerCase();
+        const groups = document.querySelectorAll(".conversation-group");
+        if (groups.length > 0) {
+            groups.forEach(group => {
+                let visibleCount = 0;
+                const items = group.querySelectorAll(".conversation-item");
+                items.forEach(item => {
+                    const itemType = item.getAttribute("data-type") || "direct";
+                    const itemCat = item.getAttribute("data-category") || "";
+                    const name = (item.getAttribute("data-name") || "").toLowerCase();
 
-            let matchesCategory = false;
-            if (currentCategoryFilter === "all") {
-                matchesCategory = true;
-            } else if (currentCategoryFilter === "direct") {
-                matchesCategory = (itemType === "direct");
-            } else if (currentCategoryFilter === "group") {
-                matchesCategory = (itemType === "group");
-            } else {
-                matchesCategory = (itemCat === currentCategoryFilter);
-            }
+                    let matchesCategory = false;
+                    if (currentCategoryFilter === "all") {
+                        matchesCategory = true;
+                    } else if (currentCategoryFilter === "direct") {
+                        matchesCategory = (itemType === "direct");
+                    } else if (currentCategoryFilter === "group") {
+                        matchesCategory = (itemType === "group");
+                    } else {
+                        matchesCategory = (itemCat === currentCategoryFilter);
+                    }
 
-            const matchesSearch = !query || name.includes(query);
-            item.style.display = (matchesCategory && matchesSearch) ? "flex" : "none";
-        });
+                    const matchesSearch = !query || name.includes(query);
+                    const isVisible = matchesCategory && matchesSearch;
+                    item.style.display = isVisible ? "flex" : "none";
+                    if (isVisible) visibleCount++;
+                });
+                group.style.display = visibleCount > 0 ? "block" : "none";
+            });
+        } else {
+            const items = document.querySelectorAll(".conversation-item");
+            items.forEach(item => {
+                const itemType = item.getAttribute("data-type") || "direct";
+                const itemCat = item.getAttribute("data-category") || "";
+                const name = (item.getAttribute("data-name") || "").toLowerCase();
+
+                let matchesCategory = false;
+                if (currentCategoryFilter === "all") {
+                    matchesCategory = true;
+                } else if (currentCategoryFilter === "direct") {
+                    matchesCategory = (itemType === "direct");
+                } else if (currentCategoryFilter === "group") {
+                    matchesCategory = (itemType === "group");
+                } else {
+                    matchesCategory = (itemCat === currentCategoryFilter);
+                }
+
+                const matchesSearch = !query || name.includes(query);
+                item.style.display = (matchesCategory && matchesSearch) ? "flex" : "none";
+            });
+        }
     }
 
     if (searchInput) {
@@ -3954,18 +4087,94 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!cId || !msg) return;
         const convLink = document.querySelector(`.conversation-item[href="/messages?c=${cId}"]`);
         if (convLink) {
-            const preview = convLink.querySelector("p");
+            const preview = convLink.querySelector(".conv-item-preview") || convLink.querySelector("p");
             if (preview) {
                 if (msg.MessageType === "image") preview.textContent = "📷 Photo";
                 else if (msg.MessageType === "voice") preview.textContent = "🎤 Voice note";
+                else if (msg.MessageType === "video") preview.textContent = "🎬 Video";
                 else if (msg.MessageType === "file") preview.textContent = "📎 Attachment";
                 else preview.textContent = msg.Body || "";
             }
-            const timeSmall = convLink.querySelector("small");
+            const timeSmall = convLink.querySelector(".conv-item-time") || convLink.querySelector("small");
             if (timeSmall) {
-                const timeStr = msg.CreatedAt ? new Date(msg.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                timeSmall.textContent = timeStr;
+                timeSmall.textContent = "Just now";
             }
+            // Move this item to the top of the "Today" group
+            const todayGroup = document.querySelector('.conversation-group[data-group="Today"]');
+            if (todayGroup) {
+                const heading = todayGroup.querySelector('.conversation-group-heading');
+                if (heading && heading.nextElementSibling) {
+                    todayGroup.insertBefore(convLink, heading.nextElementSibling);
+                } else {
+                    todayGroup.appendChild(convLink);
+                }
+                todayGroup.style.display = "block";
+            }
+        }
+    }
+
+    function getDateKey(d) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    function formatDateSeparatorLabel(d) {
+        const now = new Date();
+        const todayKey = getDateKey(now);
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayKey = getDateKey(yesterday);
+        const msgKey = getDateKey(d);
+
+        if (msgKey === todayKey) {
+            return "Today";
+        }
+        if (msgKey === yesterdayKey) {
+            return "Yesterday";
+        }
+        const weekday = d.toLocaleDateString(undefined, { weekday: "long" });
+        const dayNum = d.getDate();
+        const month = d.toLocaleDateString(undefined, { month: "long" });
+        const year = d.getFullYear();
+        if (year === now.getFullYear()) {
+            return `${weekday}, ${dayNum} ${month}`;
+        }
+        return `${weekday}, ${dayNum} ${month} ${year}`;
+    }
+
+    function insertDateSeparatorIfNeeded(targetContainer, createdAt) {
+        if (!targetContainer) return;
+        const msgDate = createdAt ? new Date(createdAt) : new Date();
+        const msgDateKey = getDateKey(msgDate);
+
+        const separators = targetContainer.querySelectorAll(".message-date-separator");
+        let lastDateKey = "";
+        if (separators.length > 0) {
+            const lastSep = separators[separators.length - 1];
+            lastDateKey = lastSep.getAttribute("data-date") || "";
+        } else {
+            const bubbles = targetContainer.querySelectorAll(".message-bubble");
+            if (bubbles.length > 0) {
+                const lastBubble = bubbles[bubbles.length - 1];
+                const rawAt = lastBubble.getAttribute("data-created-at");
+                if (rawAt) {
+                    lastDateKey = getDateKey(new Date(rawAt));
+                }
+            }
+        }
+
+        if (!lastDateKey || lastDateKey !== msgDateKey) {
+            const sepDiv = document.createElement("div");
+            sepDiv.className = "d-flex justify-content-center my-3 message-date-separator";
+            sepDiv.setAttribute("data-date", msgDateKey);
+            sepDiv.innerHTML = `
+                <span class="badge bg-white text-secondary border shadow-sm rounded-pill px-3 py-1 small fw-medium" style="font-size: 0.75rem;">
+                    ${formatDateSeparatorLabel(msgDate)}
+                </span>
+            `;
+            targetContainer.appendChild(sepDiv);
         }
     }
 
@@ -4026,13 +4235,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Helper: Create message DOM element safely with rich media support
     function createMessageElement(m) {
-        const timeStr = m.CreatedAt ? new Date(m.CreatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const timeStr = m.CreatedAt ? new Date(m.CreatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }) : new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
         const safeBody = document.createElement("div");
         safeBody.textContent = m.Body || "";
 
         const msgDiv = document.createElement("div");
         if (m.ID) msgDiv.setAttribute("data-message-id", m.ID);
         if (m.ClientMessageID) msgDiv.setAttribute("data-client-id", m.ClientMessageID);
+        if (m.CreatedAt) {
+            msgDiv.setAttribute("data-created-at", m.CreatedAt);
+        } else {
+            msgDiv.setAttribute("data-created-at", new Date().toISOString());
+        }
 
         // System message rendering (e.g. joined group, left group, created group)
         if (m.MessageType === "system") {
@@ -4115,7 +4329,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             </a>
                         </div>
                     </div>
-                    <audio controls class="w-100 rounded-pill" style="height: 36px; outline: none;">
+                    <audio controls preload="metadata" class="w-100 rounded-pill voice-note-audio" style="height: 36px; outline: none;" onerror="this.insertAdjacentHTML('afterend', '<div class=\\'small text-danger mt-1\\'><i class=\\'bi bi-exclamation-triangle me-1\\'></i>Unable to play audio.</div>'); this.style.display='none';">
                         <source src="${m.AttachmentURL}" type="${m.AttachmentType || 'audio/webm'}">
                         Audio not supported.
                     </audio>
@@ -4476,14 +4690,48 @@ document.addEventListener("DOMContentLoaded", function () {
         if (voiceRecordingBar) voiceRecordingBar.style.setProperty("display", "none", "important");
     }
 
+    function getSupportedAudioMimeType() {
+        const types = [
+            "audio/webm;codecs=opus",
+            "audio/webm",
+            "audio/ogg;codecs=opus",
+            "audio/ogg",
+            "audio/mp4",
+            "audio/aac"
+        ];
+        if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") {
+            return "";
+        }
+        for (const t of types) {
+            if (MediaRecorder.isTypeSupported(t)) {
+                return t;
+            }
+        }
+        return "";
+    }
+
     async function startVoiceRecording() {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === "undefined") {
             showChatNotification("Voice recording is not supported in this browser.", false);
             return;
         }
         try {
             voiceRecordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(voiceRecordStream);
+            const preferredMime = getSupportedAudioMimeType();
+            const recorderOptions = preferredMime ? { mimeType: preferredMime } : {};
+            mediaRecorder = new MediaRecorder(voiceRecordStream, recorderOptions);
+            const recordedMime = mediaRecorder.mimeType || preferredMime || "audio/webm";
+            let fileExt = "webm";
+            if (recordedMime.includes("mp4") || recordedMime.includes("m4a")) {
+                fileExt = "mp4";
+            } else if (recordedMime.includes("ogg")) {
+                fileExt = "ogg";
+            } else if (recordedMime.includes("aac")) {
+                fileExt = "aac";
+            } else if (recordedMime.includes("wav")) {
+                fileExt = "wav";
+            }
+
             audioChunks = [];
             voiceRecordElapsedSeconds = 0;
             if (voiceRecordingTimer) voiceRecordingTimer.textContent = "00:00";
@@ -4497,12 +4745,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     voiceRecordStream.getTracks().forEach(track => track.stop());
                     voiceRecordStream = null;
                 }
-                const audioBlob = new Blob(audioChunks, { type: "audio/webm" });
+                const audioBlob = new Blob(audioChunks, { type: recordedMime });
                 if (audioBlob.size <= 0) {
                     showChatNotification("Empty recording discarded.", false);
                     return;
                 }
-                const audioFile = new File([audioBlob], `voice-note-${Date.now()}.webm`, { type: "audio/webm" });
+                const audioFile = new File([audioBlob], `voice-note-${Date.now()}.${fileExt}`, { type: recordedMime });
                 handleFileSelected(audioFile);
                 showChatNotification("Voice note recorded! You can listen below or send.", true);
             };
@@ -4579,6 +4827,7 @@ document.addEventListener("DOMContentLoaded", function () {
                                          (data.message.ClientMessageID && container.querySelector(`[data-client-id="${data.message.ClientMessageID}"]`));
 
                         if (!existing) {
+                            insertDateSeparatorIfNeeded(container, data.message.CreatedAt);
                             const elem = createMessageElement(data.message);
                             container.appendChild(elem);
                             container.scrollTop = container.scrollHeight;
@@ -4602,6 +4851,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         const existingInCall = (data.message.ID && inCallContainer.querySelector(`[data-message-id="${data.message.ID}"]`)) ||
                                                (data.message.ClientMessageID && inCallContainer.querySelector(`[data-client-id="${data.message.ClientMessageID}"]`));
                         if (!existingInCall) {
+                            insertDateSeparatorIfNeeded(inCallContainer, data.message.CreatedAt);
                             const inCallElem = createMessageElement(data.message);
                             inCallContainer.appendChild(inCallElem);
                             inCallContainer.scrollTop = inCallContainer.scrollHeight;
@@ -6836,6 +7086,7 @@ document.addEventListener("DOMContentLoaded", function () {
                         const existing = (data.message.ID && container.querySelector(`[data-message-id="${data.message.ID}"]`)) ||
                                          (data.message.ClientMessageID && container.querySelector(`[data-client-id="${data.message.ClientMessageID}"]`));
                         if (!existing) {
+                            insertDateSeparatorIfNeeded(container, data.message.CreatedAt);
                             const elem = createMessageElement(data.message);
                             container.appendChild(elem);
                             container.scrollTop = container.scrollHeight;
@@ -6908,6 +7159,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     const existing = (data.message.ID && container.querySelector(`[data-message-id="${data.message.ID}"]`)) ||
                                      (data.message.ClientMessageID && container.querySelector(`[data-client-id="${data.message.ClientMessageID}"]`));
                     if (!existing) {
+                        insertDateSeparatorIfNeeded(container, data.message.CreatedAt);
                         const elem = createMessageElement(data.message);
                         container.appendChild(elem);
                         container.scrollTop = container.scrollHeight;

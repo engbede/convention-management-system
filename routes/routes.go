@@ -1089,31 +1089,45 @@ func RegisterRoutes(mux *http.ServeMux) {
 			return
 		}
 
-		ext := strings.ToLower(filepath.Ext(filePath))
-		switch ext {
-		case ".mp4":
-			w.Header().Set("Content-Type", "video/mp4")
-		case ".webm":
-			w.Header().Set("Content-Type", "video/webm")
-		case ".mov":
-			w.Header().Set("Content-Type", "video/quicktime")
-		case ".mkv":
-			w.Header().Set("Content-Type", "video/x-matroska")
-		case ".avi":
-			w.Header().Set("Content-Type", "video/x-msvideo")
-		case ".jpg", ".jpeg":
-			w.Header().Set("Content-Type", "image/jpeg")
-		case ".png":
-			w.Header().Set("Content-Type", "image/png")
-		case ".gif":
-			w.Header().Set("Content-Type", "image/gif")
-		case ".webp":
-			w.Header().Set("Content-Type", "image/webp")
-		case ".svg":
-			w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
-		default:
-			if customContentType != "" {
-				w.Header().Set("Content-Type", customContentType)
+		if customContentType != "" {
+			w.Header().Set("Content-Type", customContentType)
+		} else {
+			ext := strings.ToLower(filepath.Ext(filePath))
+			switch ext {
+			case ".mp4":
+				w.Header().Set("Content-Type", "video/mp4")
+			case ".webm":
+				if strings.Contains(filePath, "/chat/") || strings.Contains(filePath, "\\chat\\") {
+					w.Header().Set("Content-Type", "audio/webm")
+				} else {
+					w.Header().Set("Content-Type", "video/webm")
+				}
+			case ".ogg":
+				w.Header().Set("Content-Type", "audio/ogg")
+			case ".mp3":
+				w.Header().Set("Content-Type", "audio/mpeg")
+			case ".wav":
+				w.Header().Set("Content-Type", "audio/wav")
+			case ".m4a":
+				w.Header().Set("Content-Type", "audio/mp4")
+			case ".aac":
+				w.Header().Set("Content-Type", "audio/aac")
+			case ".mov":
+				w.Header().Set("Content-Type", "video/quicktime")
+			case ".mkv":
+				w.Header().Set("Content-Type", "video/x-matroska")
+			case ".avi":
+				w.Header().Set("Content-Type", "video/x-msvideo")
+			case ".jpg", ".jpeg":
+				w.Header().Set("Content-Type", "image/jpeg")
+			case ".png":
+				w.Header().Set("Content-Type", "image/png")
+			case ".gif":
+				w.Header().Set("Content-Type", "image/gif")
+			case ".webp":
+				w.Header().Set("Content-Type", "image/webp")
+			case ".svg":
+				w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
 			}
 		}
 

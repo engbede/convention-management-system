@@ -242,7 +242,7 @@ func GetConversationOtherParticipant(conversationID, currentUserID int) (*models
 // SaveMessage persists a chat message with idempotency checks.
 func SaveMessage(msg *models.Message) error {
 	msg.Body = strings.TrimSpace(msg.Body)
-	if msg.Body == "" {
+	if msg.Body == "" && msg.AttachmentURL == "" {
 		return errors.New("message content cannot be empty")
 	}
 
@@ -561,9 +561,10 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 			COALESCE(u.profile_photo, ''),
 			-- Latest message
 			COALESCE(latest.id, 0),
+			COALESCE(latest.message_type, ''),
 			COALESCE(latest.body, ''),
 			COALESCE(latest.sender_id, 0),
-			COALESCE(latest.created_at, c.created_at)
+			COALESCE(latest.created_at, c.last_message_at, c.created_at)
 		FROM conversation_members cm
 		JOIN conversations c ON cm.conversation_id = c.id
 		-- Find the other participant in direct conversations ONLY
@@ -572,7 +573,7 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 		LEFT JOIN users u ON other_cm.user_id = u.id AND c.type = 'direct'
 		-- Subquery for the most recent message in the conversation (excluding expired messages)
 		LEFT JOIN (
-			SELECT m1.conversation_id, m1.id, m1.body, m1.sender_id, m1.created_at
+			SELECT m1.conversation_id, m1.id, m1.message_type, m1.body, m1.sender_id, m1.created_at
 			FROM messages m1
 			INNER JOIN (
 				SELECT conversation_id, MAX(id) as max_id
@@ -582,7 +583,7 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 			) m2 ON m1.conversation_id = m2.conversation_id AND m1.id = m2.max_id
 		) latest ON latest.conversation_id = c.id
 		WHERE cm.user_id = %s
-		ORDER BY COALESCE(cm.is_pinned, FALSE) DESC, sort_time DESC
+		ORDER BY COALESCE(cm.is_pinned, FALSE) DESC, sort_time DESC, c.id DESC
 	`, helpers.Placeholder(1), helpers.Placeholder(2))
 
 	rows, err := database.DB.Query(query, userID, userID)
@@ -603,7 +604,7 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 		var otherID int
 		var otherName, otherUsername, otherPhoto string
 		var latestMsgID, latestSenderID int
-		var latestBody string
+		var latestMsgType, latestBody string
 		var latestTimeRaw any
 
 		err := rows.Scan(
@@ -629,6 +630,7 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 			&otherUsername,
 			&otherPhoto,
 			&latestMsgID,
+			&latestMsgType,
 			&latestBody,
 			&latestSenderID,
 			&latestTimeRaw,
@@ -665,16 +667,37 @@ func GetUserConversations(userID int) ([]models.ConversationItem, error) {
 			}
 		}
 
-		item.LastMessage = latestBody
+		item.LastMessageType = latestMsgType
+		if latestBody == "" {
+			switch latestMsgType {
+			case "voice":
+				item.LastMessage = "🎤 Voice note"
+			case "image":
+				item.LastMessage = "📷 Photo"
+			case "video":
+				item.LastMessage = "🎥 Video"
+			case "file":
+				item.LastMessage = "📎 Attachment"
+			default:
+				item.LastMessage = ""
+			}
+		} else {
+			item.LastMessage = latestBody
+		}
 		item.LastMessageSenderID = latestSenderID
 		item.LastMessageTime = parseSQLTime(latestTimeRaw)
+		if item.LastMessageTime.IsZero() {
+			item.LastMessageTime = parseSQLTime(sortTimeRaw)
+		}
 
 		// Suppress latest message if it was sent prior to cleared_at
 		if t := parseSQLTime(clearedAtRaw); !t.IsZero() {
 			if !item.LastMessageTime.IsZero() && !item.LastMessageTime.After(t) {
 				item.LastMessage = ""
 				item.LastMessageSenderID = 0
-				item.LastMessageTime = time.Time{}
+				if !parseSQLTime(sortTimeRaw).IsZero() {
+					item.LastMessageTime = parseSQLTime(sortTimeRaw)
+				}
 			}
 		}
 

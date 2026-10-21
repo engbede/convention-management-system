@@ -278,6 +278,27 @@ func (m Message) IsDocument() bool {
 	return m.AttachmentURL != "" && !m.IsImage() && !m.IsVideo() && !m.IsVoice()
 }
 
+// FormattedTime returns the compact message timestamp, e.g. "10:42 AM".
+func (m Message) FormattedTime() string {
+	if m.CreatedAt.IsZero() {
+		return ""
+	}
+	return m.CreatedAt.Format("3:04 PM")
+}
+
+// DateSeparatorLabel returns the date label, e.g. "Today", "Yesterday", "Monday, 19 October".
+func (m Message) DateSeparatorLabel() string {
+	return FormatDateSeparator(m.CreatedAt)
+}
+
+// DateKey returns a stable YYYY-MM-DD string for grouping messages by calendar day.
+func (m Message) DateKey() string {
+	if m.CreatedAt.IsZero() {
+		return ""
+	}
+	return m.CreatedAt.Format("2006-01-02")
+}
+
 // HasLink returns true if the message body contains an HTTP or HTTPS URL.
 func (m Message) HasLink() bool {
 	return strings.Contains(m.Body, "http://") || strings.Contains(m.Body, "https://")
@@ -356,6 +377,7 @@ type ConversationItem struct {
 	MemberCount             int
 	OtherUser               User
 	LastMessage             string
+	LastMessageType         string
 	LastMessageSenderID     int
 	LastMessageTime         time.Time
 	UnreadCount             int
@@ -365,6 +387,213 @@ type ConversationItem struct {
 	DisappearingDuration    int
 	IsArchived              bool
 	IsPinned                bool
+}
+
+// RelativeTime returns a human-readable compact relative timestamp for conversation list.
+func (item ConversationItem) RelativeTime() string {
+	return FormatRelativeTime(item.LastMessageTime)
+}
+
+// ChronologicalGroup returns the heading bucket name for this conversation item.
+func (item ConversationItem) ChronologicalGroup() string {
+	return CategorizeChronologicalGroup(item.LastMessageTime)
+}
+
+// ConversationGroup represents a chronological section of conversations.
+type ConversationGroup struct {
+	Heading       string             `json:"heading"`
+	Conversations []ConversationItem `json:"conversations"`
+}
+
+// GroupConversationsChronologically groups sorted conversations into distinct chronological sections.
+// Only non-empty sections are returned, preserving newest-first order within each section.
+func GroupConversationsChronologically(conversations []ConversationItem) []ConversationGroup {
+	return GroupConversationsChronologicallyAt(conversations, time.Now())
+}
+
+// GroupConversationsChronologicallyAt groups sorted conversations using a custom reference time.
+func GroupConversationsChronologicallyAt(conversations []ConversationItem, now time.Time) []ConversationGroup {
+	orderedHeadings := []string{
+		"Today",
+		"Yesterday",
+		"Earlier This Week",
+		"Last Week",
+		"Earlier This Month",
+		"Older",
+	}
+
+	groupedMap := make(map[string][]ConversationItem)
+	for _, h := range orderedHeadings {
+		groupedMap[h] = make([]ConversationItem, 0)
+	}
+
+	for _, item := range conversations {
+		heading := CategorizeChronologicalGroupAt(item.LastMessageTime, now)
+		groupedMap[heading] = append(groupedMap[heading], item)
+	}
+
+	var result []ConversationGroup
+	for _, h := range orderedHeadings {
+		if items, ok := groupedMap[h]; ok && len(items) > 0 {
+			result = append(result, ConversationGroup{
+				Heading:       h,
+				Conversations: items,
+			})
+		}
+	}
+	return result
+}
+
+// CategorizeChronologicalGroup returns one of: "Today", "Yesterday", "Earlier This Week", "Last Week", "Earlier This Month", "Older".
+func CategorizeChronologicalGroup(t time.Time) string {
+	return CategorizeChronologicalGroupAt(t, time.Now())
+}
+
+// CategorizeChronologicalGroupAt evaluates the chronological group relative to a reference time.
+func CategorizeChronologicalGroupAt(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return "Older"
+	}
+
+	loc := now.Location()
+	tLoc := t.In(loc)
+
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+
+	if !tLoc.Before(todayStart) {
+		return "Today"
+	}
+
+	yesterdayStart := todayStart.AddDate(0, 0, -1)
+	if !tLoc.Before(yesterdayStart) {
+		return "Yesterday"
+	}
+
+	weekday := int(now.Weekday())
+	daysSinceMonday := (weekday + 6) % 7
+	thisWeekStart := todayStart.AddDate(0, 0, -daysSinceMonday)
+
+	if !tLoc.Before(thisWeekStart) {
+		return "Earlier This Week"
+	}
+
+	lastWeekStart := thisWeekStart.AddDate(0, 0, -7)
+	if !tLoc.Before(lastWeekStart) {
+		return "Last Week"
+	}
+
+	thisMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, loc)
+	if !tLoc.Before(thisMonthStart) {
+		return "Earlier This Month"
+	}
+
+	return "Older"
+}
+
+// FormatRelativeTime returns a human-readable compact relative timestamp for conversation list.
+func FormatRelativeTime(t time.Time) string {
+	return FormatRelativeTimeAt(t, time.Now())
+}
+
+// FormatRelativeTimeAt formats relative time relative to a specific reference time.
+func FormatRelativeTimeAt(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+
+	loc := now.Location()
+	tLoc := t.In(loc)
+
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	yesterdayStart := todayStart.AddDate(0, 0, -1)
+
+	diff := now.Sub(tLoc)
+	if diff < 0 {
+		return "Just now"
+	}
+
+	seconds := int(diff.Seconds())
+	if seconds < 60 {
+		return "Just now"
+	}
+
+	minutes := seconds / 60
+	if minutes < 60 {
+		if minutes == 1 {
+			return "1 minute ago"
+		}
+		return fmt.Sprintf("%d minutes ago", minutes)
+	}
+
+	hours := minutes / 60
+	if !tLoc.Before(todayStart) {
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	}
+
+	if !tLoc.Before(yesterdayStart) {
+		return "Yesterday"
+	}
+
+	days := int(todayStart.Sub(time.Date(tLoc.Year(), tLoc.Month(), tLoc.Day(), 0, 0, 0, 0, loc)).Hours() / 24)
+	if days <= 1 {
+		return "Yesterday"
+	}
+	if days < 7 {
+		return fmt.Sprintf("%d days ago", days)
+	}
+
+	weeks := days / 7
+	if weeks < 4 {
+		if weeks == 1 {
+			return "1 week ago"
+		}
+		return fmt.Sprintf("%d weeks ago", weeks)
+	}
+
+	if days < 60 {
+		return "1 month ago"
+	}
+
+	if tLoc.Year() == now.Year() {
+		return tLoc.Format("Jan 2")
+	}
+
+	return tLoc.Format("Jan 2, 2006")
+}
+
+// FormatDateSeparator returns the date separator label ("Today", "Yesterday", "Monday, 19 October", etc.).
+func FormatDateSeparator(t time.Time) string {
+	return FormatDateSeparatorAt(t, time.Now())
+}
+
+// FormatDateSeparatorAt returns the date separator label relative to a specific reference time.
+func FormatDateSeparatorAt(t time.Time, now time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+
+	loc := now.Location()
+	tLoc := t.In(loc)
+
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	tomorrowStart := todayStart.AddDate(0, 0, 1)
+
+	if !tLoc.Before(todayStart) && tLoc.Before(tomorrowStart) {
+		return "Today"
+	}
+
+	yesterdayStart := todayStart.AddDate(0, 0, -1)
+	if !tLoc.Before(yesterdayStart) && tLoc.Before(todayStart) {
+		return "Yesterday"
+	}
+
+	if tLoc.Year() == now.Year() {
+		return tLoc.Format("Monday, 2 January")
+	}
+	return tLoc.Format("Monday, 2 January 2006")
 }
 
 // MessageDeletion represents a user-specific "Delete for Me" action.
@@ -397,6 +626,7 @@ type ChatViewData struct {
 	CurrentUser                User
 	Error                      string
 	Conversations              []ConversationItem
+	ConversationGroups         []ConversationGroup
 	ActiveConversation         *Conversation
 	ActiveRecipient            *User
 	ActiveGroupMembers         []ConversationMember

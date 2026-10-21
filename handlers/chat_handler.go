@@ -179,6 +179,7 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 		CurrentUser:                currentUser,
 		Error:                      inboxError,
 		Conversations:              conversations,
+		ConversationGroups:         models.GroupConversationsChronologically(conversations),
 		ActiveConversation:         activeConv,
 		ActiveRecipient:            activeRecipient,
 		ActiveGroupMembers:         activeGroupMembers,
@@ -289,6 +290,10 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 			if id, err := strconv.Atoi(r.FormValue("reply_to_id")); err == nil {
 				replyToID = &id
 			}
+		} else if r.FormValue("reply_to_message_id") != "" {
+			if id, err := strconv.Atoi(r.FormValue("reply_to_message_id")); err == nil {
+				replyToID = &id
+			}
 		}
 		var err error
 		file, fileHeader, err = r.FormFile("attachment")
@@ -317,6 +322,10 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 		clientMsgID = r.FormValue("client_message_id")
 		if r.FormValue("reply_to_id") != "" {
 			if id, err := strconv.Atoi(r.FormValue("reply_to_id")); err == nil {
+				replyToID = &id
+			}
+		} else if r.FormValue("reply_to_message_id") != "" {
+			if id, err := strconv.Atoi(r.FormValue("reply_to_message_id")); err == nil {
 				replyToID = &id
 			}
 		}

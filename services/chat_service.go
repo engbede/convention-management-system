@@ -245,6 +245,7 @@ func SendAttachmentMessage(
 	}
 
 	if err := repository.SaveMessage(msg); err != nil {
+		_ = utils.DeleteFile("uploads/chat/" + filename)
 		return nil, err
 	}
 
@@ -263,11 +264,15 @@ func SendAttachmentMessage(
 	// Send notification if not muted
 	if conv != nil && conv.Type == "direct" && otherUser != nil {
 		if !repository.IsConversationMutedBy(conversationID, otherUser.ID) {
+			notifText := "sent you an attachment."
+			if msg.MessageType == "voice" {
+				notifText = "sent you a voice note."
+			}
 			notification := models.Notification{
 				SenderID:   senderID,
 				ReceiverID: otherUser.ID,
 				Type:       "message",
-				Message:    "sent you an attachment.",
+				Message:    notifText,
 			}
 			_ = CreateNotification(notification)
 		}

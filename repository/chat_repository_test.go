@@ -192,3 +192,79 @@ func TestSaveAndRetrieveMessages(t *testing.T) {
 		t.Fatalf("Expected total 1 message, got %d (err: %v)", totalCount, err)
 	}
 }
+
+func TestSaveMessage_VoiceNoteWithoutBody(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := CreateOrGetDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("Setup conversation failed: %v", err)
+	}
+
+	// 1. Should reject empty body when no attachment is present
+	emptyMsg := &models.Message{
+		ConversationID: conv.ID,
+		SenderID:       1,
+		MessageType:    "text",
+		Body:           "",
+	}
+	if err := SaveMessage(emptyMsg); err == nil {
+		t.Errorf("Expected error when saving message with empty body and no attachment, got nil")
+	}
+
+	// 2. Should SUCCEED for voice note with empty text body and valid audio attachment
+	voiceMsg := &models.Message{
+		ConversationID: conv.ID,
+		SenderID:       1,
+		MessageType:    "voice",
+		Body:           "",
+		AttachmentURL:  "/uploads/chat/voice-test-123.webm",
+		AttachmentName: "voice-note.webm",
+		AttachmentType: "audio/webm",
+		AttachmentSize: 45000,
+	}
+	if err := SaveMessage(voiceMsg); err != nil {
+		t.Fatalf("SaveMessage failed for voice note without body: %v", err)
+	}
+	if voiceMsg.ID <= 0 {
+		t.Errorf("Expected positive ID for saved voice note, got %d", voiceMsg.ID)
+	}
+
+	// 3. Retrieve conversation messages and verify voice note fields
+	msgs, err := GetConversationMessages(conv.ID, 10, 0, 1)
+	if err != nil {
+		t.Fatalf("GetConversationMessages failed: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("Expected 1 message, got %d", len(msgs))
+	}
+	m := msgs[0]
+	if m.MessageType != "voice" {
+		t.Errorf("Expected message_type 'voice', got %q", m.MessageType)
+	}
+	if m.AttachmentURL != "/uploads/chat/voice-test-123.webm" {
+		t.Errorf("Expected attachment_url '/uploads/chat/voice-test-123.webm', got %q", m.AttachmentURL)
+	}
+	if m.AttachmentType != "audio/webm" {
+		t.Errorf("Expected attachment_type 'audio/webm', got %q", m.AttachmentType)
+	}
+
+	// 4. Verify conversation list preview for voice note
+	convs, err := GetUserConversations(2)
+	if err != nil {
+		t.Fatalf("GetUserConversations failed: %v", err)
+	}
+	if len(convs) != 1 {
+		t.Fatalf("Expected 1 conversation for recipient, got %d", len(convs))
+	}
+	if convs[0].LastMessageType != "voice" {
+		t.Errorf("Expected LastMessageType 'voice', got %q", convs[0].LastMessageType)
+	}
+	if convs[0].LastMessage != "🎤 Voice note" {
+		t.Errorf("Expected LastMessage '🎤 Voice note', got %q", convs[0].LastMessage)
+	}
+	if convs[0].RelativeTime() != "Just now" {
+		t.Errorf("Expected RelativeTime 'Just now', got %q", convs[0].RelativeTime())
+	}
+}

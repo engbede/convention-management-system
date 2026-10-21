@@ -122,6 +122,63 @@ func TestChatInboxAuthenticated(t *testing.T) {
 	}
 }
 
+func TestChatInbox_ChronologicalGroupingAndFormatting(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Create conversations
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, created_by, created_at) VALUES 
+			(1, 'direct', 1, datetime('now')),
+			(2, 'direct', 1, datetime('now', '-1 day'));
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES 
+			(1, 1, 'member'), (1, 2, 'member'),
+			(2, 1, 'member'), (2, 3, 'member');
+		INSERT INTO messages (conversation_id, sender_id, message_type, body, created_at) VALUES
+			(1, 1, 'text', 'Today message', datetime('now')),
+			(2, 3, 'text', 'Yesterday message', datetime('now', '-1 day'));
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed conversations: %v", err)
+	}
+
+	initReq := httptest.NewRequest(http.MethodGet, "/messages?c=1", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+
+	freshReq := httptest.NewRequest(http.MethodGet, "/messages?c=1", nil)
+	for _, cookie := range saveRec.Result().Cookies() {
+		freshReq.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	handler := middleware.RequireLogin(ChatInbox)
+	handler(rr, freshReq)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected status 200 OK for inbox, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	if !strings.Contains(body, "conversation-group") {
+		t.Errorf("Expected response body to contain 'conversation-group'")
+	}
+	if !strings.Contains(body, "conversation-group-heading") {
+		t.Errorf("Expected response body to contain 'conversation-group-heading'")
+	}
+	if !strings.Contains(body, "Today") {
+		t.Errorf("Expected response body to contain 'Today' heading")
+	}
+	if !strings.Contains(body, "Yesterday") {
+		t.Errorf("Expected response body to contain 'Yesterday' heading")
+	}
+	if !strings.Contains(body, "message-date-separator") {
+		t.Errorf("Expected response body to contain 'message-date-separator'")
+	}
+}
+
 func TestToggleMuteAndArchiveAPI(t *testing.T) {
 	cleanup := setupTestDB(t)
 	defer cleanup()
@@ -300,6 +357,78 @@ func TestSendMessageWithAttachmentAPI(t *testing.T) {
 
 	if badRR.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 Bad Request for disallowed file type, got %d", badRR.Code)
+	}
+}
+
+func TestSendVoiceNoteAttachmentAPI_WithoutBody(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Create conversation between user 1 and user 2
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, created_by) VALUES (1, 'direct', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (1, 1, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (1, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed conversation: %v", err)
+	}
+
+	// Prepare session for user 1
+	initReq := httptest.NewRequest(http.MethodPost, "/messages/upload", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+
+	// Send WebM voice note with EMPTY body
+	bodyBuf := &bytes.Buffer{}
+	writer := multipart.NewWriter(bodyBuf)
+	_ = writer.WriteField("conversation_id", "1")
+	_ = writer.WriteField("body", "") // Voice note recorded with no caption
+	part, err := writer.CreateFormFile("attachment", "voice-note-test.webm")
+	if err != nil {
+		t.Fatalf("CreateFormFile failed: %v", err)
+	}
+	part.Write([]byte("fake-webm-audio-data-stream-12345"))
+	writer.Close()
+
+	uploadReq := httptest.NewRequest(http.MethodPost, "/messages/upload", bodyBuf)
+	uploadReq.Header.Set("Content-Type", writer.FormDataContentType())
+	uploadReq.Header.Set("Accept", "application/json")
+	for _, cookie := range saveRec.Result().Cookies() {
+		uploadReq.AddCookie(cookie)
+	}
+
+	uploadRR := httptest.NewRecorder()
+	UploadAttachmentAPI(uploadRR, uploadReq)
+
+	if uploadRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK for voice note attachment with empty body, got %d (body: %s)", uploadRR.Code, uploadRR.Body.String())
+	}
+
+	var resp struct {
+		Success bool            `json:"success"`
+		Message *models.Message `json:"message"`
+	}
+	if err := json.Unmarshal(uploadRR.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to decode JSON response: %v", err)
+	}
+
+	if !resp.Success || resp.Message == nil {
+		t.Fatalf("Expected successful message in response, got %+v", resp)
+	}
+	if resp.Message.MessageType != "voice" {
+		t.Errorf("Expected message_type 'voice', got %q", resp.Message.MessageType)
+	}
+	if resp.Message.AttachmentType != "audio/webm" {
+		t.Errorf("Expected attachment_type 'audio/webm', got %q", resp.Message.AttachmentType)
+	}
+	if resp.Message.Body != "" {
+		t.Errorf("Expected empty body, got %q", resp.Message.Body)
+	}
+	if !strings.HasPrefix(resp.Message.AttachmentURL, "/uploads/chat/") {
+		t.Errorf("Expected attachment URL starting with '/uploads/chat/', got %q", resp.Message.AttachmentURL)
 	}
 }
 

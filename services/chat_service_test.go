@@ -195,6 +195,91 @@ func TestSendAttachmentMessage(t *testing.T) {
 	}
 }
 
+func TestSendVoiceNote_DirectAndGroup_WithoutBody(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Setup Direct Conversation
+	directConv, err := StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// Helper to create a fake WebM audio file header
+	createAudioFile := func(filename string) (multipart.File, *multipart.FileHeader, func()) {
+		buf := &bytes.Buffer{}
+		w := multipart.NewWriter(buf)
+		part, _ := w.CreateFormFile("attachment", filename)
+		part.Write([]byte("fake-webm-opus-audio-bytes-1234567890"))
+		w.Close()
+
+		r := multipart.NewReader(buf, w.Boundary())
+		form, err := r.ReadForm(10 << 20)
+		if err != nil {
+			t.Fatalf("ReadForm failed: %v", err)
+		}
+		headers := form.File["attachment"]
+		file, err := headers[0].Open()
+		if err != nil {
+			t.Fatalf("Failed to open file: %v", err)
+		}
+		return file, headers[0], func() {
+			file.Close()
+			form.RemoveAll()
+		}
+	}
+
+	file1, header1, clean1 := createAudioFile("voice-note-direct.webm")
+	defer clean1()
+
+	// Send voice note with EMPTY body/caption in direct conversation
+	msgDirect, err := SendAttachmentMessage(directConv.ID, 1, file1, header1, "", "client-voice-direct-1", nil)
+	if err != nil {
+		t.Fatalf("SendAttachmentMessage for voice note failed: %v", err)
+	}
+	if msgDirect.MessageType != "voice" {
+		t.Errorf("Expected message_type 'voice', got %q", msgDirect.MessageType)
+	}
+	if msgDirect.AttachmentType != "audio/webm" {
+		t.Errorf("Expected attachment_type 'audio/webm', got %q", msgDirect.AttachmentType)
+	}
+	if msgDirect.Body != "" {
+		t.Errorf("Expected empty body, got %q", msgDirect.Body)
+	}
+	if !strings.HasPrefix(msgDirect.AttachmentURL, "/uploads/chat/") {
+		t.Errorf("Expected attachment URL starting with '/uploads/chat/', got %q", msgDirect.AttachmentURL)
+	}
+
+	// 2. Setup Group Conversation and test sending voice note
+	groupConv, err := repository.CreateGroupConversation("Fellowship Group", "general", "Weekly Fellowship", "", "anyone", false, 1, []int{1, 2})
+	if err != nil {
+		t.Fatalf("CreateGroupConversation failed: %v", err)
+	}
+
+	file2, header2, clean2 := createAudioFile("voice-note-group.webm")
+	defer clean2()
+
+	msgGroup, err := SendAttachmentMessage(groupConv.ID, 2, file2, header2, "", "client-voice-group-1", nil)
+	if err != nil {
+		t.Fatalf("SendAttachmentMessage in group conversation failed: %v", err)
+	}
+	if msgGroup.MessageType != "voice" {
+		t.Errorf("Expected group voice message_type 'voice', got %q", msgGroup.MessageType)
+	}
+	if msgGroup.AttachmentType != "audio/webm" {
+		t.Errorf("Expected group voice attachment_type 'audio/webm', got %q", msgGroup.AttachmentType)
+	}
+
+	// 3. Unauthorized sender (User 3 is not in direct conversation or group)
+	file3, header3, clean3 := createAudioFile("voice-intruder.webm")
+	defer clean3()
+
+	_, err = SendAttachmentMessage(directConv.ID, 3, file3, header3, "", "client-voice-intruder", nil)
+	if err == nil {
+		t.Errorf("Expected error when non-member sends attachment to direct conversation, got nil")
+	}
+}
+
 func TestBlockAndUnblockUser(t *testing.T) {
 	cleanup := setupTestDB(t)
 	defer cleanup()
