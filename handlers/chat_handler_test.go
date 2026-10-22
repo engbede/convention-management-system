@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"convention-management-system/database"
 	"convention-management-system/middleware"
@@ -3174,6 +3175,286 @@ func TestICEServersAPI_STUNConfiguration(t *testing.T) {
 	}
 	if len(resp.IceServers) == 0 {
 		t.Fatalf("Expected at least one ICE server entry")
+	}
+}
+
+func TestCallInitiationAndStateTransitions(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Seed users and conversation
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, created_by) VALUES (10, 'direct', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (10, 1, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (10, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed conversation: %v", err)
+	}
+
+	// 1. Create initiated call log
+	expiresAt := time.Now().Add(45 * time.Second)
+	callLog := &models.CallLog{
+		ConversationID: 10,
+		CallerID:       1,
+		ReceiverID:     2,
+		CallType:       "audio",
+		Status:         "initiated",
+		ExpiresAt:      &expiresAt,
+	}
+	if err := repository.CreateCallLog(callLog); err != nil {
+		t.Fatalf("CreateCallLog failed: %v", err)
+	}
+	if callLog.ID <= 0 {
+		t.Fatalf("Expected positive CallID, got %d", callLog.ID)
+	}
+
+	// 2. Verify GetLatestInitiatedCall resolves this active call
+	latest, err := repository.GetLatestInitiatedCall(1, 2)
+	if err != nil || latest == nil {
+		t.Fatalf("GetLatestInitiatedCall failed: %v", err)
+	}
+	if latest.ID != callLog.ID {
+		t.Errorf("Expected call ID %d, got %d", callLog.ID, latest.ID)
+	}
+	if latest.Status != "initiated" {
+		t.Errorf("Expected status 'initiated', got %q", latest.Status)
+	}
+
+	// 3. Transition to connected
+	if err := repository.UpdateCallLogStatus(callLog.ID, "connected"); err != nil {
+		t.Fatalf("UpdateCallLogStatus failed: %v", err)
+	}
+
+	// 4. Update call duration and complete via LogCallAPI
+	logReq := httptest.NewRequest(http.MethodPost, "/messages/call/log", strings.NewReader(fmt.Sprintf(`{"call_id": %d, "status": "completed", "duration_seconds": 125}`, callLog.ID)))
+	logReq.Header.Set("Content-Type", "application/json")
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(logReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(logReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		logReq.AddCookie(cookie)
+	}
+
+	logRR := httptest.NewRecorder()
+	LogCallAPI(logRR, logReq)
+	if logRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from LogCallAPI, got %d (body: %s)", logRR.Code, logRR.Body.String())
+	}
+
+	// 5. Verify call is completed and has duration 125s
+	cl, err := repository.GetCallLogByID(callLog.ID)
+	if err != nil {
+		t.Fatalf("GetCallLogByID failed: %v", err)
+	}
+	if cl.Status != "completed" {
+		t.Errorf("Expected status 'completed', got %q", cl.Status)
+	}
+	if cl.DurationSeconds != 125 {
+		t.Errorf("Expected duration 125, got %d", cl.DurationSeconds)
+	}
+
+	// 6. After completion, GetLatestInitiatedCall should not return the completed call
+	completedLatest, err := repository.GetLatestInitiatedCall(1, 2)
+	if err == nil && completedLatest != nil {
+		t.Errorf("Expected nil from GetLatestInitiatedCall for completed call, got %+v", completedLatest)
+	}
+}
+
+func TestGenerateCallLinkAndJoinFlow(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Seed users and conversation
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, created_by) VALUES (20, 'direct', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (20, 1, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (20, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed conversation: %v", err)
+	}
+
+	// User 1 generates video call link
+	genReq := httptest.NewRequest(http.MethodPost, "/messages/call/link/generate", strings.NewReader(`{"conversation_id": 20, "call_type": "video"}`))
+	genReq.Header.Set("Content-Type", "application/json")
+	saveRec1 := httptest.NewRecorder()
+	session1, _ := sessions.Store.Get(genReq, "youth-community")
+	session1.Values["user_id"] = 1
+	_ = session1.Save(genReq, saveRec1)
+	for _, cookie := range saveRec1.Result().Cookies() {
+		genReq.AddCookie(cookie)
+	}
+
+	genRR := httptest.NewRecorder()
+	GenerateCallLinkAPI(genRR, genReq)
+	if genRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from GenerateCallLinkAPI, got %d (body: %s)", genRR.Code, genRR.Body.String())
+	}
+
+	var genResp struct {
+		Success   bool   `json:"success"`
+		Token     string `json:"token"`
+		CallType  string `json:"call_type"`
+		InviteURL string `json:"invite_url"`
+		Path      string `json:"path"`
+	}
+	if err := json.Unmarshal(genRR.Body.Bytes(), &genResp); err != nil {
+		t.Fatalf("Failed to decode JSON: %v", err)
+	}
+	if !genResp.Success || genResp.Token == "" {
+		t.Fatalf("Expected successful token generation, got %+v", genResp)
+	}
+	if genResp.CallType != "video" {
+		t.Errorf("Expected call_type 'video', got %q", genResp.CallType)
+	}
+
+	// Non-member (user 3) attempts to join
+	joinReq3 := httptest.NewRequest(http.MethodGet, "/messages/call/join?token="+genResp.Token, nil)
+	saveRec3 := httptest.NewRecorder()
+	session3, _ := sessions.Store.Get(joinReq3, "youth-community")
+	session3.Values["user_id"] = 3
+	_ = session3.Save(joinReq3, saveRec3)
+	for _, cookie := range saveRec3.Result().Cookies() {
+		joinReq3.AddCookie(cookie)
+	}
+	joinRR3 := httptest.NewRecorder()
+	JoinCallLinkHandler(joinRR3, joinReq3)
+	if joinRR3.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-member, got %d", joinRR3.Code)
+	}
+
+	// Authorized member (user 2) joins
+	joinReq2 := httptest.NewRequest(http.MethodGet, "/messages/call/join?token="+genResp.Token, nil)
+	saveRec2 := httptest.NewRecorder()
+	session2, _ := sessions.Store.Get(joinReq2, "youth-community")
+	session2.Values["user_id"] = 2
+	_ = session2.Save(joinReq2, saveRec2)
+	for _, cookie := range saveRec2.Result().Cookies() {
+		joinReq2.AddCookie(cookie)
+	}
+	joinRR2 := httptest.NewRecorder()
+	JoinCallLinkHandler(joinRR2, joinReq2)
+	if joinRR2.Code != http.StatusSeeOther {
+		t.Fatalf("Expected 303 Redirect for authorized join, got %d", joinRR2.Code)
+	}
+	redirectLoc := joinRR2.Header().Get("Location")
+	if !strings.Contains(redirectLoc, "c=20") || !strings.Contains(redirectLoc, "autocall=video") {
+		t.Errorf("Expected redirect to contain c=20 and autocall=video, got %q", redirectLoc)
+	}
+}
+
+func TestSendMessageAPI_ContentParameterFallback(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, created_by) VALUES (30, 'direct', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (30, 1, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (30, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed conversation: %v", err)
+	}
+
+	// Test multipart Form with 'content' field (used by sendCallLinkToChatBtn)
+	bodyBuf := &bytes.Buffer{}
+	writer := multipart.NewWriter(bodyBuf)
+	_ = writer.WriteField("conversation_id", "30")
+	_ = writer.WriteField("content", "📹 Join our video call: https://example.com/messages/call/join?token=test1234")
+	writer.Close()
+
+	req := httptest.NewRequest(http.MethodPost, "/messages/send", bodyBuf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Accept", "application/json")
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(req, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(req, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	SendMessageAPI(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK when using 'content' form field, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Success bool            `json:"success"`
+		Message *models.Message `json:"message"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to decode JSON: %v", err)
+	}
+	if !resp.Success || resp.Message == nil {
+		t.Fatalf("Expected successful message creation, got %+v", resp)
+	}
+	if !strings.Contains(resp.Message.Body, "Join our video call") {
+		t.Errorf("Expected message body to contain call link invitation, got %q", resp.Message.Body)
+	}
+}
+
+func TestChatTemplate_AllCallingAndVoiceControlsRendered(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Seed users and direct conversation
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, created_by) VALUES (40, 'direct', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (40, 1, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (40, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed conversation: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/messages?c=40", nil)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	ChatInbox(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", rr.Code)
+	}
+
+	html := rr.Body.String()
+
+	// Verify Audio & Video Call controls, Voice notes, and Call link elements
+	expectedIDs := []string{
+		`id="startAudioCallBtn"`,
+		`id="startVideoCallBtn"`,
+		`id="chatCallDropdownBtn"`,
+		`id="sendDirectCallLinkBtn"`,
+		`id="voiceRecordBtn"`,
+		`id="voiceRecordingBar"`,
+		`id="voicePreviewAudio"`,
+		`id="sendCallLinkModal"`,
+		`id="copyCallInvitationLinkBtn"`,
+		`id="shareCallInvitationLinkBtn"`,
+		`id="sendCallLinkToChatBtn"`,
+		`id="incomingCallModal"`,
+		`id="activeCallModal"`,
+		`id="mediaPermissionModal"`,
+		`id="remoteVideo"`,
+		`id="localVideo"`,
+	}
+
+	for _, expectedID := range expectedIDs {
+		if !strings.Contains(html, expectedID) {
+			t.Errorf("Expected chat.html to render %s, but was not found in rendered HTML", expectedID)
+		}
 	}
 }
 

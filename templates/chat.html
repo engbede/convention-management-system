@@ -1341,7 +1341,7 @@
                                                                         </a>
                                                                     </div>
                                                                 </div>
-                                                                <audio controls preload="metadata" class="w-100 rounded-pill voice-audio-player" style="height: 36px; outline: none; min-width: 160px;" onerror="const errNotice = this.nextElementSibling; if (errNotice) errNotice.classList.remove('d-none');">
+                                                                <audio controls src="{{.AttachmentURL}}" preload="metadata" class="w-100 rounded-pill voice-audio-player" style="height: 36px; outline: none; min-width: 160px;" onerror="const errNotice = this.nextElementSibling; if (errNotice) errNotice.classList.remove('d-none');">
                                                                     <source src="{{.AttachmentURL}}" type="{{if .AttachmentType}}{{.AttachmentType}}{{else}}audio/webm{{end}}">
                                                                     Audio not supported.
                                                                 </audio>
@@ -1537,7 +1537,7 @@
                                                                         </a>
                                                                     </div>
                                                                 </div>
-                                                                <audio controls preload="metadata" class="w-100 rounded-pill voice-audio-player" style="height: 36px; outline: none; min-width: 160px;" onerror="const errNotice = this.nextElementSibling; if (errNotice) errNotice.classList.remove('d-none');">
+                                                                <audio controls src="{{.AttachmentURL}}" preload="metadata" class="w-100 rounded-pill voice-audio-player" style="height: 36px; outline: none; min-width: 160px;" onerror="const errNotice = this.nextElementSibling; if (errNotice) errNotice.classList.remove('d-none');">
                                                                     <source src="{{.AttachmentURL}}" type="{{if .AttachmentType}}{{.AttachmentType}}{{else}}audio/webm{{end}}">
                                                                     Audio not supported.
                                                                 </audio>
@@ -3452,9 +3452,13 @@
                     <label class="form-label small fw-bold text-secondary text-uppercase mb-2">Invitation Link</label>
                     <div class="input-group mb-2">
                         <input type="text" id="callInvitationLinkInput" class="form-control rounded-start-3 bg-light font-monospace small" readonly placeholder="Generating invitation link...">
-                        <button class="btn btn-outline-primary rounded-end-3 px-3 fw-semibold d-flex align-items-center gap-1" type="button" id="copyCallInvitationLinkBtn" title="Copy to clipboard">
+                        <button class="btn btn-outline-primary px-3 fw-semibold d-flex align-items-center gap-1" type="button" id="copyCallInvitationLinkBtn" title="Copy to clipboard">
                             <i class="bi bi-clipboard" id="copyCallLinkIcon"></i>
                             <span id="copyCallLinkText">Copy</span>
+                        </button>
+                        <button class="btn btn-outline-secondary rounded-end-3 px-3 fw-semibold d-flex align-items-center gap-1" type="button" id="shareCallInvitationLinkBtn" title="Share via external apps">
+                            <i class="bi bi-share"></i>
+                            <span id="shareCallLinkText">Share</span>
                         </button>
                     </div>
                     <div class="alert alert-info py-2 px-3 rounded-3 small mb-0 d-flex align-items-start gap-2 border-0 bg-info-subtle text-info-emphasis">
@@ -4848,7 +4852,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             </a>
                         </div>
                     </div>
-                    <audio controls preload="metadata" class="w-100 rounded-pill voice-note-audio" style="height: 36px; outline: none;" onerror="this.insertAdjacentHTML('afterend', '<div class=\\'small text-danger mt-1\\'><i class=\\'bi bi-exclamation-triangle me-1\\'></i>Unable to play audio.</div>'); this.style.display='none';">
+                    <audio controls src="${m.AttachmentURL}" preload="metadata" class="w-100 rounded-pill voice-note-audio" style="height: 36px; outline: none;" onerror="this.insertAdjacentHTML('afterend', '<div class=\\'small text-danger mt-1\\'><i class=\\'bi bi-exclamation-triangle me-1\\'></i>Unable to play audio.</div>'); this.style.display='none';">
                         <source src="${m.AttachmentURL}" type="${m.AttachmentType || 'audio/webm'}">
                         Audio not supported.
                     </audio>
@@ -5279,17 +5283,6 @@ document.addEventListener("DOMContentLoaded", function () {
     if (removeAttachmentBtn) {
         removeAttachmentBtn.addEventListener("click", resetAllAttachmentInputs);
     }
-            if (voicePreviewAudio) {
-                voicePreviewAudio.pause();
-                voicePreviewAudio.removeAttribute("src");
-            }
-            if (voicePreviewContainer) {
-                voicePreviewContainer.classList.add("d-none");
-                voicePreviewContainer.style.display = "none";
-            }
-            if (attachmentPreviewBar) attachmentPreviewBar.style.setProperty("display", "none", "important");
-        });
-    }
 
     // Voice note recording lifecycle
     function stopVoiceTimer() {
@@ -5393,12 +5386,20 @@ document.addEventListener("DOMContentLoaded", function () {
                     showChatNotification("Empty recording discarded.", false);
                     return;
                 }
-                const audioFile = new File([audioBlob], `voice-note-${Date.now()}.${fileExt}`, { type: recordedMime });
+                const filename = `voice-note-${Date.now()}.${fileExt}`;
+                let audioFile;
+                try {
+                    audioFile = new File([audioBlob], filename, { type: recordedMime });
+                } catch (_) {
+                    audioBlob.name = filename;
+                    audioBlob.lastModifiedDate = new Date();
+                    audioFile = audioBlob;
+                }
                 handleFileSelected(audioFile);
                 showChatNotification("Voice note recorded! You can listen below or send.", true);
             };
 
-            mediaRecorder.start();
+            mediaRecorder.start(250);
             isRecordingVoice = true;
             if (voiceMicIcon) voiceMicIcon.className = "bi bi-stop-circle-fill fs-5 text-danger";
             if (voiceRecordBtn) voiceRecordBtn.title = "Finish recording voice note";
@@ -5617,6 +5618,12 @@ document.addEventListener("DOMContentLoaded", function () {
                     }
                     break;
 
+                case "call_initiated":
+                    if (data.call_id > 0) {
+                        activeCallId = data.call_id;
+                    }
+                    break;
+
                 case "call_offer":
                     // Check if already in an active 1-on-1 call or community group call
                     if (isUserInGroupCall ||
@@ -5680,13 +5687,21 @@ document.addEventListener("DOMContentLoaded", function () {
                         })).then(() => {
                             if (callStatusText) callStatusText.textContent = "Connected";
                             startTimer();
+                            while (pendingIceCandidates.length > 0) {
+                                const cand = pendingIceCandidates.shift();
+                                peerConnection.addIceCandidate(new RTCIceCandidate(cand)).catch(console.error);
+                            }
                         }).catch(console.error);
                     }
                     break;
 
                 case "ice_candidate":
                     if (peerConnection && data.candidate) {
-                        peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(console.error);
+                        if (peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
+                            peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(console.error);
+                        } else {
+                            pendingIceCandidates.push(data.candidate);
+                        }
                     }
                     break;
 
@@ -5851,6 +5866,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // ==========================================
     let peerConnection = null;
     let localStream = null;
+    let pendingIceCandidates = [];
     let iceServersConfig = [{ urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] }];
     let activeCallId = 0;
     let activeCallPeerId = 0;
@@ -6101,6 +6117,7 @@ document.addEventListener("DOMContentLoaded", function () {
         clearTimeout(outgoingCallRingTimeout);
         clearTimeout(incomingCallRingTimeout);
         stopScreenShare();
+        pendingIceCandidates = [];
         if (localStream) {
             localStream.getTracks().forEach(t => t.stop());
             localStream = null;
@@ -6207,20 +6224,23 @@ document.addEventListener("DOMContentLoaded", function () {
                     type: "ice_candidate",
                     conversation_id: conversationId,
                     target_user_id: peerId,
-                    call_id: callId,
+                    call_id: activeCallId || callId,
                     candidate: event.candidate
                 }));
             }
         };
 
         peerConnection.ontrack = function (event) {
-            if (event.streams && event.streams[0]) {
-                if (remoteVideo) {
-                    remoteVideo.srcObject = event.streams[0];
-                    if (activeCallType === "video") {
-                        remoteVideo.style.display = "block";
-                        if (audioCallDisplay) audioCallDisplay.style.display = "none";
-                    }
+            let stream = (event.streams && event.streams[0]) || null;
+            if (!stream) {
+                stream = (remoteVideo && remoteVideo.srcObject) || new MediaStream();
+                if (event.track) stream.addTrack(event.track);
+            }
+            if (remoteVideo) {
+                remoteVideo.srcObject = stream;
+                if (activeCallType === "video") {
+                    remoteVideo.style.display = "block";
+                    if (audioCallDisplay) audioCallDisplay.style.display = "none";
                 }
             }
         };
@@ -6561,6 +6581,11 @@ document.addEventListener("DOMContentLoaded", function () {
                     type: "offer",
                     sdp: offer.sdp
                 }));
+
+                while (pendingIceCandidates.length > 0) {
+                    const cand = pendingIceCandidates.shift();
+                    peerConnection.addIceCandidate(new RTCIceCandidate(cand)).catch(console.error);
+                }
 
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
@@ -10023,6 +10048,35 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    const shareCallInvitationLinkBtn = document.getElementById("shareCallInvitationLinkBtn");
+    if (shareCallInvitationLinkBtn) {
+        shareCallInvitationLinkBtn.addEventListener("click", async function () {
+            const link = callInvitationLinkInput ? callInvitationLinkInput.value.trim() : "";
+            if (!link) return;
+            const isVideo = callLinkTypeVideo && callLinkTypeVideo.checked;
+            const shareTitle = isVideo ? "Youth Fellowship Video Call Invitation" : "Youth Fellowship Voice Call Invitation";
+            const shareText = isVideo ? "Join our fellowship video call:" : "Join our fellowship voice call:";
+
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: shareTitle,
+                        text: shareText,
+                        url: link
+                    });
+                    showChatNotification("Invitation link shared successfully!", true);
+                } catch (err) {
+                    if (err.name !== "AbortError") {
+                        console.warn("navigator.share failed:", err);
+                        if (copyCallInvitationLinkBtn) copyCallInvitationLinkBtn.click();
+                    }
+                }
+            } else if (copyCallInvitationLinkBtn) {
+                copyCallInvitationLinkBtn.click();
+            }
+        });
+    }
+
     if (sendCallLinkToChatBtn) {
         sendCallLinkToChatBtn.addEventListener("click", async function () {
             const link = callInvitationLinkInput ? callInvitationLinkInput.value.trim() : "";
@@ -10036,6 +10090,7 @@ document.addEventListener("DOMContentLoaded", function () {
             try {
                 const formData = new FormData();
                 formData.append("conversation_id", convId);
+                formData.append("body", inviteMsg);
                 formData.append("content", inviteMsg);
 
                 const res = await fetch("/messages/send", {
@@ -10051,14 +10106,33 @@ document.addEventListener("DOMContentLoaded", function () {
                 showChatNotification("Call link posted to conversation!", true);
 
                 if (resData.message && container) {
-                    appendMessageBubble(resData.message, true);
-                    scrollToBottom();
+                    const emptyNotice = container.querySelector(".h-100.d-flex");
+                    if (emptyNotice) emptyNotice.remove();
+                    insertDateSeparatorIfNeeded(container, resData.message.CreatedAt);
+                    const elem = createMessageElement(resData.message);
+                    container.appendChild(elem);
+                    container.scrollTop = container.scrollHeight;
                 }
             } catch (err) {
                 showChatNotification("Error sending call link: " + err.message, false);
             }
         });
     }
+
+    // Clean up media and notify peer if tab/window is closed
+    window.addEventListener("beforeunload", function () {
+        if (activeCallId > 0 && socket && socketConnected && activeCallPeerId) {
+            const isStillCalling = (callStatusText && callStatusText.textContent === "Calling...");
+            socket.send(JSON.stringify({
+                type: isStillCalling ? "call_cancel" : "call_end",
+                conversation_id: activeCallConvId,
+                target_user_id: activeCallPeerId,
+                call_id: activeCallId,
+                duration: callDurationSeconds
+            }));
+        }
+        cleanupCallMedia();
+    });
 
     // ==========================================
     // Autocall Parameter Handling

@@ -285,9 +285,12 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 
 	contentType := r.Header.Get("Content-Type")
 	if strings.Contains(contentType, "multipart/form-data") {
-		_ = r.ParseMultipartForm(10 << 20) // 10 MB
+		_ = r.ParseMultipartForm(32 << 20) // 32 MB buffer for voice notes and attachments
 		convID, _ = strconv.Atoi(r.FormValue("conversation_id"))
 		body = r.FormValue("body")
+		if body == "" {
+			body = r.FormValue("content")
+		}
 		clientMsgID = r.FormValue("client_message_id")
 		if r.FormValue("reply_to_id") != "" {
 			if id, err := strconv.Atoi(r.FormValue("reply_to_id")); err == nil {
@@ -307,6 +310,7 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			ConversationID   int    `json:"conversation_id"`
 			Body             string `json:"body"`
+			Content          string `json:"content"`
 			ClientMessageID  string `json:"client_message_id"`
 			ReplyToID        *int   `json:"reply_to_id"`
 			ReplyToMessageID *int   `json:"reply_to_message_id"`
@@ -317,6 +321,9 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		convID = req.ConversationID
 		body = req.Body
+		if body == "" {
+			body = req.Content
+		}
 		clientMsgID = req.ClientMessageID
 		if req.ReplyToID != nil {
 			replyToID = req.ReplyToID
@@ -327,6 +334,9 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		convID, _ = strconv.Atoi(r.FormValue("conversation_id"))
 		body = r.FormValue("body")
+		if body == "" {
+			body = r.FormValue("content")
+		}
 		clientMsgID = r.FormValue("client_message_id")
 		if r.FormValue("reply_to_id") != "" {
 			if id, err := strconv.Atoi(r.FormValue("reply_to_id")); err == nil {

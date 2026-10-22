@@ -1481,6 +1481,42 @@ func GetCallLogByID(callID int) (*models.CallLog, error) {
 	return &cl, nil
 }
 
+// GetLatestInitiatedCall retrieves the most recent active or initiated direct call between two users.
+func GetLatestInitiatedCall(callerID, receiverID int) (*models.CallLog, error) {
+	query := fmt.Sprintf(`
+		SELECT id, conversation_id, caller_id, COALESCE(receiver_id, 0), call_type, status, duration_seconds, started_at, ended_at, expires_at
+		FROM call_logs
+		WHERE caller_id = %s AND receiver_id = %s AND status IN ('initiated', 'ringing', 'connected')
+		ORDER BY id DESC
+		LIMIT 1
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+	var cl models.CallLog
+	var endedAt sql.NullTime
+	var expiresAt sql.NullTime
+	err := database.DB.QueryRow(query, callerID, receiverID).Scan(
+		&cl.ID,
+		&cl.ConversationID,
+		&cl.CallerID,
+		&cl.ReceiverID,
+		&cl.CallType,
+		&cl.Status,
+		&cl.DurationSeconds,
+		&cl.StartedAt,
+		&endedAt,
+		&expiresAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if endedAt.Valid {
+		cl.EndedAt = &endedAt.Time
+	}
+	if expiresAt.Valid {
+		cl.ExpiresAt = &expiresAt.Time
+	}
+	return &cl, nil
+}
+
 // AddCallParticipant records a member joining an audio/video call session.
 func AddCallParticipant(callID, userID int) (*models.CallParticipant, error) {
 	query := fmt.Sprintf(`

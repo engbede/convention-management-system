@@ -398,6 +398,16 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			})
 		}
 
+		// Acknowledge initiation back to caller so client tracks authoritative CallID
+		_ = client.Send(WSEvent{
+			Type:           "call_initiated",
+			ConversationID: convID,
+			UserID:         client.UserID,
+			TargetUserID:   targetUserID,
+			CallType:       callType,
+			CallID:         callLog.ID,
+		})
+
 		// Trigger Web Push notification for background delivery
 		pushPayload := &models.CallNotificationPayload{
 			Type:           "call_offer",
@@ -479,6 +489,11 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 		}
 
 	case "call_decline":
+		if event.CallID <= 0 && event.TargetUserID > 0 {
+			if latest, lErr := repository.GetLatestInitiatedCall(event.TargetUserID, client.UserID); lErr == nil && latest != nil {
+				event.CallID = latest.ID
+			}
+		}
 		if event.CallID > 0 {
 			_ = repository.UpdateCallLog(event.CallID, "declined", 0)
 			_ = SendCallCancelPush(client.UserID, event.CallID, event.ConversationID)
@@ -494,6 +509,11 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			})
 		}
 	case "call_cancel":
+		if event.CallID <= 0 && event.TargetUserID > 0 {
+			if latest, lErr := repository.GetLatestInitiatedCall(client.UserID, event.TargetUserID); lErr == nil && latest != nil {
+				event.CallID = latest.ID
+			}
+		}
 		if event.CallID > 0 {
 			_ = repository.UpdateCallLog(event.CallID, "cancelled", 0)
 			_ = SendCallCancelPush(client.UserID, event.CallID, event.ConversationID)
@@ -510,6 +530,13 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 		}
 
 	case "call_end":
+		if event.CallID <= 0 && event.TargetUserID > 0 {
+			if latest, lErr := repository.GetLatestInitiatedCall(client.UserID, event.TargetUserID); lErr == nil && latest != nil {
+				event.CallID = latest.ID
+			} else if latest2, lErr2 := repository.GetLatestInitiatedCall(event.TargetUserID, client.UserID); lErr2 == nil && latest2 != nil {
+				event.CallID = latest2.ID
+			}
+		}
 		if event.CallID > 0 {
 			status := "completed"
 			if event.Duration == 0 {
