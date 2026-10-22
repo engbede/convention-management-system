@@ -485,6 +485,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         }
                         globalCallOfferData = null;
                     } else if (data.type === "group_call_started") {
+                        if (data.user_id === currentUserId) return;
                         globalGroupCallData = data;
                         const gModalEl = document.getElementById("globalIncomingGroupCallModal");
                         if (!gModalEl || typeof bootstrap === "undefined") return;

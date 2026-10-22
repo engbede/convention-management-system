@@ -3656,8 +3656,8 @@
             <!-- Top Bar -->
             <div class="p-3 d-flex justify-content-between align-items-center border-bottom border-secondary border-opacity-25 bg-black bg-opacity-50">
                 <div class="d-flex align-items-center gap-2">
-                    <span class="badge bg-danger rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1">
-                        <span class="spinner-grow spinner-grow-sm text-white" style="width: 0.4rem; height: 0.4rem;" role="status"></span> LIVE
+                    <span class="badge bg-danger rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1" id="groupCallStatusBadge">
+                        <span class="spinner-grow spinner-grow-sm text-white" style="width: 0.4rem; height: 0.4rem;" role="status"></span> <span id="groupCallStatusText">LIVE</span>
                     </span>
                     <h6 class="mb-0 fw-bold text-white text-truncate" id="groupCallRoomTitle" style="max-width: 250px;">Group Call</h6>
                     <span class="badge bg-secondary rounded-pill small" id="groupCallRosterCount">1 participant</span>
@@ -3669,6 +3669,9 @@
                     </button>
                     <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill text-white px-2 py-1" id="groupCallToggleRosterBtn" title="Toggle Participant List">
                         <i class="bi bi-people-fill me-1"></i> <span class="d-none d-sm-inline">Participants</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-light rounded-circle p-1 ms-1 d-flex align-items-center justify-content-center" id="groupCallMinimizeBtn" title="Minimize call window" style="width: 32px; height: 32px;">
+                        <i class="bi bi-dash-lg fs-6"></i>
                     </button>
                 </div>
             </div>
@@ -4283,6 +4286,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const activeConvInput = document.getElementById("activeConvID");
     const convId = activeConvInput ? parseInt(activeConvInput.value) : 0;
+    const activeConvType = (activeConvInput ? (activeConvInput.getAttribute("data-conversation-type") || "") : "") || "{{if .ActiveConversation}}{{.ActiveConversation.Type}}{{end}}";
+    const isGroupConversation = (activeConvType === "group") || ({{if .ActiveConversation}}{{if eq .ActiveConversation.Type "group"}}true{{else}}false{{end}}{{else}}false{{end}});
 
     // HTML escape helper
     function escapeHtmlText(str) {
@@ -6894,6 +6899,40 @@ document.addEventListener("DOMContentLoaded", function () {
     const incomingGroupCallInitiator = document.getElementById("incomingGroupCallInitiator");
     const incomingGroupCallTypeBadge = document.getElementById("incomingGroupCallTypeBadge");
 
+    const groupCallStatusBadge = document.getElementById("groupCallStatusBadge");
+    const groupCallStatusText = document.getElementById("groupCallStatusText");
+    const groupCallMinimizeBtn = document.getElementById("groupCallMinimizeBtn");
+
+    function setGroupCallStatus(status) {
+        if (!groupCallStatusBadge) return;
+        switch (status) {
+            case "starting":
+                groupCallStatusBadge.className = "badge bg-warning text-dark rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1";
+                groupCallStatusBadge.innerHTML = `<span class="spinner-border spinner-border-sm" style="width: 0.45rem; height: 0.45rem;" role="status"></span> <span id="groupCallStatusText">Starting...</span>`;
+                break;
+            case "connecting":
+                groupCallStatusBadge.className = "badge bg-info text-dark rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1";
+                groupCallStatusBadge.innerHTML = `<span class="spinner-border spinner-border-sm" style="width: 0.45rem; height: 0.45rem;" role="status"></span> <span id="groupCallStatusText">Connecting...</span>`;
+                break;
+            case "active":
+                groupCallStatusBadge.className = "badge bg-danger rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1";
+                groupCallStatusBadge.innerHTML = `<span class="spinner-grow spinner-grow-sm text-white" style="width: 0.4rem; height: 0.4rem;" role="status"></span> <span id="groupCallStatusText">LIVE</span>`;
+                break;
+            case "reconnecting":
+                groupCallStatusBadge.className = "badge bg-warning text-dark rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1";
+                groupCallStatusBadge.innerHTML = `<span class="spinner-border spinner-border-sm" style="width: 0.45rem; height: 0.45rem;" role="status"></span> <span id="groupCallStatusText">Reconnecting...</span>`;
+                break;
+            case "ended":
+                groupCallStatusBadge.className = "badge bg-secondary rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1";
+                groupCallStatusBadge.innerHTML = `<i class="bi bi-telephone-x-fill"></i> <span id="groupCallStatusText">Ended</span>`;
+                break;
+            default:
+                groupCallStatusBadge.className = "badge bg-danger rounded-pill d-inline-flex align-items-center gap-1 px-2 py-1";
+                groupCallStatusBadge.innerHTML = `<span class="spinner-grow spinner-grow-sm text-white" style="width: 0.4rem; height: 0.4rem;" role="status"></span> <span id="groupCallStatusText">LIVE</span>`;
+                break;
+        }
+    }
+
     function startGroupTimer() {
         clearInterval(groupCallTimerInterval);
         groupCallDurationSeconds = 0;
@@ -7193,7 +7232,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
             tile.innerHTML = `
                 <div class="position-relative w-100 rounded-3 overflow-hidden bg-black border border-secondary border-opacity-50 shadow-sm d-flex justify-content-center align-items-center" style="height: 190px;">
-                    <audio id="groupAudio_${p.user_id}" autoplay playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></audio>
                     <video id="groupVideo_${p.user_id}" class="w-100 h-100 object-fit-cover" autoplay playsinline style="${p.is_cam_off ? 'display: none;' : 'display: block;'}"></video>
                     <div class="group-avatar-fallback text-center" id="groupAvatar_${p.user_id}" style="${p.is_cam_off ? 'display: block;' : 'display: none;'}">
                         ${photoHtml}
@@ -7207,17 +7245,26 @@ document.addEventListener("DOMContentLoaded", function () {
             `;
             groupCallVideoGrid.appendChild(tile);
 
+            // Ensure dedicated audio element exists for remote participant audio playback
+            let peerAudio = document.getElementById(`groupAudio_${p.user_id}`);
+            if (!peerAudio) {
+                peerAudio = document.createElement("audio");
+                peerAudio.id = `groupAudio_${p.user_id}`;
+                peerAudio.autoplay = true;
+                peerAudio.playsInline = true;
+                peerAudio.style.cssText = "position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;";
+                document.body.appendChild(peerAudio);
+            }
+
             // Connect existing stream if tracks arrived before tile rendering
             const pc = groupPeerConnections[p.user_id];
             if (pc && pc._remoteStream) {
-                const peerAudio = tile.querySelector(`#groupAudio_${p.user_id}`);
-                if (peerAudio) {
-                    if (peerAudio.srcObject !== pc._remoteStream) {
-                        peerAudio.srcObject = pc._remoteStream;
-                    }
-                    peerAudio.muted = false;
-                    peerAudio.play().catch(e => console.warn("Group tile audio play error:", e));
+                if (peerAudio.srcObject !== pc._remoteStream) {
+                    peerAudio.srcObject = pc._remoteStream;
                 }
+                peerAudio.muted = false;
+                peerAudio.play().catch(e => console.warn("Group tile audio play error:", e));
+
                 const peerVideo = tile.querySelector(`#groupVideo_${p.user_id}`);
                 if (peerVideo) {
                     if (peerVideo.srcObject !== pc._remoteStream) {
@@ -7373,77 +7420,138 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     async function initiateGroupCall(callType) {
-        if (!convId || !isGroupConversation) return;
+        if (!convId || !isGroupConversation) {
+            console.warn("initiateGroupCall aborted: convId=", convId, "isGroupConversation=", isGroupConversation);
+            return;
+        }
 
+        if (isUserInGroupCall) {
+            if (groupCallModal) groupCallModal.show();
+            return;
+        }
+
+        // 1. Immediately open modal in "starting" state to provide immediate visual feedback
+        setGroupCallStatus("starting");
+        if (groupCallRoomTitle) {
+            groupCallRoomTitle.textContent = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Group Call";
+        }
+        if (groupCallModal) groupCallModal.show();
+
+        // 2. Contact backend to create/retrieve the active group call session
+        let roomData = null;
+        try {
+            const resp = await fetch("/messages/call/group/start", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ conversation_id: convId, call_type: callType })
+            });
+            const resData = await resp.json();
+            if (!resp.ok || !resData.success) {
+                const errMsg = resData.error || "Failed to start group call";
+                showChatNotification(errMsg, false);
+                if (groupCallModal) groupCallModal.hide();
+                return;
+            }
+            roomData = resData.room;
+        } catch (err) {
+            console.error("Backend error starting group call:", err);
+            showChatNotification("Network error starting call. Please try again.", false);
+            if (groupCallModal) groupCallModal.hide();
+            return;
+        }
+
+        // 3. Update status to connecting and acquire microphone/camera
+        setGroupCallStatus("connecting");
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
                 video: callType === "video"
             });
             groupLocalStream = stream;
+        } catch (mediaErr) {
+            console.error("Camera/Mic error starting group call:", mediaErr);
+            if (groupCallModal) groupCallModal.hide();
+            handleMediaDeviceError(mediaErr, callType, () => initiateGroupCall(callType));
+            return;
+        }
 
-            isUserInGroupCall = true;
-            currentGroupCallType = callType;
-            groupIsMicMuted = false;
-            groupIsCamOff = (callType === "audio");
+        // 4. Media acquired: transition to ACTIVE state
+        isUserInGroupCall = true;
+        currentGroupCallType = callType;
+        groupIsMicMuted = false;
+        groupIsCamOff = (callType === "audio");
 
-            if (groupCallRoomTitle) {
-                groupCallRoomTitle.textContent = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Group Call";
-            }
-            if (groupLocalVideo) {
-                if (callType === "video") {
-                    groupLocalVideo.srcObject = groupLocalStream;
-                    groupLocalVideo.style.display = "block";
-                    if (groupLocalAvatar) groupLocalAvatar.style.display = "none";
-                    groupLocalVideo.play().catch(e => console.warn("groupLocalVideo play error:", e));
-                } else {
-                    groupLocalVideo.style.display = "none";
-                    if (groupLocalAvatar) groupLocalAvatar.style.display = "block";
-                }
-            }
-
-            const isHost = (currentUserRole === "owner" || currentUserRole === "admin");
-            if (groupHostActionsDropdown) {
-                groupHostActionsDropdown.style.display = isHost ? "block" : "none";
-            }
-
-            if (groupCallModal) groupCallModal.show();
-            startGroupTimer();
-            setupGroupSpeakingDetector(groupLocalStream);
-
-            if (socket && socketConnected) {
-                socket.send(JSON.stringify({
-                    type: "group_call_start",
-                    conversation_id: convId,
-                    call_type: callType
-                }));
+        if (groupLocalVideo) {
+            if (callType === "video") {
+                groupLocalVideo.srcObject = groupLocalStream;
+                groupLocalVideo.style.display = "block";
+                if (groupLocalAvatar) groupLocalAvatar.style.display = "none";
+                groupLocalVideo.play().catch(e => console.warn("groupLocalVideo play error:", e));
             } else {
-                const resp = await fetch("/messages/call/group/start", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ conversation_id: convId, call_type: callType })
-                });
-                const resData = await resp.json();
-                if (!resData.success) {
-                    alert(resData.error || "Failed to start group call");
-                    leaveGroupMeeting(false);
+                groupLocalVideo.style.display = "none";
+                if (groupLocalAvatar) groupLocalAvatar.style.display = "block";
+            }
+        }
+
+        const isHost = (currentUserRole === "owner" || currentUserRole === "admin");
+        if (groupHostActionsDropdown) {
+            groupHostActionsDropdown.style.display = isHost ? "block" : "none";
+        }
+
+        setGroupCallStatus("active");
+        startGroupTimer();
+        setupGroupSpeakingDetector(groupLocalStream);
+
+        // 5. Populate initial participant roster if existing participants are present
+        if (roomData && roomData.participants) {
+            const roster = [];
+            for (const uid in roomData.participants) {
+                const p = roomData.participants[uid];
+                roster.push(p);
+                if (p.user_id !== currentUserId) {
+                    renderRemoteParticipantTile(p);
                 }
             }
-        } catch (err) {
-            console.error("Camera/Mic error starting group call:", err);
-            leaveGroupMeeting(false);
-            handleMediaDeviceError(err, callType, () => initiateGroupCall(callType));
+            updateGroupRoster(roster);
+        }
+
+        // 6. Notify server/peers via WebSocket
+        if (socket && socketConnected) {
+            socket.send(JSON.stringify({
+                type: "group_call_join",
+                conversation_id: convId
+            }));
         }
     }
 
     async function joinGroupCall() {
         if (!convId || !isGroupConversation) return;
+
+        if (isUserInGroupCall) {
+            if (groupCallModal) groupCallModal.show();
+            return;
+        }
+
         if (incomingGroupCallModal) incomingGroupCallModal.hide();
 
+        // 1. Immediately show modal in connecting state
+        setGroupCallStatus("connecting");
+        if (groupCallRoomTitle) {
+            groupCallRoomTitle.textContent = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Group Call";
+        }
+        if (groupCallModal) groupCallModal.show();
+
         try {
+            // Check active room
             const activeRes = await fetch(`/messages/call/group/active?conversation_id=${convId}`);
             const activeData = await activeRes.json();
-            const callType = (activeData.active && activeData.room && activeData.room.call_type === "video") ? "video" : "audio";
+            if (!activeData || !activeData.active) {
+                showChatNotification("No active group call found to join.", false);
+                if (groupCallModal) groupCallModal.hide();
+                return;
+            }
+
+            const callType = (activeData.room && activeData.room.call_type === "video") ? "video" : "audio";
 
             const stream = await navigator.mediaDevices.getUserMedia({
                 audio: true,
@@ -7451,14 +7559,23 @@ document.addEventListener("DOMContentLoaded", function () {
             });
             groupLocalStream = stream;
 
+            const joinResp = await fetch("/messages/call/group/join", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ conversation_id: convId })
+            });
+            const joinData = await joinResp.json();
+            if (!joinResp.ok || !joinData.success) {
+                showChatNotification(joinData.error || "Failed to join group call", false);
+                if (groupCallModal) groupCallModal.hide();
+                return;
+            }
+
             isUserInGroupCall = true;
             currentGroupCallType = callType;
             groupIsMicMuted = false;
             groupIsCamOff = (callType === "audio");
 
-            if (groupCallRoomTitle) {
-                groupCallRoomTitle.textContent = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Group Call";
-            }
             if (groupLocalVideo) {
                 if (callType === "video") {
                     groupLocalVideo.srcObject = groupLocalStream;
@@ -7476,14 +7593,15 @@ document.addEventListener("DOMContentLoaded", function () {
                 groupHostActionsDropdown.style.display = isHost ? "block" : "none";
             }
 
-            if (groupCallModal) groupCallModal.show();
+            setGroupCallStatus("active");
             startGroupTimer();
             setupGroupSpeakingDetector(groupLocalStream);
 
-            if (activeData.active && activeData.room && activeData.room.participants) {
+            const roomObj = joinData.room || activeData.room;
+            if (roomObj && roomObj.participants) {
                 const roster = [];
-                for (const uid in activeData.room.participants) {
-                    const p = activeData.room.participants[uid];
+                for (const uid in roomObj.participants) {
+                    const p = roomObj.participants[uid];
                     roster.push(p);
                     if (p.user_id !== currentUserId) {
                         renderRemoteParticipantTile(p);
@@ -7497,12 +7615,6 @@ document.addEventListener("DOMContentLoaded", function () {
                     type: "group_call_join",
                     conversation_id: convId
                 }));
-            } else {
-                await fetch("/messages/call/group/join", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ conversation_id: convId })
-                });
             }
         } catch (err) {
             console.error("Camera/Mic error joining group call:", err);
@@ -7515,6 +7627,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!isUserInGroupCall) return;
         isUserInGroupCall = false;
 
+        setGroupCallStatus("ended");
         stopGroupTimer();
 
         if (groupSpeechCheckInterval) {
@@ -7575,6 +7688,15 @@ document.addEventListener("DOMContentLoaded", function () {
         if (groupCamIcon) groupCamIcon.className = "bi bi-camera-video-fill fs-5";
         if (groupToggleMicBtn) groupToggleMicBtn.className = "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
         if (groupToggleCamBtn) groupToggleCamBtn.className = "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
+
+        const bannerBtn = document.getElementById("bannerJoinGroupCallBtn");
+        if (bannerBtn) {
+            bannerBtn.textContent = "Join Call";
+        }
+        const joinBtnText = document.getElementById("joinActiveGroupCallBtnText");
+        if (joinBtnText) {
+            joinBtnText.textContent = "Join Call";
+        }
     }
 
     // Group Screen Sharing Implementation
@@ -7907,6 +8029,23 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (joinActiveGroupCallBtn) joinActiveGroupCallBtn.addEventListener("click", joinGroupCall);
     if (bannerJoinGroupCallBtn) bannerJoinGroupCallBtn.addEventListener("click", joinGroupCall);
+    if (groupCallMinimizeBtn) {
+        groupCallMinimizeBtn.addEventListener("click", function() {
+            if (groupCallModal) groupCallModal.hide();
+            if (activeGroupCallBanner) {
+                activeGroupCallBanner.style.setProperty("display", "flex", "important");
+                const bannerBtn = document.getElementById("bannerJoinGroupCallBtn");
+                if (bannerBtn) {
+                    bannerBtn.innerHTML = `<i class="bi bi-arrows-angle-expand me-1"></i> Return to Call`;
+                }
+            }
+            const joinBtn = document.getElementById("joinActiveGroupCallBtn");
+            if (joinBtn) {
+                const joinBtnText = document.getElementById("joinActiveGroupCallBtnText");
+                if (joinBtnText) joinBtnText.textContent = "Return to Call";
+            }
+        });
+    }
     if (acceptGroupCallBtn) acceptGroupCallBtn.addEventListener("click", () => {
         if (pendingIncomingGroupCall) {
             const targetCId = pendingIncomingGroupCall.conversation_id;
@@ -10545,16 +10684,18 @@ document.addEventListener("DOMContentLoaded", function () {
 
         // Outgoing call initiation
         const callType = (autoCallParam === "video") ? "video" : "audio";
-        setTimeout(() => {
+        setTimeout(async () => {
             if (isGroupConversation) {
-                const joinBtn = document.getElementById("joinActiveGroupCallBtn");
-                if (joinBtn) {
-                    joinBtn.click();
-                } else {
-                    const startGroupBtn = (callType === "video")
-                        ? document.getElementById("startGroupVideoCallBtn")
-                        : document.getElementById("startGroupAudioCallBtn");
-                    if (startGroupBtn) startGroupBtn.click();
+                try {
+                    const activeRes = await fetch(`/messages/call/group/active?conversation_id=${convId}`);
+                    const activeData = await activeRes.json();
+                    if (activeData && activeData.active) {
+                        joinGroupCall();
+                    } else {
+                        initiateGroupCall(callType);
+                    }
+                } catch (e) {
+                    initiateGroupCall(callType);
                 }
             } else {
                 const startDirectBtn = (callType === "video")

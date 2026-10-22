@@ -1666,8 +1666,11 @@ func CanUserCallInGroup(convID, userID int) (bool, error) {
 	}
 
 	member, err := repository.GetConversationMember(convID, userID)
-	if err != nil {
-		return false, err
+	if err != nil || member == nil {
+		if err != nil {
+			return false, err
+		}
+		return false, errors.New("user is not a member of this conversation")
 	}
 
 	if conv.CallPermission == "admin_only" {

@@ -3798,6 +3798,138 @@ func TestGroupAudioCalling_FullLifecycleAndLateJoin(t *testing.T) {
 	}
 }
 
+func TestGroupAudioCalling_InterfaceAndWorkflow(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Verify template contains all repaired controls and status elements
+	tmplContent, err := os.ReadFile("templates/chat.html")
+	if err != nil {
+		tmplContent, err = os.ReadFile("../templates/chat.html")
+	}
+	if err != nil {
+		t.Fatalf("Failed to read templates/chat.html: %v", err)
+	}
+	html := string(tmplContent)
+
+	expectedTokens := []string{
+		`id="startGroupAudioCallBtn"`,
+		`id="groupCallModal"`,
+		`id="groupCallStatusBadge"`,
+		`id="groupCallStatusText"`,
+		`id="groupCallMinimizeBtn"`,
+		`id="activeGroupCallBanner"`,
+		`id="joinActiveGroupCallBtn"`,
+		`id="bannerJoinGroupCallBtn"`,
+		`isGroupConversation =`,
+		`function setGroupCallStatus`,
+	}
+
+	for _, token := range expectedTokens {
+		if !strings.Contains(html, token) {
+			t.Errorf("templates/chat.html missing expected token: %s", token)
+		}
+	}
+
+	// 2. Setup group conversation (ID: 90) with User 1 (owner) and User 2 (member)
+	_, err = database.DB.Exec(`
+		INSERT INTO conversations (id, type, title, created_by, call_permission) VALUES (90, 'group', 'Senior Leadership Group', 1, 'all_members');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (90, 1, 'owner');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (90, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed group 90: %v", err)
+	}
+
+	// 3. User 1 starts group audio call via StartGroupCallAPI
+	startPayload := `{"conversation_id": 90, "call_type": "audio"}`
+	startReq, startRR := makeAuthReq(http.MethodPost, "/messages/call/group/start", startPayload, "application/json", 1)
+	StartGroupCallAPI(startRR, startReq)
+	if startRR.Code != http.StatusOK {
+		t.Fatalf("StartGroupCallAPI failed: %d (body: %s)", startRR.Code, startRR.Body.String())
+	}
+
+	var startRes map[string]any
+	if err := json.Unmarshal(startRR.Body.Bytes(), &startRes); err != nil {
+		t.Fatalf("Failed to decode start group call response: %v", err)
+	}
+	if !startRes["success"].(bool) {
+		t.Fatalf("Expected success: true, got %v", startRes)
+	}
+
+	// 4. User 2 queries GetActiveGroupCallAPI
+	activeReq, activeRR := makeAuthReq(http.MethodGet, "/messages/call/group/active?conversation_id=90", "", "", 2)
+	GetActiveGroupCallAPI(activeRR, activeReq)
+	if activeRR.Code != http.StatusOK {
+		t.Fatalf("GetActiveGroupCallAPI failed: %d", activeRR.Code)
+	}
+
+	var activeRes map[string]any
+	if err := json.Unmarshal(activeRR.Body.Bytes(), &activeRes); err != nil {
+		t.Fatalf("Failed to decode active response: %v", err)
+	}
+	if !activeRes["active"].(bool) {
+		t.Fatalf("Expected active: true for conversation 90")
+	}
+
+	// 5. User 2 joins group audio call via JoinGroupCallAPI
+	joinPayload := `{"conversation_id": 90}`
+	joinReq, joinRR := makeAuthReq(http.MethodPost, "/messages/call/group/join", joinPayload, "application/json", 2)
+	JoinGroupCallAPI(joinRR, joinReq)
+	if joinRR.Code != http.StatusOK {
+		t.Fatalf("JoinGroupCallAPI failed: %d (body: %s)", joinRR.Code, joinRR.Body.String())
+	}
+
+	// Verify both users are present in the room
+	room, active := services.GlobalGroupCallManager.GetActiveGroupCall(90)
+	if !active || len(room.Participants) != 2 {
+		t.Fatalf("Expected 2 participants in room, got active=%v, count=%d", active, len(room.Participants))
+	}
+	if room.CallType != "audio" {
+		t.Errorf("Expected call_type=audio, got %s", room.CallType)
+	}
+
+	// 6. Generate group call link
+	linkPayload := `{"conversation_id": 90, "call_type": "audio"}`
+	linkReq, linkRR := makeAuthReq(http.MethodPost, "/messages/call/link/generate", linkPayload, "application/json", 1)
+	GenerateCallLinkAPI(linkRR, linkReq)
+	if linkRR.Code != http.StatusOK {
+		t.Fatalf("GenerateCallLinkAPI failed: %d (body: %s)", linkRR.Code, linkRR.Body.String())
+	}
+	var linkRes struct {
+		Success bool   `json:"success"`
+		Token   string `json:"token"`
+	}
+	_ = json.Unmarshal(linkRR.Body.Bytes(), &linkRes)
+	if !linkRes.Success || linkRes.Token == "" {
+		t.Fatalf("Expected successful token generation, got %v", linkRR.Body.String())
+	}
+
+	// 7. Verify JoinCallLinkHandler redirects to /messages?c=90&autocall=audio
+	joinLinkReq, joinLinkRR := makeAuthReq(http.MethodGet, fmt.Sprintf("/messages/call/join?token=%s", linkRes.Token), "", "", 2)
+	JoinCallLinkHandler(joinLinkRR, joinLinkReq)
+	if joinLinkRR.Code != http.StatusSeeOther {
+		t.Fatalf("Expected redirect (303), got %d", joinLinkRR.Code)
+	}
+	loc := joinLinkRR.Header().Get("Location")
+	if !strings.Contains(loc, "c=90") || !strings.Contains(loc, "autocall=audio") {
+		t.Errorf("Expected redirect URL to contain c=90 and autocall=audio, got: %s", loc)
+	}
+
+	// 8. End call via EndGroupCallAPI
+	endPayload := `{"conversation_id": 90}`
+	endReq, endRR := makeAuthReq(http.MethodPost, "/messages/call/group/end", endPayload, "application/json", 1)
+	EndGroupCallAPI(endRR, endReq)
+	if endRR.Code != http.StatusOK {
+		t.Fatalf("EndGroupCallAPI failed: %d", endRR.Code)
+	}
+
+	_, stillActive := services.GlobalGroupCallManager.GetActiveGroupCall(90)
+	if stillActive {
+		t.Errorf("Expected group call to be ended")
+	}
+}
+
 
 
 
