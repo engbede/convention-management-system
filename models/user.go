@@ -12,7 +12,8 @@ type User struct {
 	Username string
 
 	// View State
-	IsOwner bool
+	IsOwner  bool
+	IsOnline bool
 
 	// Contact
 	Email string

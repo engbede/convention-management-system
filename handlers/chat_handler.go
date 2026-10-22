@@ -69,11 +69,6 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 		activeConvID, _ = strconv.Atoi(convParam)
 	}
 
-	// If no specific conversation requested, pick the first one if available
-	if activeConvID == 0 && len(conversations) > 0 {
-		activeConvID = conversations[0].ID
-	}
-
 	var isActivePinned bool
 	if activeConvID > 0 {
 		conv, recipient, err := services.GetConversationDetails(activeConvID, currentUserID)
@@ -98,6 +93,14 @@ func ChatInbox(w http.ResponseWriter, r *http.Request) {
 
 	// Fetch candidate users to start a new chat with
 	eligibleFriends, _ := services.GetEligibleDirectChatUsers(currentUserID)
+	for i := range eligibleFriends {
+		eligibleFriends[i].IsOnline = services.GlobalHub.IsUserOnline(eligibleFriends[i].ID)
+	}
+	for i := range conversations {
+		if conversations[i].Type == "direct" && conversations[i].OtherUser.ID > 0 {
+			conversations[i].OtherUser.IsOnline = services.GlobalHub.IsUserOnline(conversations[i].OtherUser.ID)
+		}
+	}
 
 	// Notification badge count for navbar
 	unreadNotifications, _ := services.CountUnreadNotifications(currentUserID)
@@ -302,10 +305,11 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 		}
 	} else if strings.Contains(contentType, "application/json") {
 		var req struct {
-			ConversationID  int    `json:"conversation_id"`
-			Body            string `json:"body"`
-			ClientMessageID string `json:"client_message_id"`
-			ReplyToID       *int   `json:"reply_to_id"`
+			ConversationID   int    `json:"conversation_id"`
+			Body             string `json:"body"`
+			ClientMessageID  string `json:"client_message_id"`
+			ReplyToID        *int   `json:"reply_to_id"`
+			ReplyToMessageID *int   `json:"reply_to_message_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
@@ -314,7 +318,11 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 		convID = req.ConversationID
 		body = req.Body
 		clientMsgID = req.ClientMessageID
-		replyToID = req.ReplyToID
+		if req.ReplyToID != nil {
+			replyToID = req.ReplyToID
+		} else if req.ReplyToMessageID != nil {
+			replyToID = req.ReplyToMessageID
+		}
 	} else {
 		_ = r.ParseForm()
 		convID, _ = strconv.Atoi(r.FormValue("conversation_id"))

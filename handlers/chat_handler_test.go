@@ -2813,4 +2813,369 @@ func TestForwardMessagesAPI_Workflow(t *testing.T) {
 	}
 }
 
+func TestChatInbox_AndroidNavigationAndEligibleFriends(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Visit /messages without active conversation (?c= not provided)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+
+	inboxReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	for _, cookie := range saveRec.Result().Cookies() {
+		inboxReq.AddCookie(cookie)
+	}
+
+	inboxRR := httptest.NewRecorder()
+	ChatInbox(inboxRR, inboxReq)
+
+	if inboxRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", inboxRR.Code)
+	}
+
+	html := inboxRR.Body.String()
+
+	// Verify conversation sidebar is visible without mobile d-none
+	if !strings.Contains(html, `id="conversationSidebar"`) {
+		t.Errorf("Expected #conversationSidebar to be present in HTML")
+	}
+	// Verify chatMainArea is hidden on mobile when no conversation is active
+	if !strings.Contains(html, `id="chatMainArea" data-conv-id=""`) {
+		t.Errorf("Expected chatMainArea to have empty conv-id when no conversation is active")
+	}
+
+	// Verify friends filter pill is present
+	if !strings.Contains(html, `data-filter="friends"`) {
+		t.Errorf("Expected Friends filter pill to be present")
+	}
+
+	// Verify eligible friends are rendered in the sidebar list
+	if !strings.Contains(html, `conversation-group-friends`) {
+		t.Errorf("Expected .conversation-group-friends to be rendered in sidebar")
+	}
+	if !strings.Contains(html, `/messages/start?user_id=2`) {
+		t.Errorf("Expected link to start chat with User 2")
+	}
+
+	// 2. Click on eligible friend to start direct chat
+	startReq := httptest.NewRequest(http.MethodGet, "/messages/start?user_id=2", nil)
+	for _, cookie := range saveRec.Result().Cookies() {
+		startReq.AddCookie(cookie)
+	}
+	startRR := httptest.NewRecorder()
+	StartDirectChat(startRR, startReq)
+
+	if startRR.Code != http.StatusSeeOther {
+		t.Fatalf("Expected 303 See Other redirect from StartDirectChat, got %d", startRR.Code)
+	}
+	loc := startRR.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/messages?c=") {
+		t.Fatalf("Expected redirect to /messages?c=..., got %q", loc)
+	}
+
+	// 3. Follow redirect to active conversation
+	activeReq := httptest.NewRequest(http.MethodGet, loc, nil)
+	for _, cookie := range saveRec.Result().Cookies() {
+		activeReq.AddCookie(cookie)
+	}
+	activeRR := httptest.NewRecorder()
+	ChatInbox(activeRR, activeReq)
+
+	if activeRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from active conversation, got %d", activeRR.Code)
+	}
+
+	activeHTML := activeRR.Body.String()
+	// Verify Back to conversations button with href="/messages" is rendered for mobile
+	if !strings.Contains(activeHTML, `id="chatBackToInboxBtn"`) || !strings.Contains(activeHTML, `href="/messages"`) {
+		t.Errorf("Expected #chatBackToInboxBtn with href='/messages' in active conversation")
+	}
+	// Verify composer form is active
+	if !strings.Contains(activeHTML, `id="chatMessageForm"`) {
+		t.Errorf("Expected #chatMessageForm in active conversation")
+	}
+}
+
+func TestSendMessageAPI_ReplyToMessageID(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	// User 1 sends initial message
+	msg1, err := services.SendMessage(conv.ID, 1, "Original message from User One", "client-1", nil)
+	if err != nil {
+		t.Fatalf("SendMessage failed: %v", err)
+	}
+
+	// User 2 sends reply via JSON SendMessageAPI with reply_to_message_id
+	payload := fmt.Sprintf(`{
+		"conversation_id": %d,
+		"body": "Replying to User One",
+		"client_message_id": "client-reply-1",
+		"reply_to_message_id": %d
+	}`, conv.ID, msg1.ID)
+
+	req := httptest.NewRequest(http.MethodPost, "/messages/send", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(req, "youth-community")
+	session.Values["user_id"] = 2
+	_ = session.Save(req, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	SendMessageAPI(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from SendMessageAPI, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Success bool            `json:"success"`
+		Message *models.Message `json:"message"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+
+	if !resp.Success || resp.Message == nil {
+		t.Fatalf("Expected success true and valid message in response")
+	}
+	if resp.Message.ReplyToMessageID == nil || *resp.Message.ReplyToMessageID != msg1.ID {
+		t.Fatalf("Expected ReplyToMessageID %d, got %v", msg1.ID, resp.Message.ReplyToMessageID)
+	}
+	if resp.Message.ReplyToMessage == nil {
+		t.Fatalf("Expected ReplyToMessage to be hydrated, got nil")
+	}
+	if resp.Message.ReplyToMessage.Body != msg1.Body {
+		t.Errorf("Expected quoted body %q, got %q", msg1.Body, resp.Message.ReplyToMessage.Body)
+	}
+
+	// Verify conversation retrieval hydrates quoted reply
+	msgs, err := services.GetConversationMessages(conv.ID, 1, 10, 0)
+	if err != nil {
+		t.Fatalf("GetConversationMessages failed: %v", err)
+	}
+	var replyMsg *models.Message
+	for i := range msgs {
+		if msgs[i].ID == resp.Message.ID {
+			replyMsg = &msgs[i]
+			break
+		}
+	}
+	if replyMsg == nil || replyMsg.ReplyToMessage == nil {
+		t.Fatalf("Expected retrieved reply message to have hydrated ReplyToMessage")
+	}
+	if replyMsg.ReplyToMessage.Body != msg1.Body {
+		t.Errorf("Expected quoted body in retrieved message %q, got %q", msg1.Body, replyMsg.ReplyToMessage.Body)
+	}
+}
+
+func TestDeleteMessageAPI_ForMeAndForEveryone(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	msg, err := services.SendMessage(conv.ID, 1, "Sensitive message to test deletion", "client-del-1", nil)
+	if err != nil {
+		t.Fatalf("SendMessage failed: %v", err)
+	}
+
+	// 1. User 2 deletes message "for_me"
+	delMePayload := fmt.Sprintf(`{"message_id": %d, "mode": "for_me"}`, msg.ID)
+	reqMe := httptest.NewRequest(http.MethodPost, "/messages/message/delete", strings.NewReader(delMePayload))
+	reqMe.Header.Set("Content-Type", "application/json")
+	saveRecMe := httptest.NewRecorder()
+	sessionMe, _ := sessions.Store.Get(reqMe, "youth-community")
+	sessionMe.Values["user_id"] = 2
+	_ = sessionMe.Save(reqMe, saveRecMe)
+	for _, cookie := range saveRecMe.Result().Cookies() {
+		reqMe.AddCookie(cookie)
+	}
+
+	rrMe := httptest.NewRecorder()
+	DeleteMessageAPI(rrMe, reqMe)
+
+	if rrMe.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from DeleteMessageAPI (for_me), got %d", rrMe.Code)
+	}
+
+	// User 2 cannot see the message anymore
+	msgsUser2, err := services.GetConversationMessages(conv.ID, 2, 10, 0)
+	if err != nil {
+		t.Fatalf("GetConversationMessages user 2 failed: %v", err)
+	}
+	for _, m := range msgsUser2 {
+		if m.ID == msg.ID {
+			t.Errorf("Message %d should be hidden for User 2 after delete-for-me", msg.ID)
+		}
+	}
+
+	// User 1 CAN still see the message
+	msgsUser1, err := services.GetConversationMessages(conv.ID, 1, 10, 0)
+	if err != nil {
+		t.Fatalf("GetConversationMessages user 1 failed: %v", err)
+	}
+	found := false
+	for _, m := range msgsUser1 {
+		if m.ID == msg.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("Message %d should still be visible for User 1", msg.ID)
+	}
+
+	// 2. User 2 (non-author, non-admin) attempts delete "for_everyone" -> Should fail 403 Forbidden
+	delAllFailPayload := fmt.Sprintf(`{"message_id": %d, "mode": "for_everyone"}`, msg.ID)
+	reqFail := httptest.NewRequest(http.MethodPost, "/messages/message/delete", strings.NewReader(delAllFailPayload))
+	reqFail.Header.Set("Content-Type", "application/json")
+	for _, cookie := range saveRecMe.Result().Cookies() {
+		reqFail.AddCookie(cookie)
+	}
+	rrFail := httptest.NewRecorder()
+	DeleteMessageAPI(rrFail, reqFail)
+	if rrFail.Code != http.StatusForbidden {
+		t.Errorf("Expected 403 Forbidden for non-author deleting for everyone, got %d", rrFail.Code)
+	}
+
+	// 3. User 1 (author) deletes "for_everyone" -> Should succeed
+	delAllPayload := fmt.Sprintf(`{"message_id": %d, "mode": "for_everyone"}`, msg.ID)
+	reqAuthor := httptest.NewRequest(http.MethodPost, "/messages/message/delete", strings.NewReader(delAllPayload))
+	reqAuthor.Header.Set("Content-Type", "application/json")
+	saveRecAuthor := httptest.NewRecorder()
+	sessionAuthor, _ := sessions.Store.Get(reqAuthor, "youth-community")
+	sessionAuthor.Values["user_id"] = 1
+	_ = sessionAuthor.Save(reqAuthor, saveRecAuthor)
+	for _, cookie := range saveRecAuthor.Result().Cookies() {
+		reqAuthor.AddCookie(cookie)
+	}
+	rrAuthor := httptest.NewRecorder()
+	DeleteMessageAPI(rrAuthor, reqAuthor)
+	if rrAuthor.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from author deleting for everyone, got %d", rrAuthor.Code)
+	}
+
+	// Message should now be marked is_deleted
+	deletedMsg, err := repository.GetMessageByID(msg.ID)
+	if err != nil {
+		t.Fatalf("GetMessageByID failed: %v", err)
+	}
+	if !deletedMsg.IsDeleted {
+		t.Errorf("Expected message IsDeleted to be true")
+	}
+}
+
+func TestReportAbuseAPI_MessageAndUser(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation failed: %v", err)
+	}
+
+	msg, err := services.SendMessage(conv.ID, 2, "Reportable content here", "client-rep-1", nil)
+	if err != nil {
+		t.Fatalf("SendMessage failed: %v", err)
+	}
+
+	// 1. User 1 reports User 2's message
+	payload := fmt.Sprintf(`{
+		"reported_user_id": 2,
+		"conversation_id": %d,
+		"message_id": %d,
+		"reason": "harassment",
+		"details": "Unsolicited inappropriate content"
+	}`, conv.ID, msg.ID)
+
+	req := httptest.NewRequest(http.MethodPost, "/messages/report", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(req, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(req, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	ReportAbuseAPI(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ReportAbuseAPI, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Success bool               `json:"success"`
+		Report  *models.ChatReport `json:"report"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+	if !resp.Success || resp.Report == nil {
+		t.Fatalf("Expected report object in response")
+	}
+	if resp.Report.ReportedUserID != 2 || resp.Report.ReporterID != 1 {
+		t.Errorf("Unexpected report fields: %+v", resp.Report)
+	}
+
+	// 2. Duplicate submission for the same message returns 409 Conflict
+	rrDup := httptest.NewRecorder()
+	reqDup := httptest.NewRequest(http.MethodPost, "/messages/report", strings.NewReader(payload))
+	reqDup.Header.Set("Content-Type", "application/json")
+	reqDup.Header.Set("Accept", "application/json")
+	for _, cookie := range saveRec.Result().Cookies() {
+		reqDup.AddCookie(cookie)
+	}
+	ReportAbuseAPI(rrDup, reqDup)
+	if rrDup.Code != http.StatusConflict {
+		t.Errorf("Expected 409 Conflict for duplicate report, got %d", rrDup.Code)
+	}
+}
+
+func TestICEServersAPI_STUNConfiguration(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/messages/call/ice-servers", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(req, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(req, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	ICEServersAPI(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ICEServersAPI, got %d", rr.Code)
+	}
+
+	var resp struct {
+		IceServers []map[string]any `json:"iceServers"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to decode JSON: %v", err)
+	}
+	if len(resp.IceServers) == 0 {
+		t.Fatalf("Expected at least one ICE server entry")
+	}
+}
+
+
 

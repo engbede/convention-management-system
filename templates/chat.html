@@ -324,8 +324,8 @@
         overflow-x: hidden !important;
     }
     #chatMainCard {
-        height: calc(100dvh - 56px) !important;
         height: calc(100vh - 56px) !important;
+        height: calc(100dvh - 56px) !important;
         min-height: 0 !important;
         max-height: 100dvh !important;
         border-radius: 0 !important;
@@ -424,6 +424,7 @@
                         <button type="button" class="btn btn-xs btn-success rounded-pill px-2 py-1 filter-pill active" data-filter="all" style="font-size: 0.72rem;">All</button>
                         <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="direct" style="font-size: 0.72rem;">Direct</button>
                         <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="group" style="font-size: 0.72rem;">Groups</button>
+                        <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="friends" style="font-size: 0.72rem;"><i class="bi bi-people me-1"></i>Friends</button>
                         <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="bible_study" style="font-size: 0.72rem;"><i class="bi bi-book-half me-1"></i>Bible</button>
                         <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="prayer" style="font-size: 0.72rem;"><i class="bi bi-heart-pulse me-1"></i>Prayer</button>
                         <button type="button" class="btn btn-xs btn-outline-secondary rounded-pill px-2 py-1 filter-pill" data-filter="evangelism" style="font-size: 0.72rem;"><i class="bi bi-megaphone me-1"></i>Evangelism</button>
@@ -467,6 +468,9 @@
                                             <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.1rem;">
                                                 {{.OtherUser.Initials}}
                                             </div>
+                                        {{end}}
+                                        {{if .OtherUser.IsOnline}}
+                                            <span class="position-absolute bottom-0 end-0 bg-success border border-white rounded-circle p-1" style="width: 12px; height: 12px;" title="Online"></span>
                                         {{end}}
                                     {{end}}
                                 </div>
@@ -534,6 +538,9 @@
                                             {{.OtherUser.Initials}}
                                         </div>
                                     {{end}}
+                                    {{if .OtherUser.IsOnline}}
+                                        <span class="position-absolute bottom-0 end-0 bg-success border border-white rounded-circle p-1" style="width: 12px; height: 12px;" title="Online"></span>
+                                    {{end}}
                                 {{end}}
                             </div>
 
@@ -567,7 +574,89 @@
                             </div>
                         </a>
                         {{end}}
-                    {{else}}
+                    {{end}}
+
+                    <!-- ELIGIBLE FELLOWSHIP MEMBERS & FRIENDS -->
+                    {{if .EligibleFriends}}
+                    <div class="conversation-group conversation-group-friends" data-group="Fellowship Friends" data-category="friends">
+                        <div class="px-3 py-2 bg-light border-bottom text-muted text-uppercase fw-bold small conversation-group-heading d-flex justify-content-between align-items-center" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                            <span><i class="bi bi-people-fill me-1 text-success"></i> Fellowship Members & Friends</span>
+                            <span class="badge bg-secondary-subtle text-secondary rounded-pill">{{len .EligibleFriends}}</span>
+                        </div>
+                        {{range .EligibleFriends}}
+                        <a href="/messages/start?user_id={{.ID}}" class="list-group-item list-group-item-action p-3 border-bottom d-flex align-items-center gap-3 text-decoration-none conversation-item member-item" data-name="{{.FullName}} {{.Username}}" data-type="friend" data-category="friends">
+                            <!-- Avatar with Online Dot -->
+                            <div class="position-relative flex-shrink-0">
+                                {{if .ProfilePhoto}}
+                                    <img src="/uploads/profiles/{{.ProfilePhoto}}" alt="{{.FullName}}" class="rounded-circle object-fit-cover shadow-sm" style="width: 48px; height: 48px;">
+                                {{else}}
+                                    <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 48px; height: 48px; font-size: 1.1rem;">
+                                        {{.Initials}}
+                                    </div>
+                                {{end}}
+                                {{if .IsOnline}}
+                                    <span class="position-absolute bottom-0 end-0 bg-success border border-white rounded-circle p-1" style="width: 12px; height: 12px;" title="Online"></span>
+                                {{end}}
+                            </div>
+                            <!-- Content -->
+                            <div class="flex-grow-1 overflow-hidden" style="min-width: 0;">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h6 class="mb-0 fw-semibold text-truncate text-dark d-flex align-items-center" style="min-width: 0;">
+                                        <span class="conv-item-title text-truncate">{{.FullName}}</span>
+                                        {{if eq .Role "admin"}}
+                                            <span class="badge bg-warning text-dark rounded-pill ms-1" style="font-size: 0.62rem;">Admin</span>
+                                        {{else if eq .Role "moderator"}}
+                                            <span class="badge bg-info text-dark rounded-pill ms-1" style="font-size: 0.62rem;">Mod</span>
+                                        {{end}}
+                                    </h6>
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill small flex-shrink-0" style="font-size: 0.65rem;">
+                                        Chat
+                                    </span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <p class="mb-0 text-muted text-truncate small conv-item-preview" style="max-width: 200px;">
+                                        @{{.Username}}{{if .ChurchName}} &bull; {{.ChurchName}}{{end}}
+                                    </p>
+                                    {{if .IsOnline}}
+                                        <small class="text-success fw-semibold flex-shrink-0 ms-1" style="font-size: 0.7rem;"><i class="bi bi-circle-fill me-1" style="font-size: 0.5rem;"></i>Online</small>
+                                    {{end}}
+                                </div>
+                            </div>
+                        </a>
+                        {{end}}
+                    </div>
+                    {{end}}
+
+                    <!-- DISCOVERABLE PUBLIC GROUPS -->
+                    {{if .DiscoverableGroups}}
+                    <div class="conversation-group conversation-group-discover" data-group="Discover Groups" data-category="group">
+                        <div class="px-3 py-2 bg-light border-bottom text-muted text-uppercase fw-bold small conversation-group-heading d-flex justify-content-between align-items-center" style="font-size: 0.68rem; letter-spacing: 0.5px;">
+                            <span><i class="bi bi-compass me-1 text-primary"></i> Explore Public Groups</span>
+                            <span class="badge bg-secondary-subtle text-secondary rounded-pill">{{len .DiscoverableGroups}}</span>
+                        </div>
+                        {{range .DiscoverableGroups}}
+                        <div class="list-group-item p-3 border-bottom d-flex align-items-center justify-content-between gap-3 conversation-item" data-name="{{.Title}}" data-type="group" data-category="{{.Category}}">
+                            <div class="d-flex align-items-center gap-3 overflow-hidden" style="min-width: 0;">
+                                <div class="rounded-circle bg-primary-subtle text-primary border border-primary d-flex justify-content-center align-items-center fw-bold shadow-sm flex-shrink-0" style="width: 44px; height: 44px; font-size: 1.1rem;">
+                                    <i class="bi bi-people-fill"></i>
+                                </div>
+                                <div class="overflow-hidden" style="min-width: 0;">
+                                    <h6 class="mb-0 fw-semibold text-truncate text-dark">{{.Title}}</h6>
+                                    <p class="mb-0 text-muted small text-truncate">{{if .Description}}{{.Description}}{{else}}Fellowship community group{{end}}</p>
+                                </div>
+                            </div>
+                            <form action="/messages/group/join" method="POST" class="flex-shrink-0 m-0">
+                                <input type="hidden" name="conversation_id" value="{{.ID}}">
+                                <button type="submit" class="btn btn-xs btn-outline-primary rounded-pill px-3 py-1" style="font-size: 0.75rem;">
+                                    Join
+                                </button>
+                            </form>
+                        </div>
+                        {{end}}
+                    </div>
+                    {{end}}
+
+                    {{if and (not .ConversationGroups) (not .Conversations) (not .EligibleFriends)}}
                         {{if .Error}}
                         <!-- Error State -->
                         <div class="text-center p-4 text-muted mt-4">
@@ -4024,13 +4113,17 @@ document.addEventListener("DOMContentLoaded", function () {
     // Sidebar conversation search & category filter pills
     const searchInput = document.getElementById("chatSearchInput");
     const filterPills = document.querySelectorAll(".filter-pill");
+    const convList = document.getElementById("conversationList");
     let currentCategoryFilter = "all";
 
     function applyConversationFilters() {
         const query = searchInput ? searchInput.value.toLowerCase().trim() : "";
         const groups = document.querySelectorAll(".conversation-group");
+        let nonFriendConversationCount = 0;
+
         if (groups.length > 0) {
             groups.forEach(group => {
+                const groupCategory = group.getAttribute("data-category") || "";
                 let visibleCount = 0;
                 const items = group.querySelectorAll(".conversation-item");
                 items.forEach(item => {
@@ -4040,11 +4133,19 @@ document.addEventListener("DOMContentLoaded", function () {
 
                     let matchesCategory = false;
                     if (currentCategoryFilter === "all") {
-                        matchesCategory = true;
+                        if (itemType === "friend") {
+                            // Show friends in "all" if searching OR if there are no existing active conversations
+                            matchesCategory = (query.length > 0);
+                        } else {
+                            matchesCategory = true;
+                            nonFriendConversationCount++;
+                        }
                     } else if (currentCategoryFilter === "direct") {
                         matchesCategory = (itemType === "direct");
                     } else if (currentCategoryFilter === "group") {
                         matchesCategory = (itemType === "group");
+                    } else if (currentCategoryFilter === "friends") {
+                        matchesCategory = (itemType === "friend");
                     } else {
                         matchesCategory = (itemCat === currentCategoryFilter);
                     }
@@ -4054,8 +4155,20 @@ document.addEventListener("DOMContentLoaded", function () {
                     item.style.display = isVisible ? "flex" : "none";
                     if (isVisible) visibleCount++;
                 });
+
                 group.style.display = visibleCount > 0 ? "block" : "none";
             });
+
+            // If "all" is active and there are no existing conversations, always show the friends group!
+            if (currentCategoryFilter === "all" && nonFriendConversationCount === 0 && !query) {
+                const friendsGroup = document.querySelector(".conversation-group-friends");
+                if (friendsGroup) {
+                    friendsGroup.style.display = "block";
+                    friendsGroup.querySelectorAll(".conversation-item").forEach(item => {
+                        item.style.display = "flex";
+                    });
+                }
+            }
         } else {
             const items = document.querySelectorAll(".conversation-item");
             items.forEach(item => {
@@ -4070,6 +4183,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     matchesCategory = (itemType === "direct");
                 } else if (currentCategoryFilter === "group") {
                     matchesCategory = (itemType === "group");
+                } else if (currentCategoryFilter === "friends") {
+                    matchesCategory = (itemType === "friend");
                 } else {
                     matchesCategory = (itemCat === currentCategoryFilter);
                 }
@@ -4081,7 +4196,30 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     if (searchInput) {
-        searchInput.addEventListener("input", applyConversationFilters);
+        searchInput.addEventListener("input", function() {
+            sessionStorage.setItem("youth_chat_search_query", searchInput.value);
+            applyConversationFilters();
+        });
+    }
+
+    if (convList) {
+        convList.addEventListener("scroll", function() {
+            sessionStorage.setItem("youth_chat_scroll_top", convList.scrollTop);
+        });
+    }
+
+    // Restore search and scroll state
+    const savedChatQuery = sessionStorage.getItem("youth_chat_search_query");
+    if (savedChatQuery && searchInput) {
+        searchInput.value = savedChatQuery;
+    }
+    applyConversationFilters();
+
+    const savedScrollPos = sessionStorage.getItem("youth_chat_scroll_top");
+    if (savedScrollPos && convList) {
+        setTimeout(() => {
+            convList.scrollTop = parseInt(savedScrollPos, 10) || 0;
+        }, 60);
     }
 
     filterPills.forEach(pill => {
@@ -7488,6 +7626,12 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
 
+        input.addEventListener("focus", function () {
+            setTimeout(() => {
+                if (container) container.scrollTop = container.scrollHeight;
+            }, 300);
+        });
+
         input.addEventListener("keydown", function (e) {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -9284,9 +9428,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 e.preventDefault();
                 const msgId = replyBtn.getAttribute("data-message-id");
                 let senderName = replyBtn.getAttribute("data-sender-name") || "Member";
-                let body = replyBtn.getAttribute("data-message-body") || "";
                 try { senderName = decodeURIComponent(senderName); } catch (_) {}
-                try { body = decodeURIComponent(body); } catch (_) {}
+                let body = "";
+                const bubble = replyBtn.closest(".message-bubble");
+                if (bubble) {
+                    const contentEl = bubble.querySelector(".message-content");
+                    if (contentEl) body = contentEl.innerText.trim();
+                }
+                if (!body) {
+                    body = replyBtn.getAttribute("data-message-body") || "";
+                    try { body = decodeURIComponent(body); } catch (_) {}
+                }
                 startReplyToMessage(msgId, senderName, body);
                 return;
             }
@@ -9295,8 +9447,16 @@ document.addEventListener("DOMContentLoaded", function () {
             const copyBtn = e.target.closest(".copy-msg-btn");
             if (copyBtn) {
                 e.preventDefault();
-                let body = copyBtn.getAttribute("data-message-body") || "";
-                try { body = decodeURIComponent(body); } catch (_) {}
+                const bubble = copyBtn.closest(".message-bubble");
+                let body = "";
+                if (bubble) {
+                    const contentEl = bubble.querySelector(".message-content");
+                    if (contentEl) body = contentEl.innerText.trim();
+                }
+                if (!body) {
+                    body = copyBtn.getAttribute("data-message-body") || "";
+                    try { body = decodeURIComponent(body); } catch (_) {}
+                }
                 copyMessageText(body);
                 return;
             }
