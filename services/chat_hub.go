@@ -26,6 +26,7 @@ type WSEvent struct {
 	CallID               int                           `json:"call_id,omitempty"`
 	CallerName           string                        `json:"caller_name,omitempty"`
 	CallerAvatar         string                        `json:"caller_avatar,omitempty"`
+	GroupTitle           string                        `json:"group_title,omitempty"`
 	SDP                  string                        `json:"sdp,omitempty"`
 	Candidate            any                           `json:"candidate,omitempty"`
 	Duration             int                           `json:"duration,omitempty"`

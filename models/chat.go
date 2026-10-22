@@ -680,6 +680,7 @@ type CallParticipant struct {
 type GroupCallRoom struct {
 	CallID         int                          `json:"call_id"`
 	ConversationID int                          `json:"conversation_id"`
+	Title          string                       `json:"title,omitempty"`
 	InitiatorID    int                          `json:"initiator_id"`
 	InitiatorName  string                       `json:"initiator_name"`
 	CallType       string                       `json:"call_type"` // "audio" or "video"

@@ -197,6 +197,30 @@
     </div>
 </div>
 
+<!-- GLOBAL INCOMING GROUP CALL MODAL FOR NON-CHAT PAGES -->
+<div class="modal fade" id="globalIncomingGroupCallModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+        <div class="modal-content border-0 rounded-4 shadow-lg text-center p-4 bg-white">
+            <div class="position-relative mx-auto mb-3" style="width: 80px; height: 80px;">
+                <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow mx-auto" style="width: 80px; height: 80px; font-size: 2rem;">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+            </div>
+            <h5 class="fw-bold mb-1 text-dark" id="globalGroupCallGroupName">Community Group</h5>
+            <p class="text-muted small mb-1" id="globalGroupCallInitiator">A member started a call</p>
+            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill mx-auto mb-4 px-3 py-2" id="globalGroupCallTypeBadge">Group Audio Call</span>
+            <div class="d-flex justify-content-center gap-4">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4 py-2" id="globalDismissGroupCallBtn" data-bs-dismiss="modal">
+                    Dismiss
+                </button>
+                <button type="button" class="btn btn-success rounded-pill px-4 py-2 fw-bold d-flex align-items-center gap-2 shadow" id="globalAcceptGroupCallBtn">
+                    <i class="bi bi-telephone-fill"></i> Join Call
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     const currentPath = window.location.pathname;
@@ -401,6 +425,9 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     });
 
+    let globalGroupCallData = null;
+    let globalGroupCallTimeout = null;
+
     function connectGlobalSocket() {
         // Chat and messages page manages its own dedicated WebSocket and in-call signaling
         if (window.location.pathname.startsWith('/messages')) {
@@ -457,6 +484,37 @@ document.addEventListener("DOMContentLoaded", function() {
                             if (bsModal) bsModal.hide();
                         }
                         globalCallOfferData = null;
+                    } else if (data.type === "group_call_started") {
+                        globalGroupCallData = data;
+                        const gModalEl = document.getElementById("globalIncomingGroupCallModal");
+                        if (!gModalEl || typeof bootstrap === "undefined") return;
+
+                        const gNameEl = document.getElementById("globalGroupCallGroupName");
+                        const gInitEl = document.getElementById("globalGroupCallInitiator");
+                        const gBadgeEl = document.getElementById("globalGroupCallTypeBadge");
+
+                        if (gNameEl) gNameEl.textContent = data.group_title || "Community Group";
+                        if (gInitEl) gInitEl.textContent = `${data.caller_name || "A member"} started a call`;
+                        if (gBadgeEl) {
+                            gBadgeEl.textContent = `Group ${data.call_type === "video" ? "Video" : "Audio"} Call`;
+                            gBadgeEl.className = data.call_type === "video" ?
+                                "badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill mx-auto mb-4 px-3 py-2" :
+                                "badge bg-success-subtle text-success border border-success-subtle rounded-pill mx-auto mb-4 px-3 py-2";
+                        }
+
+                        playGlobalChime();
+                        startGlobalBackgroundAlert(data.caller_name, `group_${data.call_type || 'audio'}`, data.caller_avatar, data.call_id, data.conversation_id);
+                        const bsGModal = bootstrap.Modal.getInstance(gModalEl) || new bootstrap.Modal(gModalEl);
+                        bsGModal.show();
+                    } else if (data.type === "group_call_ended") {
+                        stopGlobalChime();
+                        stopGlobalBackgroundAlert();
+                        const gModalEl = document.getElementById("globalIncomingGroupCallModal");
+                        if (gModalEl && typeof bootstrap !== "undefined") {
+                            const bsGModal = bootstrap.Modal.getInstance(gModalEl);
+                            if (bsGModal) bsGModal.hide();
+                        }
+                        globalGroupCallData = null;
                     }
                 } catch(e) {}
             };
@@ -598,6 +656,36 @@ document.addEventListener("DOMContentLoaded", function() {
                     }));
                 }
                 globalCallOfferData = null;
+            });
+        }
+
+        const acceptGroupBtn = document.getElementById("globalAcceptGroupCallBtn");
+        const dismissGroupBtn = document.getElementById("globalDismissGroupCallBtn");
+        const groupModalEl = document.getElementById("globalIncomingGroupCallModal");
+
+        if (acceptGroupBtn) {
+            acceptGroupBtn.addEventListener("click", function() {
+                stopGlobalChime();
+                stopGlobalBackgroundAlert();
+                if (groupModalEl && typeof bootstrap !== "undefined") {
+                    const bsModal = bootstrap.Modal.getInstance(groupModalEl);
+                    if (bsModal) bsModal.hide();
+                }
+                if (globalGroupCallData) {
+                    window.location.href = `/messages?c=${globalGroupCallData.conversation_id}&autocall=${globalGroupCallData.call_type || 'audio'}`;
+                }
+            });
+        }
+
+        if (dismissGroupBtn) {
+            dismissGroupBtn.addEventListener("click", function() {
+                stopGlobalChime();
+                stopGlobalBackgroundAlert();
+                if (groupModalEl && typeof bootstrap !== "undefined") {
+                    const bsModal = bootstrap.Modal.getInstance(groupModalEl);
+                    if (bsModal) bsModal.hide();
+                }
+                globalGroupCallData = null;
             });
         }
     });

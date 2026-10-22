@@ -2291,6 +2291,22 @@ func GetActiveGroupCallAPI(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetUserActiveGroupCallsAPI returns all live group calls for groups the current user is a member of.
+func GetUserActiveGroupCallsAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	rooms := services.GlobalGroupCallManager.GetActiveGroupCallsForUser(currentUserID)
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success": true,
+		"rooms":   rooms,
+	})
+}
+
 // MuteGroupCallParticipantAPI remotely mutes a member in a live group call (host, admin, or moderator privilege required).
 func MuteGroupCallParticipantAPI(w http.ResponseWriter, r *http.Request) {
 	currentUserID := getCurrentUserID(r)

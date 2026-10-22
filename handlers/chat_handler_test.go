@@ -3670,6 +3670,132 @@ func TestChatTemplate_GroupVideoCallingControlsRendered(t *testing.T) {
 			t.Errorf("Expected group chat.html to render %s, but was not found", expectedID)
 		}
 	}
+
+	// Verify joinActiveGroupCallBtn is rendered in DOM
+	if !strings.Contains(html, `id="joinActiveGroupCallBtn"`) {
+		t.Errorf("Expected joinActiveGroupCallBtn to be rendered in group chat template")
+	}
+
+	// Verify remoteAudio is rendered in activeCallModal
+	if !strings.Contains(html, `id="remoteAudio"`) {
+		t.Errorf("Expected remoteAudio element to be rendered in activeCallModal")
+	}
+}
+
+func TestGroupAudioCalling_FullLifecycleAndLateJoin(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Seed users and group conversation
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, title, created_by) VALUES (80, 'group', 'Youth Prayer Group', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (80, 1, 'owner');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (80, 2, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (80, 3, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed group conversation: %v", err)
+	}
+
+	// 1. User 1 starts group audio call
+	room, err := services.GlobalGroupCallManager.StartGroupCall(80, 1, "audio")
+	if err != nil {
+		t.Fatalf("StartGroupCall audio failed: %v", err)
+	}
+	if room.CallType != "audio" {
+		t.Errorf("Expected CallType=audio, got %s", room.CallType)
+	}
+	if room.Title != "Youth Prayer Group" {
+		t.Errorf("Expected Title='Youth Prayer Group', got %s", room.Title)
+	}
+
+	// 2. Query GetUserActiveGroupCallsAPI for User 2 (member)
+	user2Req, user2RR := makeAuthReq(http.MethodGet, "/messages/call/group/user-active", "", "", 2)
+	GetUserActiveGroupCallsAPI(user2RR, user2Req)
+	if user2RR.Code != http.StatusOK {
+		t.Fatalf("GetUserActiveGroupCallsAPI failed: %d", user2RR.Code)
+	}
+	var res map[string]any
+	if err := json.Unmarshal(user2RR.Body.Bytes(), &res); err != nil {
+		t.Fatalf("Failed to parse user-active response: %v", err)
+	}
+	rooms, ok := res["rooms"].([]any)
+	if !ok || len(rooms) != 1 {
+		t.Fatalf("Expected 1 active room for User 2, got %v", res["rooms"])
+	}
+
+	// 3. User 2 and User 3 join audio call
+	_, p2, err := services.GlobalGroupCallManager.JoinGroupCall(80, 2)
+	if err != nil {
+		t.Fatalf("User 2 join failed: %v", err)
+	}
+	if !p2.IsCamOff {
+		t.Errorf("Expected participant 2 IsCamOff=true for audio call")
+	}
+
+	_, p3, err := services.GlobalGroupCallManager.JoinGroupCall(80, 3)
+	if err != nil {
+		t.Fatalf("User 3 join failed: %v", err)
+	}
+	if !p3.IsCamOff {
+		t.Errorf("Expected participant 3 IsCamOff=true for audio call")
+	}
+
+	// 4. Verify mesh participant membership
+	callID, inCall := services.GlobalGroupCallManager.AreParticipantsInCall(80, 1, 2, 3)
+	if !inCall || callID <= 0 {
+		t.Errorf("Expected all 3 users in active group audio call, got inCall=%v callID=%d", inCall, callID)
+	}
+
+	// 5. Test speaking indicator and mute state transitions
+	updatedP2, err := services.GlobalGroupCallManager.UpdateParticipantMediaState(80, 2, true, true, false)
+	if err != nil {
+		t.Fatalf("UpdateParticipantMediaState failed: %v", err)
+	}
+	if !updatedP2.IsMuted {
+		t.Errorf("Expected User 2 to be muted")
+	}
+
+	// 6. User 2 and User 3 leave
+	_, _, err = services.GlobalGroupCallManager.LeaveGroupCall(80, 2)
+	if err != nil {
+		t.Fatalf("LeaveGroupCall for User 2 failed: %v", err)
+	}
+	_, _, err = services.GlobalGroupCallManager.LeaveGroupCall(80, 3)
+	if err != nil {
+		t.Fatalf("LeaveGroupCall for User 3 failed: %v", err)
+	}
+
+	// Still active because User 1 is remaining
+	activeRoom, activeExists := services.GlobalGroupCallManager.GetActiveGroupCall(80)
+	if !activeExists || len(activeRoom.Participants) != 1 {
+		t.Errorf("Expected 1 participant remaining in group call")
+	}
+
+	// User 1 leaves -> room automatically ends
+	_, _, err = services.GlobalGroupCallManager.LeaveGroupCall(80, 1)
+	if err != nil {
+		t.Fatalf("LeaveGroupCall for User 1 failed: %v", err)
+	}
+
+	// Verify no active room remains
+	_, stillExists := services.GlobalGroupCallManager.GetActiveGroupCall(80)
+	if stillExists {
+		t.Errorf("Expected group call to be cleaned up after all participants left")
+	}
+
+	// Verify GetUserActiveGroupCallsAPI now returns 0 rooms
+	user2ReqEmpty, user2RREmpty := makeAuthReq(http.MethodGet, "/messages/call/group/user-active", "", "", 2)
+	GetUserActiveGroupCallsAPI(user2RREmpty, user2ReqEmpty)
+	if user2RREmpty.Code != http.StatusOK {
+		t.Fatalf("GetUserActiveGroupCallsAPI failed: %d", user2RREmpty.Code)
+	}
+	var resEmpty map[string]any
+	_ = json.Unmarshal(user2RREmpty.Body.Bytes(), &resEmpty)
+	roomsEmpty, _ := resEmpty["rooms"].([]any)
+	if len(roomsEmpty) != 0 {
+		t.Errorf("Expected 0 active rooms after call ended, got %d", len(roomsEmpty))
+	}
 }
 
 

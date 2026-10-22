@@ -832,12 +832,10 @@
                                 {{end}}
                             {{end}}
                             {{if eq .ActiveConversation.Type "group"}}
-                                {{if .ActiveGroupCall}}
-                                    <button class="btn btn-sm btn-success rounded-pill px-2 px-sm-3 shadow-sm d-flex align-items-center gap-1 pulse-call-btn" type="button" id="joinActiveGroupCallBtn" data-call-id="{{.ActiveGroupCall.CallID}}" data-call-type="{{.ActiveGroupCall.CallType}}" title="Join Ongoing Call">
-                                        <span class="spinner-grow spinner-grow-sm text-white" role="status" style="width: 0.45rem; height: 0.45rem;"></span>
-                                        <span class="d-none d-sm-inline">Join Call</span> ({{len .ActiveGroupCall.Participants}})
-                                    </button>
-                                {{end}}
+                                <button class="btn btn-sm btn-success rounded-pill px-2 px-sm-3 shadow-sm d-flex align-items-center gap-1 pulse-call-btn" type="button" id="joinActiveGroupCallBtn" data-call-id="{{if .ActiveGroupCall}}{{.ActiveGroupCall.CallID}}{{else}}0{{end}}" data-call-type="{{if .ActiveGroupCall}}{{.ActiveGroupCall.CallType}}{{else}}audio{{end}}" title="Join Ongoing Call" style="{{if not .ActiveGroupCall}}display: none !important;{{end}}">
+                                    <span class="spinner-grow spinner-grow-sm text-white" role="status" style="width: 0.45rem; height: 0.45rem;"></span>
+                                    <span class="d-none d-sm-inline" id="joinActiveGroupCallBtnText">Join Call</span> <span id="joinActiveGroupCallBtnCount">({{if .ActiveGroupCall}}{{len .ActiveGroupCall.Participants}}{{else}}1{{end}})</span>
+                                </button>
                                 <!-- Unified Group Call Dropdown -->
                                 <div class="dropdown d-inline-block position-relative" id="chatGroupCallDropdownContainer">
                                     <button class="btn btn-sm btn-outline-success rounded-pill px-2 px-sm-3 d-inline-flex align-items-center gap-1 shadow-sm touch-target-44" type="button" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="true" aria-expanded="false" id="chatGroupCallDropdownBtn" title="Group Call Options" aria-label="Group call options">
@@ -3588,6 +3586,8 @@
 
             <!-- Call Media Presentation Area -->
             <div class="position-relative flex-grow-1 d-flex justify-content-center align-items-center" style="min-height: 380px; background-color: #121519;" id="callMediaStage">
+                <!-- Dedicated Remote Audio (guarantees crystal-clear unmuted audio playback across all browsers) -->
+                <audio id="remoteAudio" autoplay playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></audio>
                 <!-- Remote Video -->
                 <video id="remoteVideo" class="w-100 h-100 object-fit-cover rounded-3" autoplay playsinline style="max-height: 460px; display: none;"></video>
 
@@ -5435,6 +5435,92 @@ document.addEventListener("DOMContentLoaded", function () {
         stopVoiceRecordBtn.addEventListener("click", finishVoiceRecording);
     }
 
+    function updateSidebarLiveCallBadge(cId, isActive) {
+        if (!cId) return;
+        const convLink = document.querySelector(`.conversation-item[href="/messages?c=${cId}"]`);
+        if (!convLink) return;
+
+        let badge = convLink.querySelector(".live-call-badge");
+        if (isActive) {
+            if (!badge) {
+                badge = document.createElement("span");
+                badge.className = "badge bg-danger rounded-pill live-call-badge small d-inline-flex align-items-center gap-1 px-2 py-1 flex-shrink-0 ms-1";
+                badge.style.fontSize = "0.68rem";
+                badge.innerHTML = `<span class="spinner-grow spinner-grow-sm text-white" style="width: 0.35rem; height: 0.35rem;" role="status"></span> Live`;
+                const bottomRow = convLink.querySelector(".flex-grow-1 .d-flex:last-child");
+                if (bottomRow) {
+                    bottomRow.appendChild(badge);
+                } else {
+                    convLink.appendChild(badge);
+                }
+            }
+            badge.style.display = "inline-flex";
+        } else if (badge) {
+            badge.remove();
+        }
+    }
+
+    async function refreshActiveCalls() {
+        try {
+            // 1. Query all active group calls for user's conversations to update sidebar badges
+            const res = await fetch("/messages/call/group/user-active");
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success && Array.isArray(data.rooms)) {
+                    const activeSet = new Set(data.rooms.map(r => r.conversation_id));
+                    document.querySelectorAll(".conversation-item").forEach(item => {
+                        const href = item.getAttribute("href") || "";
+                        const m = href.match(/c=(\d+)/);
+                        if (m) {
+                            const cId = parseInt(m[1], 10);
+                            updateSidebarLiveCallBadge(cId, activeSet.has(cId));
+                        }
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn("Failed to refresh user active calls:", e);
+        }
+
+        // 2. Query active call state for currently opened group conversation
+        if (convId > 0 && isGroupConversation) {
+            try {
+                const activeRes = await fetch(`/messages/call/group/active?conversation_id=${convId}`);
+                if (activeRes.ok) {
+                    const activeData = await activeRes.json();
+                    if (activeData.active && activeData.room) {
+                        const room = activeData.room;
+                        const pCount = room.participants ? Object.keys(room.participants).length : 1;
+                        if (activeGroupCallBanner) {
+                            activeGroupCallBanner.style.setProperty("display", "flex", "important");
+                            if (activeGroupCallBannerText) {
+                                activeGroupCallBannerText.textContent = `Live Group ${room.call_type === "video" ? "Video" : "Audio"} Call in progress (${pCount} participant${pCount > 1 ? 's' : ''})`;
+                            }
+                        }
+                        const joinBtn = document.getElementById("joinActiveGroupCallBtn");
+                        if (joinBtn) {
+                            joinBtn.setAttribute("data-call-id", room.call_id);
+                            joinBtn.setAttribute("data-call-type", room.call_type);
+                            joinBtn.style.setProperty("display", "flex", "important");
+                            const countEl = document.getElementById("joinActiveGroupCallBtnCount");
+                            if (countEl) countEl.textContent = `(${pCount})`;
+                        }
+                    } else {
+                        if (activeGroupCallBanner && !isUserInGroupCall) {
+                            activeGroupCallBanner.style.setProperty("display", "none", "important");
+                        }
+                        const joinBtn = document.getElementById("joinActiveGroupCallBtn");
+                        if (joinBtn && !isUserInGroupCall) {
+                            joinBtn.style.setProperty("display", "none", "important");
+                        }
+                    }
+                }
+            } catch (e) {
+                console.warn("Failed to check active group call:", e);
+            }
+        }
+    }
+
     // Connect WebSocket
     function connectWebSocket() {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -5449,6 +5535,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     type: "subscribe",
                     conversation_id: convId
                 }));
+            }
+            if (typeof refreshActiveCalls === "function") {
+                refreshActiveCalls();
             }
             if (typeof handleAutoCallIfRequested === "function") {
                 handleAutoCallIfRequested();
@@ -5695,6 +5784,9 @@ document.addEventListener("DOMContentLoaded", function () {
                                     });
                                 }
                             }
+                            if (remoteAudio && remoteAudio.srcObject && remoteAudio.paused) {
+                                remoteAudio.play().catch(() => {});
+                            }
                             if (remoteVideo && remoteVideo.srcObject && remoteVideo.paused) {
                                 remoteVideo.play().catch(() => {});
                             }
@@ -5739,6 +5831,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     break;
 
                 case "group_call_started":
+                    updateSidebarLiveCallBadge(data.conversation_id, true);
+
                     if (data.conversation_id === convId) {
                         if (activeGroupCallBanner) {
                             activeGroupCallBanner.style.setProperty("display", "flex", "important");
@@ -5746,30 +5840,55 @@ document.addEventListener("DOMContentLoaded", function () {
                                 activeGroupCallBannerText.textContent = `Live Group ${data.call_type === "video" ? "Video" : "Audio"} Call in progress (1 participant)`;
                             }
                         }
-                        if (data.user_id !== currentUserId && !isUserInGroupCall) {
-                            pendingIncomingGroupCall = data;
-                            const gTitle = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Community Group";
-                            if (incomingGroupCallGroupName) incomingGroupCallGroupName.textContent = gTitle;
-                            if (incomingGroupCallInitiator) incomingGroupCallInitiator.textContent = `${data.caller_name || "A member"} started a call`;
-                            if (incomingGroupCallTypeBadge) {
-                                incomingGroupCallTypeBadge.textContent = `Group ${data.call_type === "video" ? "Video" : "Audio"} Call`;
-                                incomingGroupCallTypeBadge.className = data.call_type === "video" ?
-                                    "badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill mx-auto mb-4 px-3 py-2" :
-                                    "badge bg-success-subtle text-success border border-success-subtle rounded-pill mx-auto mb-4 px-3 py-2";
-                            }
-                            if (incomingGroupCallModal) incomingGroupCallModal.show();
+                        const joinBtn = document.getElementById("joinActiveGroupCallBtn");
+                        if (joinBtn) {
+                            joinBtn.setAttribute("data-call-id", data.call_id || 0);
+                            joinBtn.setAttribute("data-call-type", data.call_type || "audio");
+                            joinBtn.style.setProperty("display", "flex", "important");
+                            const countEl = document.getElementById("joinActiveGroupCallBtnCount");
+                            if (countEl) countEl.textContent = "(1)";
                         }
+                    }
+
+                    if (data.user_id !== currentUserId && !isUserInGroupCall) {
+                        pendingIncomingGroupCall = data;
+                        let gTitle = data.group_title;
+                        if (!gTitle && data.conversation_id === convId) {
+                            gTitle = "{{if .ActiveConversation}}{{.ActiveConversation.Title}}{{end}}" || "Community Group";
+                        }
+                        if (!gTitle) {
+                            const sideItem = document.querySelector(`.conversation-item[href="/messages?c=${data.conversation_id}"]`);
+                            if (sideItem) gTitle = sideItem.getAttribute("data-name") || "Community Group";
+                        }
+                        if (incomingGroupCallGroupName) incomingGroupCallGroupName.textContent = gTitle || "Community Group";
+                        if (incomingGroupCallInitiator) incomingGroupCallInitiator.textContent = `${data.caller_name || "A member"} started a call`;
+                        if (incomingGroupCallTypeBadge) {
+                            incomingGroupCallTypeBadge.textContent = `Group ${data.call_type === "video" ? "Video" : "Audio"} Call`;
+                            incomingGroupCallTypeBadge.className = data.call_type === "video" ?
+                                "badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill mx-auto mb-4 px-3 py-2" :
+                                "badge bg-success-subtle text-success border border-success-subtle rounded-pill mx-auto mb-4 px-3 py-2";
+                        }
+                        startCallChime();
+                        if (incomingGroupCallModal) incomingGroupCallModal.show();
                     }
                     break;
 
                 case "group_call_participant_joined":
+                    const pCount = (data.participants && data.participants.length) || 1;
+                    updateSidebarLiveCallBadge(data.conversation_id, true);
+
                     if (data.conversation_id === convId) {
-                        const pCount = (data.participants && data.participants.length) || 1;
                         if (activeGroupCallBanner) {
                             activeGroupCallBanner.style.setProperty("display", "flex", "important");
                             if (activeGroupCallBannerText) {
                                 activeGroupCallBannerText.textContent = `Live Group Call in progress (${pCount} participant${pCount > 1 ? 's' : ''})`;
                             }
+                        }
+                        const joinBtn = document.getElementById("joinActiveGroupCallBtn");
+                        if (joinBtn) {
+                            joinBtn.style.setProperty("display", "flex", "important");
+                            const countEl = document.getElementById("joinActiveGroupCallBtnCount");
+                            if (countEl) countEl.textContent = `(${pCount})`;
                         }
                         if (isUserInGroupCall) {
                             updateGroupRoster(data.participants || []);
@@ -5782,14 +5901,25 @@ document.addEventListener("DOMContentLoaded", function () {
                     break;
 
                 case "group_call_participant_left":
+                    const remainingCount = (data.participants && data.participants.length) || 0;
+                    if (remainingCount <= 0) {
+                        updateSidebarLiveCallBadge(data.conversation_id, false);
+                    }
                     if (data.conversation_id === convId) {
-                        const remainingCount = (data.participants && data.participants.length) || 0;
                         if (remainingCount > 0) {
                             if (activeGroupCallBannerText) {
                                 activeGroupCallBannerText.textContent = `Live Group Call in progress (${remainingCount} participant${remainingCount > 1 ? 's' : ''})`;
                             }
-                        } else if (activeGroupCallBanner) {
-                            activeGroupCallBanner.style.setProperty("display", "none", "important");
+                            const countEl = document.getElementById("joinActiveGroupCallBtnCount");
+                            if (countEl) countEl.textContent = `(${remainingCount})`;
+                        } else {
+                            if (activeGroupCallBanner) {
+                                activeGroupCallBanner.style.setProperty("display", "none", "important");
+                            }
+                            const joinBtn = document.getElementById("joinActiveGroupCallBtn");
+                            if (joinBtn) {
+                                joinBtn.style.setProperty("display", "none", "important");
+                            }
                         }
                         if (isUserInGroupCall) {
                             updateGroupRoster(data.participants || []);
@@ -5837,9 +5967,14 @@ document.addEventListener("DOMContentLoaded", function () {
                     break;
 
                 case "group_call_ended":
+                    updateSidebarLiveCallBadge(data.conversation_id, false);
                     if (data.conversation_id === convId) {
                         if (activeGroupCallBanner) {
                             activeGroupCallBanner.style.setProperty("display", "none", "important");
+                        }
+                        const joinBtn = document.getElementById("joinActiveGroupCallBtn");
+                        if (joinBtn) {
+                            joinBtn.style.setProperty("display", "none", "important");
                         }
                         if (incomingGroupCallModal) {
                             incomingGroupCallModal.hide();
@@ -5848,6 +5983,11 @@ document.addEventListener("DOMContentLoaded", function () {
                             alert(`Group call has ended. Duration: ${formatTime(data.duration || 0)}`);
                             leaveGroupMeeting(false);
                         }
+                    } else if (pendingIncomingGroupCall && pendingIncomingGroupCall.conversation_id === data.conversation_id) {
+                        if (incomingGroupCallModal) {
+                            incomingGroupCallModal.hide();
+                        }
+                        pendingIncomingGroupCall = null;
                     }
                     break;
                 }
@@ -5868,6 +6008,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (currentUserId > 0) {
         connectWebSocket();
+        refreshActiveCalls();
     }
 
     // ==========================================
@@ -6088,6 +6229,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const camIcon = document.getElementById("camIcon");
 
     const remoteVideo = document.getElementById("remoteVideo");
+    const remoteAudio = document.getElementById("remoteAudio");
     const localVideo = document.getElementById("localVideo");
     const localVideoContainer = document.getElementById("localVideoContainer");
     const audioCallDisplay = document.getElementById("audioCallDisplay");
@@ -6135,8 +6277,12 @@ document.addEventListener("DOMContentLoaded", function () {
             peerConnection.close();
             peerConnection = null;
         }
+        if (remoteAudio) {
+            remoteAudio.srcObject = null;
+        }
         if (remoteVideo) {
             remoteVideo.srcObject = null;
+            remoteVideo.muted = false;
             remoteVideo.style.display = "none";
         }
         if (localVideo) {
@@ -6242,20 +6388,32 @@ document.addEventListener("DOMContentLoaded", function () {
         peerConnection.ontrack = function (event) {
             let stream = (event.streams && event.streams[0]) || null;
             if (!stream) {
-                stream = (remoteVideo && remoteVideo.srcObject) || new MediaStream();
+                stream = (remoteVideo && remoteVideo.srcObject) || (remoteAudio && remoteAudio.srcObject) || new MediaStream();
                 if (event.track) stream.addTrack(event.track);
             }
+            if (remoteAudio) {
+                if (remoteAudio.srcObject !== stream) {
+                    remoteAudio.srcObject = stream;
+                }
+                remoteAudio.muted = false;
+                remoteAudio.play().catch(e => console.warn("remoteAudio play deferred:", e));
+            }
             if (remoteVideo) {
-                remoteVideo.srcObject = stream;
+                if (remoteVideo.srcObject !== stream) {
+                    remoteVideo.srcObject = stream;
+                }
                 if (activeCallType === "video") {
                     remoteVideo.style.display = "block";
                     if (audioCallDisplay) audioCallDisplay.style.display = "none";
+                } else {
+                    remoteVideo.style.display = "none";
+                    if (audioCallDisplay) audioCallDisplay.style.display = "block";
                 }
                 const playPromise = remoteVideo.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(err => {
                         console.warn("remoteVideo unmuted autoplay deferred:", err);
-                        // Autoplay fallback: play muted to display video frames immediately
+                        // Autoplay fallback: play muted to display video frames immediately while remoteAudio plays audio
                         remoteVideo.muted = true;
                         remoteVideo.play().catch(e => console.error("Muted remoteVideo play error:", e));
                     });
@@ -6270,6 +6428,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     callStatusText.textContent = "Connected";
                 }
                 if (!callTimerInterval) startTimer();
+                if (remoteAudio && remoteAudio.srcObject && remoteAudio.paused) {
+                    remoteAudio.play().catch(() => {});
+                }
                 if (remoteVideo && remoteVideo.srcObject && remoteVideo.paused) {
                     remoteVideo.play().catch(() => {});
                 }
@@ -6857,9 +7018,27 @@ document.addEventListener("DOMContentLoaded", function () {
             }
             pc._remoteStream = stream;
 
+            // Dedicated group audio element for crystal-clear unmuted audio playback
+            let peerAudio = document.getElementById(`groupAudio_${peerId}`);
+            if (!peerAudio) {
+                peerAudio = document.createElement("audio");
+                peerAudio.id = `groupAudio_${peerId}`;
+                peerAudio.autoplay = true;
+                peerAudio.playsInline = true;
+                peerAudio.style.cssText = "position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;";
+                document.body.appendChild(peerAudio);
+            }
+            if (peerAudio.srcObject !== stream) {
+                peerAudio.srcObject = stream;
+            }
+            peerAudio.muted = false;
+            peerAudio.play().catch(e => console.warn("Group peerAudio unmuted play deferred:", e));
+
             const peerVideo = document.getElementById(`groupVideo_${peerId}`);
             if (peerVideo) {
-                peerVideo.srcObject = stream;
+                if (peerVideo.srcObject !== stream) {
+                    peerVideo.srcObject = stream;
+                }
                 const playPromise = peerVideo.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(e => {
@@ -6873,6 +7052,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         pc.oniceconnectionstatechange = function () {
             if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+                const peerAudio = document.getElementById(`groupAudio_${peerId}`);
+                if (peerAudio && peerAudio.srcObject && peerAudio.paused) {
+                    peerAudio.play().catch(() => {});
+                }
                 const peerVideo = document.getElementById(`groupVideo_${peerId}`);
                 if (peerVideo && peerVideo.srcObject && peerVideo.paused) {
                     peerVideo.play().catch(() => {});
@@ -7010,6 +7193,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             tile.innerHTML = `
                 <div class="position-relative w-100 rounded-3 overflow-hidden bg-black border border-secondary border-opacity-50 shadow-sm d-flex justify-content-center align-items-center" style="height: 190px;">
+                    <audio id="groupAudio_${p.user_id}" autoplay playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></audio>
                     <video id="groupVideo_${p.user_id}" class="w-100 h-100 object-fit-cover" autoplay playsinline style="${p.is_cam_off ? 'display: none;' : 'display: block;'}"></video>
                     <div class="group-avatar-fallback text-center" id="groupAvatar_${p.user_id}" style="${p.is_cam_off ? 'display: block;' : 'display: none;'}">
                         ${photoHtml}
@@ -7026,9 +7210,19 @@ document.addEventListener("DOMContentLoaded", function () {
             // Connect existing stream if tracks arrived before tile rendering
             const pc = groupPeerConnections[p.user_id];
             if (pc && pc._remoteStream) {
+                const peerAudio = tile.querySelector(`#groupAudio_${p.user_id}`);
+                if (peerAudio) {
+                    if (peerAudio.srcObject !== pc._remoteStream) {
+                        peerAudio.srcObject = pc._remoteStream;
+                    }
+                    peerAudio.muted = false;
+                    peerAudio.play().catch(e => console.warn("Group tile audio play error:", e));
+                }
                 const peerVideo = tile.querySelector(`#groupVideo_${p.user_id}`);
                 if (peerVideo) {
-                    peerVideo.srcObject = pc._remoteStream;
+                    if (peerVideo.srcObject !== pc._remoteStream) {
+                        peerVideo.srcObject = pc._remoteStream;
+                    }
                     if (!p.is_cam_off) {
                         peerVideo.play().catch(e => console.warn("Group tile play error:", e));
                     }
@@ -7072,6 +7266,11 @@ document.addEventListener("DOMContentLoaded", function () {
     function removeRemoteParticipantTile(userId) {
         const tile = document.getElementById(`groupTile_${userId}`);
         if (tile) tile.remove();
+        const audioEl = document.getElementById(`groupAudio_${userId}`);
+        if (audioEl) {
+            audioEl.srcObject = null;
+            audioEl.remove();
+        }
         delete groupPendingIceCandidates[userId];
     }
 
@@ -7351,6 +7550,11 @@ document.addEventListener("DOMContentLoaded", function () {
             try {
                 groupPeerConnections[pid].close();
             } catch (e) {}
+            const audioEl = document.getElementById(`groupAudio_${pid}`);
+            if (audioEl) {
+                audioEl.srcObject = null;
+                audioEl.remove();
+            }
         }
         groupPeerConnections = {};
         groupPendingIceCandidates = {};
@@ -7703,9 +7907,21 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     if (joinActiveGroupCallBtn) joinActiveGroupCallBtn.addEventListener("click", joinGroupCall);
     if (bannerJoinGroupCallBtn) bannerJoinGroupCallBtn.addEventListener("click", joinGroupCall);
-    if (acceptGroupCallBtn) acceptGroupCallBtn.addEventListener("click", joinGroupCall);
+    if (acceptGroupCallBtn) acceptGroupCallBtn.addEventListener("click", () => {
+        if (pendingIncomingGroupCall) {
+            const targetCId = pendingIncomingGroupCall.conversation_id;
+            const cType = pendingIncomingGroupCall.call_type || "audio";
+            if (targetCId && targetCId !== convId) {
+                if (incomingGroupCallModal) incomingGroupCallModal.hide();
+                window.location.href = `/messages?c=${targetCId}&autocall=${cType}`;
+                return;
+            }
+        }
+        joinGroupCall();
+    });
     if (declineGroupCallBtn) declineGroupCallBtn.addEventListener("click", () => {
         if (incomingGroupCallModal) incomingGroupCallModal.hide();
+        pendingIncomingGroupCall = null;
     });
     if (groupLeaveCallBtn) groupLeaveCallBtn.addEventListener("click", () => leaveGroupMeeting(true));
     if (endGroupCallForEveryoneBtn) {

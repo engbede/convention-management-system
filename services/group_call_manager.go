@@ -110,9 +110,15 @@ func (m *GroupCallManager) StartGroupCall(convID, initiatorID int, callType stri
 		IsSpeaking:   false,
 	}
 
+	groupTitle := "Community Group"
+	if conv, err := repository.GetConversationByID(convID); err == nil && conv != nil && conv.Title != "" {
+		groupTitle = conv.Title
+	}
+
 	room := &models.GroupCallRoom{
 		CallID:         callLog.ID,
 		ConversationID: convID,
+		Title:          groupTitle,
 		InitiatorID:    initiatorID,
 		InitiatorName:  initiatorUser.FullName,
 		CallType:       callType,
@@ -151,6 +157,7 @@ func (m *GroupCallManager) StartGroupCall(convID, initiatorID int, callType stri
 		Username:       initiatorUser.Username,
 		CallerName:     initiatorName,
 		CallerAvatar:   initiatorUser.ProfilePhoto,
+		GroupTitle:     groupTitle,
 		Room:           room,
 		Message:        sysMsg,
 	})
@@ -231,6 +238,7 @@ func (m *GroupCallManager) JoinGroupCall(convID, userID int) (*models.GroupCallR
 		Username:       user.Username,
 		CallerName:     user.FullName,
 		CallerAvatar:   user.ProfilePhoto,
+		GroupTitle:     room.Title,
 		Participant:    participant,
 		Participants:   roster,
 		Room:           room,
@@ -495,4 +503,18 @@ func (m *GroupCallManager) AreParticipantsInCall(convID int, userIDs ...int) (in
 		}
 	}
 	return room.CallID, true
+}
+
+// GetActiveGroupCallsForUser returns all active group call rooms where the user is an eligible conversation member.
+func (m *GroupCallManager) GetActiveGroupCallsForUser(userID int) []*models.GroupCallRoom {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var active []*models.GroupCallRoom
+	for convID, room := range m.rooms {
+		if isMember, err := repository.IsConversationMember(convID, userID); err == nil && isMember {
+			active = append(active, room)
+		}
+	}
+	return active
 }

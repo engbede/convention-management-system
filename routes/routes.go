@@ -946,6 +946,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/call/group/user-active",
+		middleware.RequireLogin(
+			handlers.GetUserActiveGroupCallsAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/call/group/mute",
 		middleware.RequireLogin(
 			handlers.MuteGroupCallParticipantAPI,
