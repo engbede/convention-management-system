@@ -216,3 +216,64 @@ func TestDeleteFile(t *testing.T) {
 	}
 }
 
+func TestSaveChatAttachment(t *testing.T) {
+	tempDir := t.TempDir()
+
+	t.Run("Office document pptx upload", func(t *testing.T) {
+		docData := []byte("PK\x03\x04Mock PPTX presentation content")
+		file, header := createMultipartFile(t, "youth_fellowship_presentation.pptx", docData, "application/vnd.openxmlformats-officedocument.presentationml.presentation")
+		filename, messageType, contentType, err := utils.SaveChatAttachment(file, header, tempDir)
+		if err != nil {
+			t.Fatalf("Expected successful chat attachment save, got err: %v", err)
+		}
+		if messageType != "file" {
+			t.Errorf("Expected message type 'file', got %s", messageType)
+		}
+		if contentType == "" {
+			t.Errorf("Expected non-empty content type")
+		}
+		fi, err := os.Stat(filepath.Join(tempDir, filename))
+		if err != nil {
+			t.Errorf("Saved attachment file does not exist on disk: %v", err)
+		}
+		if fi.Size() != int64(len(docData)) {
+			t.Errorf("Expected file size %d, got %d", len(docData), fi.Size())
+		}
+	})
+
+	t.Run("Voice note audio upload", func(t *testing.T) {
+		audioData := []byte("Mock webm audio note data")
+		file, header := createMultipartFile(t, "voice-note.webm", audioData, "audio/webm")
+		filename, messageType, _, err := utils.SaveChatAttachment(file, header, tempDir)
+		if err != nil {
+			t.Fatalf("Expected successful voice note save, got err: %v", err)
+		}
+		if messageType != "voice" {
+			t.Errorf("Expected message type 'voice', got %s", messageType)
+		}
+		if !strings.HasSuffix(filename, ".webm") {
+			t.Errorf("Expected .webm extension on saved voice note, got %s", filename)
+		}
+	})
+
+	t.Run("Disallowed extension fails", func(t *testing.T) {
+		scriptData := []byte("#!/bin/bash\nrm -rf /")
+		file, header := createMultipartFile(t, "malicious.sh", scriptData, "application/x-sh")
+		_, _, _, err := utils.SaveChatAttachment(file, header, tempDir)
+		if err == nil || !strings.Contains(err.Error(), "not supported") {
+			t.Errorf("Expected disallowed extension error, got: %v", err)
+		}
+	})
+
+	t.Run("Respects MAX_CHAT_ATTACHMENT_SIZE_MB", func(t *testing.T) {
+		t.Setenv("MAX_CHAT_ATTACHMENT_SIZE_MB", "1")
+		bigData := make([]byte, 2*1024*1024) // 2 MB
+		file, header := createMultipartFile(t, "large.pdf", bigData, "application/pdf")
+		header.Size = int64(len(bigData))
+		_, _, _, err := utils.SaveChatAttachment(file, header, tempDir)
+		if err == nil || !strings.Contains(err.Error(), "must not exceed 1 MB") {
+			t.Errorf("Expected max size exceeded error, got: %v", err)
+		}
+	})
+}
+

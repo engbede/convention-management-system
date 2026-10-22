@@ -1,7 +1,10 @@
 package services
 
 import (
+	"bytes"
 	"database/sql"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -254,5 +257,84 @@ func AutoSyncEmbeddedMedia(db *sql.DB) {
 	if _, err := AuditAndRepairMedia(); err != nil {
 		log.Println("[Media Audit] Startup media audit encountered non-fatal error:", err)
 	}
+}
+
+// CloudMigrationReport tracks media items migrated to Cloudflare R2 or S3.
+type CloudMigrationReport struct {
+	TotalInspected int      `json:"total_inspected"`
+	AlreadyInCloud int      `json:"already_in_cloud"`
+	MigratedCount  int      `json:"migrated_count"`
+	FailedCount    int      `json:"failed_count"`
+	Errors         []string `json:"errors"`
+}
+
+// MigrateMediaToCloudStorage safely and idempotently copies existing disk and DB media to Cloudflare R2/S3.
+// Original local files and database records are strictly retained for rollback safety.
+func MigrateMediaToCloudStorage() (*CloudMigrationReport, error) {
+	report := &CloudMigrationReport{
+		Errors: make([]string, 0),
+	}
+
+	if !utils.IsObjectStorageEnabled() {
+		return report, errors.New("cannot migrate media: cloud object storage is not configured")
+	}
+
+	if err := utils.ValidateStorageConfig(); err != nil {
+		return report, fmt.Errorf("invalid storage configuration: %w", err)
+	}
+
+	baseDir := utils.GetUploadBaseDir()
+
+	// 1. Migrate items from PostgreSQL media_storage
+	items, err := repository.ListMediaStorageKeys()
+	if err == nil {
+		for _, item := range items {
+			report.TotalInspected++
+			cleanKey := strings.TrimPrefix(item.MediaKey, "/")
+
+			// Check if already in cloud
+			if exists, _, _ := utils.CheckObjectExists(cleanKey); exists {
+				report.AlreadyInCloud++
+				continue
+			}
+
+			// First check if available on disk for streaming
+			diskPath := filepath.Join(baseDir, filepath.Clean("/"+cleanKey))
+			if f, oErr := os.Open(diskPath); oErr == nil {
+				if fi, sErr := f.Stat(); sErr == nil {
+					_, uErr := utils.UploadToObjectStorage(cleanKey, f, fi.Size(), item.ContentType)
+					_ = f.Close()
+					if uErr != nil {
+						report.FailedCount++
+						report.Errors = append(report.Errors, fmt.Sprintf("%s: %v", cleanKey, uErr))
+					} else {
+						report.MigratedCount++
+						log.Printf("[Media Migration] Migrated %s from disk to cloud storage", cleanKey)
+					}
+					continue
+				}
+				_ = f.Close()
+			}
+
+			// Fall back to reading from database blob
+			data, cType, gErr := repository.GetMediaBlob(cleanKey)
+			if gErr != nil || len(data) == 0 {
+				report.FailedCount++
+				report.Errors = append(report.Errors, fmt.Sprintf("%s: not found on disk or DB", cleanKey))
+				continue
+			}
+
+			_, uErr := utils.UploadToObjectStorage(cleanKey, bytes.NewReader(data), int64(len(data)), cType)
+			if uErr != nil {
+				report.FailedCount++
+				report.Errors = append(report.Errors, fmt.Sprintf("%s: %v", cleanKey, uErr))
+			} else {
+				report.MigratedCount++
+				log.Printf("[Media Migration] Migrated %s from database blob to cloud storage", cleanKey)
+			}
+		}
+	}
+
+	return report, nil
 }
 

@@ -2097,5 +2097,63 @@ func TestQuotedReplyMessage(t *testing.T) {
 	}
 }
 
+func TestForwardMessages_Workflow(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Create conversation A between user 1 and user 2
+	convA, err := StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation convA failed: %v", err)
+	}
+
+	// 2. Create conversation B between user 1 and user 3
+	convB, err := StartDirectConversation(1, 3)
+	if err != nil {
+		t.Fatalf("StartDirectConversation convB failed: %v", err)
+	}
+
+	// 3. User 2 posts a text message in convA
+	msg1, err := SendMessage(convA.ID, 2, "Important announcement from youth leaders", "msg-announcement", nil)
+	if err != nil {
+		t.Fatalf("SendMessage failed: %v", err)
+	}
+
+	// 4. User 1 forwards msg1 from convA to convB
+	forwarded, err := ForwardMessages(1, []int{msg1.ID}, []int{convB.ID}, nil)
+	if err != nil {
+		t.Fatalf("ForwardMessages failed: %v", err)
+	}
+	if len(forwarded) != 1 {
+		t.Fatalf("Expected 1 forwarded message, got %d", len(forwarded))
+	}
+
+	fwd := forwarded[0]
+	if !fwd.IsForwarded {
+		t.Errorf("Expected IsForwarded to be true")
+	}
+	if fwd.ForwardedFrom == "" {
+		t.Errorf("Expected ForwardedFrom to preserve original sender attribution")
+	}
+	if fwd.Body != "Important announcement from youth leaders" {
+		t.Errorf("Expected body to match original message, got %q", fwd.Body)
+	}
+	if fwd.ConversationID != convB.ID {
+		t.Errorf("Expected conversation_id to be %d, got %d", convB.ID, fwd.ConversationID)
+	}
+
+	// 5. Test unauthorized user: user 4 is NOT in convA and cannot forward msg1
+	_, errUnauthorized := ForwardMessages(4, []int{msg1.ID}, []int{convB.ID}, nil)
+	if errUnauthorized == nil {
+		t.Errorf("Expected error when non-member forwards message, got nil")
+	}
+
+	// 6. Test forwarding non-existent message
+	_, errNotFound := ForwardMessages(1, []int{999999}, []int{convB.ID}, nil)
+	if errNotFound == nil {
+		t.Errorf("Expected error when forwarding non-existent message, got nil")
+	}
+}
+
 
 

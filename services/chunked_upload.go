@@ -299,6 +299,10 @@ func CompleteChunkedUpload(userID int, uploadID string) (targetKey string, final
 		if s3Err != nil {
 			return "", "", fmt.Errorf("failed completing S3 multipart upload: %w", s3Err)
 		}
+		// Verify object exists and is accessible on the storage provider
+		if exists, _, checkErr := utils.CheckObjectExists(session.TargetKey); checkErr == nil && !exists {
+			return "", "", errors.New("uploaded video object verification failed on storage backend")
+		}
 		return session.TargetKey, loc, nil
 	}
 

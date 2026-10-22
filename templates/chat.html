@@ -84,6 +84,49 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
 }
 
+/* Message Selection Mode */
+.selection-mode-active .message-select-indicator {
+    display: flex !important;
+}
+.message-select-indicator {
+    display: none;
+    cursor: pointer;
+    user-select: none;
+}
+.message-bubble.message-selected .message-content-box {
+    outline: 2.5px solid #198754 !important;
+    outline-offset: 2px;
+    box-shadow: 0 0 12px rgba(25, 135, 84, 0.35) !important;
+}
+.chat-forwarded-badge {
+    font-size: 0.72rem;
+    opacity: 0.85;
+}
+.chat-sticker-container {
+    display: inline-block;
+    padding: 4px;
+}
+.chat-sticker-img {
+    max-width: 140px;
+    max-height: 140px;
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.12));
+    transition: transform 0.2s ease;
+}
+.chat-sticker-img:hover {
+    transform: scale(1.06);
+}
+.chat-sticker-card {
+    cursor: pointer;
+    transition: transform 0.15s ease, background-color 0.15s ease;
+}
+.chat-sticker-card:hover {
+    transform: translateY(-2px);
+    background-color: #f1f5f9;
+}
+[data-bs-theme="dark"] .chat-sticker-card:hover {
+    background-color: #1e293b;
+}
+
 /* Smooth Scrollbars */
 #messageContainer::-webkit-scrollbar,
 #conversationList::-webkit-scrollbar,
@@ -1067,6 +1110,33 @@
                         </div>
                     </div>
 
+                    <!-- Message Selection Action Bar (Sticky top bar in selection mode) -->
+                    <div id="selectionActionBar" class="px-3 py-2 bg-success text-white d-flex align-items-center justify-content-between shadow-sm sticky-top" style="display: none !important; z-index: 1040;">
+                        <div class="d-flex align-items-center gap-2">
+                            <button type="button" class="btn btn-sm btn-outline-light rounded-circle p-0 d-flex align-items-center justify-content-center" id="cancelSelectionBtn" style="width: 32px; height: 32px;" title="Exit selection (Esc)">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                            <span class="fw-bold fs-6" id="selectedCountLabel">0 selected</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-1 gap-sm-2">
+                            <button type="button" class="btn btn-sm btn-light text-dark rounded-pill px-2 py-1 shadow-sm d-flex align-items-center gap-1" id="selectAllBtn" title="Select All Messages">
+                                <i class="bi bi-check-all"></i> <span class="d-none d-sm-inline small">All</span>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-light text-dark rounded-circle p-0 d-flex align-items-center justify-content-center shadow-sm" id="copySelectedBtn" style="width: 34px; height: 34px;" title="Copy Selected Messages">
+                                <i class="bi bi-clipboard fs-6"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-light text-dark rounded-circle p-0 d-flex align-items-center justify-content-center shadow-sm" id="forwardSelectedBtn" style="width: 34px; height: 34px;" title="Forward Selected Messages">
+                                <i class="bi bi-arrow-right fs-5"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-light text-dark rounded-circle p-0 d-flex align-items-center justify-content-center shadow-sm" id="shareSelectedBtn" style="width: 34px; height: 34px;" title="Share Messages Externally">
+                                <i class="bi bi-share fs-6"></i>
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger rounded-circle p-0 d-flex align-items-center justify-content-center shadow-sm" id="deleteSelectedBtn" style="width: 34px; height: 34px;" title="Delete Selected Messages">
+                                <i class="bi bi-trash3 fs-6"></i>
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Messages Scroll Body -->
                     <div class="flex-grow-1 p-3 overflow-y-auto" id="messageContainer" style="background-color: #f7f9fa;">
                         {{if .HasOlderMessages}}
@@ -1098,6 +1168,9 @@
                                 {{else if eq .SenderID $.CurrentUser.ID}}
                                     <!-- Outgoing Message (Me) -->
                                     <div class="d-flex justify-content-end mb-3 message-bubble" data-message-id="{{.ID}}" data-client-id="{{.ClientMessageID}}" data-created-at="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
+                                        <div class="d-flex align-items-center me-2 message-select-indicator">
+                                            <input type="checkbox" class="form-check-input msg-checkbox" data-message-id="{{.ID}}" style="cursor: pointer; width: 1.25rem; height: 1.25rem;">
+                                        </div>
                                         <div class="text-end" style="max-width: 75%;">
                                             {{if .IsDeleted}}
                                                 <div class="bg-light border text-muted fst-italic p-3 rounded-4 shadow-sm text-start message-content-box" style="border-bottom-right-radius: 4px !important;">
@@ -1106,6 +1179,12 @@
                                             {{else}}
                                                 <div class="position-relative d-inline-block text-start w-100 group-msg-wrapper">
                                                     <div class="bg-success text-white p-3 rounded-4 shadow-sm text-start message-content-box" style="border-bottom-right-radius: 4px !important; word-wrap: break-word;">
+                                                        {{if .IsForwarded}}
+                                                            <div class="chat-forwarded-badge d-flex align-items-center gap-1 mb-1 text-white-50 fst-italic">
+                                                                <i class="bi bi-arrow-right-short fs-6"></i>
+                                                                <span>Forwarded{{if .ForwardedFrom}} from <strong>{{.ForwardedFrom}}</strong>{{end}}</span>
+                                                            </div>
+                                                        {{end}}
                                                         {{if .ReplyToMessage}}
                                                             <div class="chat-quoted-reply mb-2 p-2 rounded-2 bg-black bg-opacity-20 border-start border-3 border-white text-white small" style="cursor: pointer;" onclick="scrollToQuotedMessage({{.ReplyToMessage.ID}})" title="Click to view quoted message">
                                                                 <div class="d-flex align-items-center gap-1 fw-bold text-white-50" style="font-size: 0.75rem;">
@@ -1217,6 +1296,21 @@
                                                                     <i class="bi bi-reply me-2"></i>Reply
                                                                 </button>
                                                             </li>
+                                                            <li>
+                                                                <button type="button" class="dropdown-item py-1 text-dark select-msg-btn" data-message-id="{{.ID}}">
+                                                                    <i class="bi bi-check2-square me-2"></i>Select
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button type="button" class="dropdown-item py-1 text-dark forward-msg-btn" data-message-id="{{.ID}}">
+                                                                    <i class="bi bi-arrow-right me-2"></i>Forward
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button type="button" class="dropdown-item py-1 text-dark share-msg-btn" data-message-id="{{.ID}}" data-message-body="{{.Body}}">
+                                                                    <i class="bi bi-share me-2"></i>Share
+                                                                </button>
+                                                            </li>
                                                             {{if .Body}}
                                                             <li>
                                                                 <button type="button" class="dropdown-item py-1 text-dark copy-msg-btn" data-message-body="{{.Body}}">
@@ -1257,6 +1351,9 @@
                                 {{else}}
                                     <!-- Incoming Message (Other) -->
                                     <div class="d-flex justify-content-start mb-3 gap-2 message-bubble" data-message-id="{{.ID}}" data-client-id="{{.ClientMessageID}}" data-created-at="{{.CreatedAt.Format "2006-01-02T15:04:05Z07:00"}}">
+                                        <div class="d-flex align-items-center me-1 message-select-indicator">
+                                            <input type="checkbox" class="form-check-input msg-checkbox" data-message-id="{{.ID}}" style="cursor: pointer; width: 1.25rem; height: 1.25rem;">
+                                        </div>
                                         {{if .Sender.ProfilePhoto}}
                                             <img src="/uploads/profiles/{{.Sender.ProfilePhoto}}" alt="{{.Sender.FullName}}" class="rounded-circle object-fit-cover shadow-sm align-self-end mb-3" style="width: 32px; height: 32px;">
                                         {{else}}
@@ -1278,6 +1375,12 @@
                                             {{else}}
                                                 <div class="position-relative d-inline-block text-start w-100 group-msg-wrapper">
                                                     <div class="bg-white text-dark p-3 rounded-4 shadow-sm border message-content-box" style="border-bottom-left-radius: 4px !important; word-wrap: break-word;">
+                                                        {{if .IsForwarded}}
+                                                            <div class="chat-forwarded-badge d-flex align-items-center gap-1 mb-1 text-muted fst-italic">
+                                                                <i class="bi bi-arrow-right-short fs-6 text-secondary"></i>
+                                                                <span>Forwarded{{if .ForwardedFrom}} from <strong>{{.ForwardedFrom}}</strong>{{end}}</span>
+                                                            </div>
+                                                        {{end}}
                                                         {{if .ReplyToMessage}}
                                                             <div class="chat-quoted-reply mb-2 p-2 rounded-2 bg-light border-start border-3 border-success text-dark small" style="cursor: pointer;" onclick="scrollToQuotedMessage({{.ReplyToMessage.ID}})" title="Click to view quoted message">
                                                                 <div class="d-flex align-items-center gap-1 fw-bold text-success" style="font-size: 0.75rem;">
@@ -1389,6 +1492,21 @@
                                                                     <i class="bi bi-reply me-2"></i>Reply
                                                                 </button>
                                                             </li>
+                                                            <li>
+                                                                <button type="button" class="dropdown-item py-1 text-dark select-msg-btn" data-message-id="{{.ID}}">
+                                                                    <i class="bi bi-check2-square me-2"></i>Select
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button type="button" class="dropdown-item py-1 text-dark forward-msg-btn" data-message-id="{{.ID}}">
+                                                                    <i class="bi bi-arrow-right me-2"></i>Forward
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button type="button" class="dropdown-item py-1 text-dark share-msg-btn" data-message-id="{{.ID}}" data-message-body="{{.Body}}">
+                                                                    <i class="bi bi-share me-2"></i>Share
+                                                                </button>
+                                                            </li>
                                                             {{if .Body}}
                                                             <li>
                                                                 <button type="button" class="dropdown-item py-1 text-dark copy-msg-btn" data-message-body="{{.Body}}">
@@ -1458,22 +1576,34 @@
                     </div>
 
                     <!-- Attachment / Voice Note Preview Bar -->
-                    <div id="attachmentPreviewBar" class="px-3 py-2 bg-light border-top d-flex align-items-center justify-content-between gap-2 shadow-sm" style="display: none !important;">
-                        <div class="d-flex align-items-center gap-2 overflow-hidden flex-grow-1">
-                            <span id="attachmentTypeBadge" class="badge bg-success rounded-pill px-2 py-1">File</span>
-                            <div class="d-flex align-items-center gap-1 overflow-hidden" id="attachmentMetaContainer">
-                                <i id="attachmentPreviewIcon" class="bi bi-paperclip text-muted"></i>
-                                <span id="attachmentFileName" class="small fw-semibold text-truncate text-dark" style="max-width: 240px;"></span>
+                    <div id="attachmentPreviewBar" class="px-3 py-2 bg-light border-top d-flex flex-column gap-2 shadow-sm" style="display: none !important;">
+                        <div class="d-flex align-items-center justify-content-between gap-2 w-100">
+                            <div class="d-flex align-items-center gap-2 overflow-hidden flex-grow-1">
+                                <span id="attachmentTypeBadge" class="badge bg-success rounded-pill px-2 py-1">File</span>
+                                <div class="d-flex align-items-center gap-1 overflow-hidden" id="attachmentMetaContainer">
+                                    <i id="attachmentPreviewIcon" class="bi bi-paperclip text-muted"></i>
+                                    <span id="attachmentFileName" class="small fw-semibold text-truncate text-dark" style="max-width: 240px;"></span>
+                                </div>
+                                <!-- Live Voice Note Preview Player (shown for audio attachments) -->
+                                <div id="voicePreviewContainer" class="d-none align-items-center gap-2">
+                                    <audio id="voicePreviewAudio" controls class="rounded-pill" style="height: 36px; max-width: 260px; outline: none;"></audio>
+                                </div>
+                                <span id="attachmentFileSize" class="badge bg-secondary-subtle text-secondary border rounded-pill small"></span>
                             </div>
-                            <!-- Live Voice Note Preview Player (shown for audio attachments) -->
-                            <div id="voicePreviewContainer" class="d-none align-items-center gap-2">
-                                <audio id="voicePreviewAudio" controls class="rounded-pill" style="height: 36px; max-width: 260px; outline: none;"></audio>
-                            </div>
-                            <span id="attachmentFileSize" class="badge bg-secondary-subtle text-secondary border rounded-pill small"></span>
+                            <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 d-flex align-items-center gap-1" id="removeAttachmentBtn" title="Remove attachment">
+                                <i class="bi bi-trash3"></i> <span class="d-none d-sm-inline small">Discard</span>
+                            </button>
                         </div>
-                        <button type="button" class="btn btn-sm btn-outline-danger rounded-pill px-2 py-1 d-flex align-items-center gap-1" id="removeAttachmentBtn" title="Remove attachment">
-                            <i class="bi bi-trash3"></i> <span class="d-none d-sm-inline small">Discard</span>
-                        </button>
+                        <!-- Upload Progress Bar -->
+                        <div id="uploadProgressBarContainer" class="d-none w-100 pt-1">
+                            <div class="d-flex align-items-center justify-content-between small text-muted mb-1">
+                                <span id="uploadProgressText" class="fw-semibold text-success"><i class="bi bi-cloud-arrow-up-fill me-1"></i>Uploading: 0%</span>
+                                <button type="button" class="btn btn-link btn-sm text-danger p-0 text-decoration-none" id="cancelUploadBtn"><i class="bi bi-x-circle me-1"></i>Cancel</button>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div id="uploadProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 0%"></div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Voice Note Active Recording Status Bar -->
@@ -1527,12 +1657,75 @@
                                 <input type="hidden" name="conversation_id" id="activeConvID" value="{{.ActiveConversation.ID}}" data-conversation-type="{{.ActiveConversation.Type}}">
                                 <input type="hidden" name="reply_to_message_id" id="replyToMessageID" value="">
                                 <input type="hidden" name="client_message_id" id="clientMsgID" value="">
-                                <input type="file" id="attachmentFileInput" name="attachment" class="d-none" accept="image/*,audio/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.zip">
+                                <input type="file" id="attachmentFileInput" name="attachment" class="d-none" accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.pptx,.ppt,.xlsx,.xls,.txt,.csv,.zip,.odt,.ods,.odp,.rtf">
+                                <input type="file" id="attachmentFileInputPhoto" class="d-none" accept="image/*">
+                                <input type="file" id="attachmentFileInputCamera" class="d-none" accept="image/*" capture="environment">
+                                <input type="file" id="attachmentFileInputVideo" class="d-none" accept="video/*">
+                                <input type="file" id="attachmentFileInputDocument" class="d-none" accept=".pdf,.doc,.docx,.pptx,.ppt,.xlsx,.xls,.txt,.csv,.zip,.odt,.ods,.odp,.rtf">
 
-                                <!-- Attachment Button -->
-                                <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0 composer-action-btn" id="attachBtn" title="Attach file, image, or document" style="width: 44px; height: 44px; margin-bottom: 2px;">
-                                    <i class="bi bi-paperclip fs-5 text-secondary"></i>
-                                </button>
+                                <!-- Plus (+) Attachment Menu Dropdown -->
+                                <div class="dropdown flex-shrink-0">
+                                    <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm composer-action-btn" id="plusAttachmentBtn" data-bs-toggle="dropdown" aria-expanded="false" title="Add attachment, photo, video, document, or sticker" style="width: 44px; height: 44px; margin-bottom: 2px;">
+                                        <i class="bi bi-plus-lg fs-5 text-success fw-bold"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-start shadow-lg border-0 rounded-4 p-2 mb-2 chat-dropdown-menu" style="min-width: 220px; z-index: 1060;">
+                                        <li>
+                                            <button type="button" class="dropdown-item py-2 px-3 rounded-3 d-flex align-items-center gap-2" id="menuOptionStickers" data-bs-toggle="modal" data-bs-target="#stickerPickerModal">
+                                                <span class="d-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning p-1" style="width: 32px; height: 32px;">
+                                                    <i class="bi bi-emoji-smile-fill fs-5"></i>
+                                                </span>
+                                                <div>
+                                                    <div class="fw-semibold text-dark small">Stickers</div>
+                                                    <small class="text-muted" style="font-size: 0.72rem;">Fellowship stickers</small>
+                                                </div>
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button type="button" class="dropdown-item py-2 px-3 rounded-3 d-flex align-items-center gap-2" id="menuOptionPhoto">
+                                                <span class="d-flex align-items-center justify-content-center rounded-circle bg-info-subtle text-info p-1" style="width: 32px; height: 32px;">
+                                                    <i class="bi bi-image fs-5"></i>
+                                                </span>
+                                                <div>
+                                                    <div class="fw-semibold text-dark small">Photo from Device</div>
+                                                    <small class="text-muted" style="font-size: 0.72rem;">JPG, PNG, WebP images</small>
+                                                </div>
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button type="button" class="dropdown-item py-2 px-3 rounded-3 d-flex align-items-center gap-2" id="menuOptionCamera">
+                                                <span class="d-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary p-1" style="width: 32px; height: 32px;">
+                                                    <i class="bi bi-camera-fill fs-5"></i>
+                                                </span>
+                                                <div>
+                                                    <div class="fw-semibold text-dark small">Camera Photo</div>
+                                                    <small class="text-muted" style="font-size: 0.72rem;">Take photo with camera</small>
+                                                </div>
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button type="button" class="dropdown-item py-2 px-3 rounded-3 d-flex align-items-center gap-2" id="menuOptionVideo">
+                                                <span class="d-flex align-items-center justify-content-center rounded-circle bg-danger-subtle text-danger p-1" style="width: 32px; height: 32px;">
+                                                    <i class="bi bi-camera-video-fill fs-5"></i>
+                                                </span>
+                                                <div>
+                                                    <div class="fw-semibold text-dark small">Video Clip</div>
+                                                    <small class="text-muted" style="font-size: 0.72rem;">MP4, WebM, MOV clips</small>
+                                                </div>
+                                            </button>
+                                        </li>
+                                        <li>
+                                            <button type="button" class="dropdown-item py-2 px-3 rounded-3 d-flex align-items-center gap-2" id="menuOptionDocument">
+                                                <span class="d-flex align-items-center justify-content-center rounded-circle bg-success-subtle text-success p-1" style="width: 32px; height: 32px;">
+                                                    <i class="bi bi-file-earmark-text-fill fs-5"></i>
+                                                </span>
+                                                <div>
+                                                    <div class="fw-semibold text-dark small">Document / File</div>
+                                                    <small class="text-muted" style="font-size: 0.72rem;">PDF, Word, Excel, Office</small>
+                                                </div>
+                                            </button>
+                                        </li>
+                                    </ul>
+                                </div>
 
                                 <!-- Voice Note Button -->
                                 <button type="button" class="btn btn-light rounded-circle d-flex justify-content-center align-items-center shadow-sm flex-shrink-0 composer-action-btn" id="voiceRecordBtn" title="Record voice note" style="width: 44px; height: 44px; margin-bottom: 2px;">
@@ -3582,6 +3775,150 @@
     </div>
 </div>
 
+<!-- MODAL: Fellowship Stickers Picker -->
+<div class="modal fade" id="stickerPickerModal" tabindex="-1" aria-labelledby="stickerPickerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 480px;">
+        <div class="modal-content border-0 rounded-4 shadow-lg">
+            <div class="modal-header bg-success text-white py-3 px-4">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle bg-white text-success d-flex align-items-center justify-content-center p-1" style="width: 32px; height: 32px;">
+                        <i class="bi bi-emoji-smile-fill fs-5"></i>
+                    </span>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="stickerPickerModalLabel">Fellowship Stickers</h5>
+                        <small class="text-white-50">Share uplifting Christian stickers</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div class="row g-2" id="stickerGridContainer">
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="amen" title="Amen & Hallelujah!">
+                            <div class="fs-1 mb-1">🙌</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Amen!</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="praying" title="Praying for you">
+                            <div class="fs-1 mb-1">🙏</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Praying</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="bible" title="Word of God">
+                            <div class="fs-1 mb-1">📖</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Holy Bible</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="blessed" title="Blessed & Highly Favored">
+                            <div class="fs-1 mb-1">✨</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Blessed</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="grace" title="Grace & Peace">
+                            <div class="fs-1 mb-1">✝️</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Grace</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="love" title="God is Love">
+                            <div class="fs-1 mb-1">💖</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">God is Love</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="joy" title="Joy of the Lord">
+                            <div class="fs-1 mb-1">☀️</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Joy</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="faith" title="Walk by Faith">
+                            <div class="fs-1 mb-1">🛡️</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Faith</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="victory" title="Victory in Christ">
+                            <div class="fs-1 mb-1">👑</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Victory</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="peace" title="Peace be with you">
+                            <div class="fs-1 mb-1">🕊️</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Peace</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="light" title="Light of the World">
+                            <div class="fs-1 mb-1">🕯️</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Light</span>
+                        </button>
+                    </div>
+                    <div class="col-4 col-sm-3">
+                        <button type="button" class="btn btn-outline-light border text-dark w-100 p-2 rounded-3 text-center fellowship-sticker-btn shadow-sm h-100 d-flex flex-column align-items-center justify-content-center" data-sticker-code="welcome" title="Welcome to Fellowship">
+                            <div class="fs-1 mb-1">🤝</div>
+                            <span class="fw-bold text-truncate w-100" style="font-size: 0.72rem;">Welcome</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-3 bg-light rounded-bottom-4">
+                <small class="text-muted w-100 text-center">Clicking a sticker sends it immediately to the active conversation.</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL: Forward Message(s) -->
+<div class="modal fade" id="forwardModal" tabindex="-1" aria-labelledby="forwardModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width: 480px;">
+        <div class="modal-content border-0 rounded-4 shadow-lg">
+            <div class="modal-header bg-success text-white py-3 px-4">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="rounded-circle bg-white text-success d-flex align-items-center justify-content-center p-1" style="width: 32px; height: 32px;">
+                        <i class="bi bi-arrow-right fs-5"></i>
+                    </span>
+                    <div>
+                        <h5 class="modal-title fw-bold mb-0" id="forwardModalLabel">Forward Message</h5>
+                        <small class="text-white-50" id="forwardModalSub">Select destination conversations or contacts</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <div id="forwardPreviewBox" class="alert alert-light border p-2 mb-3 rounded-3 small">
+                    <div class="fw-bold text-muted mb-1 d-flex align-items-center justify-content-between">
+                        <span><i class="bi bi-chat-quote me-1"></i>Selected Content</span>
+                        <span id="forwardMsgCountBadge" class="badge bg-success-subtle text-success border">1 message</span>
+                    </div>
+                    <div id="forwardPreviewSnippet" class="text-dark text-truncate fst-italic" style="max-height: 48px;"></div>
+                </div>
+
+                <div class="input-group mb-3">
+                    <span class="input-group-text bg-light border-end-0 rounded-start-pill"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="forwardSearchInput" class="form-control bg-light border-start-0 rounded-end-pill" placeholder="Search chats or members...">
+                </div>
+
+                <div class="fw-semibold text-secondary small mb-2 px-1">Choose destinations:</div>
+                <div id="forwardDestinationList" class="list-group list-group-flush border rounded-3" style="max-height: 280px; overflow-y: auto;">
+                    <!-- Populated dynamically via JavaScript -->
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-3 bg-light rounded-bottom-4 d-flex align-items-center justify-content-between">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success rounded-pill px-4 fw-bold shadow-sm" id="btnSubmitForward" disabled>
+                    <i class="bi bi-arrow-right me-1"></i> Forward
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Action Notification Toast -->
 <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
     <div id="chatActionToast" class="toast align-items-center text-white bg-success border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
@@ -4233,6 +4570,50 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    // Fellowship Stickers renderer
+    function renderStickerHtml(code) {
+        const stickers = {
+            "amen": { emoji: "🙌", title: "Amen & Hallelujah!", color: "bg-warning-subtle text-warning-emphasis border-warning" },
+            "praying": { emoji: "🙏", title: "Praying for You", color: "bg-primary-subtle text-primary border-primary" },
+            "bible": { emoji: "📖", title: "Word of God", color: "bg-success-subtle text-success border-success" },
+            "blessed": { emoji: "✨", title: "Blessed & Favored", color: "bg-light text-dark border-secondary" },
+            "grace": { emoji: "✝️", title: "Grace & Peace", color: "bg-light text-dark border-primary" },
+            "love": { emoji: "💖", title: "God is Love", color: "bg-danger-subtle text-danger border-danger" },
+            "joy": { emoji: "☀️", title: "Joy of the Lord", color: "bg-warning-subtle text-warning-emphasis border-warning" },
+            "faith": { emoji: "🛡️", title: "Walk by Faith", color: "bg-info-subtle text-info border-info" },
+            "victory": { emoji: "👑", title: "Victory in Christ", color: "bg-warning-subtle text-warning-emphasis border-warning" },
+            "peace": { emoji: "🕊️", title: "Peace be with You", color: "bg-info-subtle text-info border-info" },
+            "light": { emoji: "🕯️", title: "Light of the World", color: "bg-warning-subtle text-warning-emphasis border-warning" },
+            "welcome": { emoji: "🤝", title: "Welcome to Fellowship", color: "bg-success-subtle text-success border-success" }
+        };
+        const s = stickers[code.toLowerCase()] || { emoji: "🌟", title: "Fellowship Sticker", color: "bg-light text-dark border" };
+        return `
+            <div class="chat-sticker-bubble d-inline-flex flex-column align-items-center justify-content-center p-2 rounded-4 border shadow-sm ${s.color}" style="min-width: 110px; max-width: 160px; background-color: rgba(255,255,255,0.95);">
+                <span style="font-size: 2.8rem; line-height: 1.1;" role="img" aria-label="${escapeHtml(s.title)}">${s.emoji}</span>
+                <span class="fw-bold mt-1 text-center" style="font-size: 0.76rem; letter-spacing: 0.2px;">${escapeHtml(s.title)}</span>
+            </div>
+        `;
+    }
+
+    function renderMessageBody(text) {
+        if (!text) return "";
+        const stickerMatch = text.trim().match(/^\[sticker:([a-z0-9_-]+)\]$/i);
+        if (stickerMatch) {
+            return renderStickerHtml(stickerMatch[1]);
+        }
+        return escapeHtml(text);
+    }
+
+    function enhanceStickersOnPage() {
+        document.querySelectorAll(".message-content").forEach(el => {
+            const raw = el.textContent.trim();
+            const stickerMatch = raw.match(/^\[sticker:([a-z0-9_-]+)\]$/i);
+            if (stickerMatch) {
+                el.innerHTML = renderStickerHtml(stickerMatch[1]);
+            }
+        });
+    }
+
     // Helper: Create message DOM element safely with rich media support
     function createMessageElement(m) {
         const timeStr = m.CreatedAt ? new Date(m.CreatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true }) : new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
@@ -4373,6 +4754,9 @@ document.addEventListener("DOMContentLoaded", function () {
             if (isMe) {
                 msgDiv.className = "d-flex justify-content-end mb-3 message-bubble";
                 msgDiv.innerHTML = `
+                    <div class="d-flex align-items-center me-2 message-select-indicator">
+                        <input type="checkbox" class="form-check-input msg-checkbox" data-message-id="${m.ID || ''}" style="cursor: pointer; width: 1.25rem; height: 1.25rem;">
+                    </div>
                     <div class="text-end" style="max-width: 75%;">
                         <div class="bg-light border text-muted fst-italic p-3 rounded-4 shadow-sm text-start message-content-box" style="border-bottom-right-radius: 4px !important;">
                             <i class="bi bi-slash-circle me-1 text-secondary"></i> ${safeBody.innerHTML || "This message was removed by a moderator."}
@@ -4386,6 +4770,9 @@ document.addEventListener("DOMContentLoaded", function () {
                     ? `<img src="/uploads/profiles/${m.Sender.ProfilePhoto}" class="rounded-circle object-fit-cover shadow-sm align-self-end mb-3" style="width: 32px; height: 32px;">`
                     : `<div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm align-self-end mb-3" style="width: 32px; height: 32px; font-size: 0.8rem;">${m.Sender && m.Sender.Initials ? m.Sender.Initials : 'U'}</div>`;
                 msgDiv.innerHTML = `
+                    <div class="d-flex align-items-center me-1 message-select-indicator">
+                        <input type="checkbox" class="form-check-input msg-checkbox" data-message-id="${m.ID || ''}" style="cursor: pointer; width: 1.25rem; height: 1.25rem;">
+                    </div>
                     ${avatarHtml}
                     <div style="max-width: 75%;">
                         <div class="bg-light border text-muted fst-italic p-3 rounded-4 shadow-sm text-start message-content-box" style="border-bottom-left-radius: 4px !important;">
@@ -4398,7 +4785,7 @@ document.addEventListener("DOMContentLoaded", function () {
             return msgDiv;
         }
 
-        const bodyHtml = m.Body ? `<div class="message-content">${safeBody.innerHTML}</div>` : "";
+        const bodyHtml = m.Body ? `<div class="message-content">${renderMessageBody(m.Body)}</div>` : "";
 
         let quotedHtml = "";
         if (m.ReplyToMessage) {
@@ -4427,11 +4814,21 @@ document.addEventListener("DOMContentLoaded", function () {
             `;
         }
 
+        const isFwd = !!(m.IsForwarded || m.is_forwarded);
+        const fwdFrom = m.ForwardedFrom || m.forwarded_from || "";
+
         if (isMe) {
             msgDiv.className = "d-flex justify-content-end mb-3 message-bubble";
             const checkIcon = m.IsReadByRecipient 
                 ? '<i class="bi bi-check2-all text-primary msg-check" title="Read"></i>' 
                 : '<i class="bi bi-check2 text-muted msg-check" title="Delivered"></i>';
+
+            const forwardedBadge = isFwd ? `
+                <div class="chat-forwarded-badge d-flex align-items-center gap-1 mb-1 text-white-50 fst-italic">
+                    <i class="bi bi-arrow-right-short fs-6"></i>
+                    <span>Forwarded${fwdFrom ? ` from <strong>${escapeHtml(fwdFrom)}</strong>` : ''}</span>
+                </div>
+            ` : '';
 
             const outgoingDropdownHtml = `
                 <div class="dropdown message-action-dropdown position-absolute top-0 start-0 translate-middle mt-1" style="z-index: 5;">
@@ -4440,8 +4837,23 @@ document.addEventListener("DOMContentLoaded", function () {
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3 small">
                         <li>
-                            <button type="button" class="dropdown-item py-1 text-dark reply-msg-btn" data-message-id="${m.ID}" data-sender-name="You" data-message-body="${encodeURIComponent(m.Body || '')}">
+                            <button type="button" class="dropdown-item py-1 text-dark reply-msg-btn" data-message-id="${m.ID || ''}" data-sender-name="You" data-message-body="${encodeURIComponent(m.Body || '')}">
                                 <i class="bi bi-reply me-2"></i>Reply
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item py-1 text-dark select-msg-btn" data-message-id="${m.ID || ''}">
+                                <i class="bi bi-check2-square me-2"></i>Select
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item py-1 text-dark forward-msg-btn" data-message-id="${m.ID || ''}">
+                                <i class="bi bi-arrow-right me-2"></i>Forward
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item py-1 text-dark share-msg-btn" data-message-id="${m.ID || ''}" data-message-body="${encodeURIComponent(m.Body || '')}">
+                                <i class="bi bi-share me-2"></i>Share
                             </button>
                         </li>
                         ${m.Body ? `
@@ -4453,12 +4865,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         ` : ''}
                         <li><hr class="dropdown-divider my-1"></li>
                         <li>
-                            <button type="button" class="dropdown-item py-1 text-secondary delete-for-me-btn" data-message-id="${m.ID}">
+                            <button type="button" class="dropdown-item py-1 text-secondary delete-for-me-btn" data-message-id="${m.ID || ''}">
                                 <i class="bi bi-trash me-2"></i>Delete for Me
                             </button>
                         </li>
                         <li>
-                            <button type="button" class="dropdown-item py-1 text-danger delete-for-everyone-btn" data-message-id="${m.ID}">
+                            <button type="button" class="dropdown-item py-1 text-danger delete-for-everyone-btn" data-message-id="${m.ID || ''}">
                                 <i class="bi bi-trash3 me-2"></i>Delete for Everyone
                             </button>
                         </li>
@@ -4467,9 +4879,13 @@ document.addEventListener("DOMContentLoaded", function () {
             `;
 
             msgDiv.innerHTML = `
+                <div class="d-flex align-items-center me-2 message-select-indicator">
+                    <input type="checkbox" class="form-check-input msg-checkbox" data-message-id="${m.ID || ''}" style="cursor: pointer; width: 1.25rem; height: 1.25rem;">
+                </div>
                 <div class="text-end" style="max-width: 75%;">
                     <div class="position-relative d-inline-block text-start w-100 group-msg-wrapper">
                         <div class="bg-success text-white p-3 rounded-4 shadow-sm text-start message-content-box" style="border-bottom-right-radius: 4px !important; word-wrap: break-word;">
+                            ${forwardedBadge}
                             ${quotedHtml}
                             ${mediaHtml}
                             ${bodyHtml}
@@ -4508,6 +4924,13 @@ document.addEventListener("DOMContentLoaded", function () {
             const isSiteAdminOrMod = (currentUserRole === "admin" || currentUserRole === "moderator");
             const canModDelete = (isGroupAdminOrMod || isSiteAdminOrMod);
 
+            const forwardedBadge = isFwd ? `
+                <div class="chat-forwarded-badge d-flex align-items-center gap-1 mb-1 text-muted fst-italic">
+                    <i class="bi bi-arrow-right-short fs-6 text-secondary"></i>
+                    <span>Forwarded${fwdFrom ? ` from <strong>${escapeHtml(fwdFrom)}</strong>` : ''}</span>
+                </div>
+            ` : '';
+
             const optionsDropdownHtml = `
                 <div class="dropdown message-action-dropdown position-absolute top-0 end-0 translate-middle mt-1" style="z-index: 5;">
                     <button class="btn btn-xs btn-light rounded-circle shadow-sm p-0 d-flex align-items-center justify-content-center text-muted" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="width: 24px; height: 24px;" title="Message options">
@@ -4517,6 +4940,21 @@ document.addEventListener("DOMContentLoaded", function () {
                         <li>
                             <button type="button" class="dropdown-item py-1 text-dark reply-msg-btn" data-message-id="${m.ID || ''}" data-sender-name="${encodeURIComponent(safeSenderNameStr)}" data-message-body="${encodeURIComponent(m.Body || '')}">
                                 <i class="bi bi-reply me-2"></i>Reply
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item py-1 text-dark select-msg-btn" data-message-id="${m.ID || ''}">
+                                <i class="bi bi-check2-square me-2"></i>Select
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item py-1 text-dark forward-msg-btn" data-message-id="${m.ID || ''}">
+                                <i class="bi bi-arrow-right me-2"></i>Forward
+                            </button>
+                        </li>
+                        <li>
+                            <button type="button" class="dropdown-item py-1 text-dark share-msg-btn" data-message-id="${m.ID || ''}" data-message-body="${encodeURIComponent(m.Body || '')}">
+                                <i class="bi bi-share me-2"></i>Share
                             </button>
                         </li>
                         ${m.Body ? `
@@ -4550,11 +4988,15 @@ document.addEventListener("DOMContentLoaded", function () {
             `;
 
             msgDiv.innerHTML = `
+                <div class="d-flex align-items-center me-1 message-select-indicator">
+                    <input type="checkbox" class="form-check-input msg-checkbox" data-message-id="${m.ID || ''}" style="cursor: pointer; width: 1.25rem; height: 1.25rem;">
+                </div>
                 ${avatarHtml}
                 <div style="max-width: 75%;">
                     ${senderHeaderHtml}
                     <div class="position-relative d-inline-block text-start w-100 group-msg-wrapper">
                         <div class="bg-white text-dark p-3 rounded-4 shadow-sm border message-content-box" style="border-bottom-left-radius: 4px !important; word-wrap: break-word;">
+                            ${forwardedBadge}
                             ${quotedHtml}
                             ${mediaHtml}
                             ${bodyHtml}
@@ -4570,12 +5012,37 @@ document.addEventListener("DOMContentLoaded", function () {
         return msgDiv;
     }
 
+    // Reset all attachment inputs
+    function resetAllAttachmentInputs() {
+        pendingAttachmentFile = null;
+        const inputs = [
+            document.getElementById("attachmentFileInput"),
+            document.getElementById("attachmentFileInputPhoto"),
+            document.getElementById("attachmentFileInputCamera"),
+            document.getElementById("attachmentFileInputVideo"),
+            document.getElementById("attachmentFileInputDocument")
+        ];
+        inputs.forEach(inp => { if (inp) inp.value = ""; });
+
+        if (voicePreviewAudio) {
+            voicePreviewAudio.pause();
+            voicePreviewAudio.removeAttribute("src");
+        }
+        if (voicePreviewContainer) {
+            voicePreviewContainer.classList.add("d-none");
+            voicePreviewContainer.style.display = "none";
+        }
+        if (attachmentPreviewBar) attachmentPreviewBar.style.setProperty("display", "none", "important");
+        const uploadBarContainer = document.getElementById("uploadProgressBarContainer");
+        if (uploadBarContainer) uploadBarContainer.classList.add("d-none");
+    }
+
     // Attachment file selection handler
     function handleFileSelected(file) {
         if (!file) return;
-        if (file.size > 10 * 1024 * 1024) {
-            showChatNotification("Attachment size must not exceed 10 MB.", false);
-            if (attachmentFileInput) attachmentFileInput.value = "";
+        if (file.size > 25 * 1024 * 1024) {
+            showChatNotification("Attachment size must not exceed 25 MB.", false);
+            resetAllAttachmentInputs();
             return;
         }
 
@@ -4585,12 +5052,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const iconEl = document.getElementById("attachmentPreviewIcon");
         const isAudio = file.type.startsWith("audio/") || file.name.endsWith(".webm") || file.name.endsWith(".ogg") || file.name.endsWith(".mp3") || file.name.endsWith(".wav") || file.name.endsWith(".m4a");
+        const isVideo = file.type.startsWith("video/") || file.name.endsWith(".mp4") || file.name.endsWith(".webm") || file.name.endsWith(".mov") || file.name.endsWith(".mkv");
 
         if (attachmentTypeBadge) {
             if (file.type.startsWith("image/")) {
                 attachmentTypeBadge.className = "badge bg-info text-dark rounded-pill px-2 py-1";
                 attachmentTypeBadge.textContent = "Image";
                 if (iconEl) iconEl.className = "bi bi-image text-info me-1";
+            } else if (isVideo) {
+                attachmentTypeBadge.className = "badge bg-danger rounded-pill px-2 py-1 text-white";
+                attachmentTypeBadge.textContent = "Video";
+                if (iconEl) iconEl.className = "bi bi-camera-video-fill text-danger me-1";
             } else if (isAudio) {
                 attachmentTypeBadge.className = "badge bg-warning text-dark rounded-pill px-2 py-1";
                 attachmentTypeBadge.textContent = "Voice Note";
@@ -4632,10 +5104,43 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    // Plus (+) Menu File Triggers
+    const menuOptionPhoto = document.getElementById("menuOptionPhoto");
+    const menuOptionCamera = document.getElementById("menuOptionCamera");
+    const menuOptionVideo = document.getElementById("menuOptionVideo");
+    const menuOptionDocument = document.getElementById("menuOptionDocument");
+
+    const attachmentFileInputPhoto = document.getElementById("attachmentFileInputPhoto");
+    const attachmentFileInputCamera = document.getElementById("attachmentFileInputCamera");
+    const attachmentFileInputVideo = document.getElementById("attachmentFileInputVideo");
+    const attachmentFileInputDocument = document.getElementById("attachmentFileInputDocument");
+
+    if (menuOptionPhoto && attachmentFileInputPhoto) {
+        menuOptionPhoto.addEventListener("click", () => attachmentFileInputPhoto.click());
+    }
+    if (menuOptionCamera && attachmentFileInputCamera) {
+        menuOptionCamera.addEventListener("click", () => attachmentFileInputCamera.click());
+    }
+    if (menuOptionVideo && attachmentFileInputVideo) {
+        menuOptionVideo.addEventListener("click", () => attachmentFileInputVideo.click());
+    }
+    if (menuOptionDocument && attachmentFileInputDocument) {
+        menuOptionDocument.addEventListener("click", () => attachmentFileInputDocument.click());
+    }
+
+    [attachmentFileInputPhoto, attachmentFileInputCamera, attachmentFileInputVideo, attachmentFileInputDocument].forEach(inputEl => {
+        if (inputEl) {
+            inputEl.addEventListener("change", function () {
+                if (this.files && this.files[0]) {
+                    handleFileSelected(this.files[0]);
+                }
+            });
+        }
+    });
+
     if (removeAttachmentBtn) {
-        removeAttachmentBtn.addEventListener("click", function () {
-            pendingAttachmentFile = null;
-            if (attachmentFileInput) attachmentFileInput.value = "";
+        removeAttachmentBtn.addEventListener("click", resetAllAttachmentInputs);
+    }
             if (voicePreviewAudio) {
                 voicePreviewAudio.pause();
                 voicePreviewAudio.removeAttribute("src");
@@ -7042,70 +7547,94 @@ document.addEventListener("DOMContentLoaded", function () {
                     formData.append("reply_to_message_id", replyToId);
                 }
 
-                fetch("/messages/upload", {
-                    method: "POST",
-                    headers: { "Accept": "application/json" },
-                    body: formData
-                })
-                .then(async res => {
-                    let data = null;
-                    try {
-                        data = await res.json();
-                    } catch (_) {}
+                const uploadBarContainer = document.getElementById("uploadProgressBarContainer");
+                const uploadBar = document.getElementById("uploadProgressBar");
+                const uploadText = document.getElementById("uploadProgressText");
+                const cancelUploadBtn = document.getElementById("cancelUploadBtn");
 
-                    if (!res.ok || !data || !data.success) {
-                        let errMsg = "Failed to upload attachment. Please try again.";
-                        if (data && data.error) errMsg = data.error;
-                        else if (data && typeof data.message === "string") errMsg = data.message;
-                        throw new Error(errMsg);
-                    }
-                    return data;
-                })
-                .then(data => {
-                    input.value = "";
-                    adjustComposerHeight();
-                    cancelReply();
-                    pendingAttachmentFile = null;
-                    if (attachmentFileInput) attachmentFileInput.value = "";
-                    if (voicePreviewAudio) {
-                        voicePreviewAudio.pause();
-                        voicePreviewAudio.removeAttribute("src");
-                    }
-                    if (voicePreviewContainer) {
-                        voicePreviewContainer.classList.add("d-none");
-                        voicePreviewContainer.style.display = "none";
-                    }
-                    if (attachmentPreviewBar) attachmentPreviewBar.style.setProperty("display", "none", "important");
+                if (uploadBarContainer) {
+                    uploadBarContainer.classList.remove("d-none");
+                }
+                if (uploadBar) uploadBar.style.width = "0%";
+                if (uploadText) uploadText.innerHTML = '<i class="bi bi-cloud-arrow-up-fill me-1"></i>Uploading: 0%';
 
-                    if (container && data.message) {
-                        const emptyNotice = container.querySelector(".h-100.d-flex");
-                        if (emptyNotice) {
-                            emptyNotice.remove();
-                        }
+                const xhr = new XMLHttpRequest();
+                xhr.open("POST", "/messages/upload");
+                xhr.setRequestHeader("Accept", "application/json");
 
-                        const existing = (data.message.ID && container.querySelector(`[data-message-id="${data.message.ID}"]`)) ||
-                                         (data.message.ClientMessageID && container.querySelector(`[data-client-id="${data.message.ClientMessageID}"]`));
-                        if (!existing) {
-                            insertDateSeparatorIfNeeded(container, data.message.CreatedAt);
-                            const elem = createMessageElement(data.message);
-                            container.appendChild(elem);
-                            container.scrollTop = container.scrollHeight;
-                        } else if (data.message.ID) {
-                            existing.setAttribute("data-message-id", data.message.ID);
-                        }
+                if (cancelUploadBtn) {
+                    cancelUploadBtn.onclick = function() {
+                        xhr.abort();
+                        if (uploadBarContainer) uploadBarContainer.classList.add("d-none");
+                        showChatNotification("Attachment upload cancelled.", false);
+                        isSubmittingMessage = false;
+                        if (sendBtn) sendBtn.disabled = false;
+                        input.disabled = false;
+                    };
+                }
+
+                xhr.upload.onprogress = function(event) {
+                    if (event.lengthComputable && uploadBar && uploadText) {
+                        const percent = Math.round((event.loaded / event.total) * 100);
+                        uploadBar.style.width = percent + "%";
+                        uploadText.innerHTML = `<i class="bi bi-cloud-arrow-up-fill me-1"></i>Uploading: ${percent}%`;
                     }
-                    updateConversationItemPreview(convId, data.message);
-                })
-                .catch(err => {
-                    console.error("Upload error:", err);
-                    showChatNotification(err.message || "Failed to upload attachment. Please try again.", false);
-                })
-                .finally(() => {
+                };
+
+                xhr.onload = function() {
+                    if (uploadBarContainer) uploadBarContainer.classList.add("d-none");
                     isSubmittingMessage = false;
                     if (sendBtn) sendBtn.disabled = false;
                     input.disabled = false;
                     input.focus();
-                });
+
+                    let data = null;
+                    try {
+                        data = JSON.parse(xhr.responseText);
+                    } catch (_) {}
+
+                    if (xhr.status >= 200 && xhr.status < 300 && data && data.success) {
+                        input.value = "";
+                        adjustComposerHeight();
+                        cancelReply();
+                        resetAllAttachmentInputs();
+
+                        if (container && data.message) {
+                            const emptyNotice = container.querySelector(".h-100.d-flex");
+                            if (emptyNotice) {
+                                emptyNotice.remove();
+                            }
+
+                            const existing = (data.message.ID && container.querySelector(`[data-message-id="${data.message.ID}"]`)) ||
+                                             (data.message.ClientMessageID && container.querySelector(`[data-client-id="${data.message.ClientMessageID}"]`));
+                            if (!existing) {
+                                insertDateSeparatorIfNeeded(container, data.message.CreatedAt);
+                                const elem = createMessageElement(data.message);
+                                container.appendChild(elem);
+                                container.scrollTop = container.scrollHeight;
+                            } else if (data.message.ID) {
+                                existing.setAttribute("data-message-id", data.message.ID);
+                            }
+                        }
+                        updateConversationItemPreview(convId, data.message);
+                    } else {
+                        let errMsg = "Failed to upload attachment. Please try again.";
+                        if (data && data.error) errMsg = data.error;
+                        else if (data && typeof data.message === "string") errMsg = data.message;
+                        showChatNotification(errMsg, false);
+                    }
+                };
+
+                xhr.onerror = function() {
+                    if (uploadBarContainer) uploadBarContainer.classList.add("d-none");
+                    isSubmittingMessage = false;
+                    if (sendBtn) sendBtn.disabled = false;
+                    input.disabled = false;
+                    input.focus();
+                    showChatNotification("Network error occurred during upload. Please check your connection.", false);
+                };
+
+                xhr.send(formData);
                 return;
             }
 
@@ -8228,9 +8757,527 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     };
 
-    // Message Actions (Reply, Copy, Delete for Me, Delete for Everyone)
+    // Message Selection Mode State & Handlers
+    let isSelectionMode = false;
+    const selectedMessageIds = new Set();
+    const selectionActionBar = document.getElementById("selectionActionBar");
+    const selectedCountLabel = document.getElementById("selectedCountLabel");
+    const cancelSelectionBtn = document.getElementById("cancelSelectionBtn");
+    const selectAllBtn = document.getElementById("selectAllBtn");
+    const copySelectedBtn = document.getElementById("copySelectedBtn");
+    const forwardSelectedBtn = document.getElementById("forwardSelectedBtn");
+    const shareSelectedBtn = document.getElementById("shareSelectedBtn");
+    const deleteSelectedBtn = document.getElementById("deleteSelectedBtn");
+
+    function updateSelectionUI() {
+        if (!selectedCountLabel) return;
+        const count = selectedMessageIds.size;
+        selectedCountLabel.textContent = `${count} selected`;
+        if (forwardSelectedBtn) forwardSelectedBtn.disabled = (count === 0);
+        if (copySelectedBtn) copySelectedBtn.disabled = (count === 0);
+        if (shareSelectedBtn) shareSelectedBtn.disabled = (count === 0);
+        if (deleteSelectedBtn) deleteSelectedBtn.disabled = (count === 0);
+    }
+
+    function enterSelectionMode(initialMsgId = null) {
+        isSelectionMode = true;
+        const chatMainArea = document.getElementById("chatMainArea");
+        if (chatMainArea) chatMainArea.classList.add("selection-mode-active");
+        if (selectionActionBar) selectionActionBar.style.setProperty("display", "flex", "important");
+        if (initialMsgId) {
+            toggleMessageSelection(initialMsgId, true);
+        } else {
+            updateSelectionUI();
+        }
+    }
+
+    function exitSelectionMode() {
+        isSelectionMode = false;
+        selectedMessageIds.clear();
+        const chatMainArea = document.getElementById("chatMainArea");
+        if (chatMainArea) chatMainArea.classList.remove("selection-mode-active");
+        if (selectionActionBar) selectionActionBar.style.setProperty("display", "none", "important");
+        document.querySelectorAll(".msg-checkbox").forEach(cb => cb.checked = false);
+        document.querySelectorAll(".message-bubble").forEach(b => b.classList.remove("message-selected"));
+        updateSelectionUI();
+    }
+
+    function toggleMessageSelection(msgId, forceSelect = null) {
+        if (!msgId) return;
+        const idInt = parseInt(msgId, 10);
+        const shouldSelect = forceSelect !== null ? forceSelect : !selectedMessageIds.has(idInt);
+        if (shouldSelect) {
+            selectedMessageIds.add(idInt);
+        } else {
+            selectedMessageIds.delete(idInt);
+        }
+
+        const bubble = container ? container.querySelector(`[data-message-id="${msgId}"]`) : null;
+        if (bubble) {
+            const cb = bubble.querySelector(".msg-checkbox");
+            if (cb) cb.checked = shouldSelect;
+            if (shouldSelect) bubble.classList.add("message-selected");
+            else bubble.classList.remove("message-selected");
+        }
+        updateSelectionUI();
+    }
+
+    function selectAllMessages() {
+        if (!container) return;
+        const bubbles = container.querySelectorAll(".message-bubble[data-message-id]");
+        const allSelected = (selectedMessageIds.size === bubbles.length && bubbles.length > 0);
+        bubbles.forEach(b => {
+            const mid = parseInt(b.getAttribute("data-message-id"), 10);
+            if (!mid) return;
+            const cb = b.querySelector(".msg-checkbox");
+            if (allSelected) {
+                selectedMessageIds.delete(mid);
+                if (cb) cb.checked = false;
+                b.classList.remove("message-selected");
+            } else {
+                selectedMessageIds.add(mid);
+                if (cb) cb.checked = true;
+                b.classList.add("message-selected");
+            }
+        });
+        updateSelectionUI();
+    }
+
+    function copySelectedMessages() {
+        if (selectedMessageIds.size === 0) return;
+        const messages = [];
+        container.querySelectorAll(".message-bubble").forEach(b => {
+            const mid = parseInt(b.getAttribute("data-message-id"), 10);
+            if (selectedMessageIds.has(mid)) {
+                const timeEl = b.querySelector("small");
+                const timeText = timeEl ? timeEl.textContent.trim().split("\n")[0] : "";
+                const contentEl = b.querySelector(".message-content");
+                let text = contentEl ? contentEl.innerText.trim() : "";
+                const isOut = b.classList.contains("justify-content-end");
+                const senderName = isOut ? "You" : ((b.querySelector(".fw-bold.small") ? b.querySelector(".fw-bold.small").textContent.trim() : "Member"));
+                if (!text) {
+                    if (b.querySelector(".chat-attachment-image")) text = "[Image]";
+                    else if (b.querySelector(".chat-attachment-video")) text = "[Video]";
+                    else if (b.querySelector(".chat-attachment-voice")) text = "[Voice Note]";
+                    else if (b.querySelector(".chat-attachment-file")) text = "[File / Document]";
+                }
+                messages.push(`[${timeText}] ${senderName}: ${text}`);
+            }
+        });
+
+        const copyString = messages.join("\n");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(copyString).then(() => {
+                showChatNotification(`Copied ${messages.length} message${messages.length > 1 ? 's' : ''} to clipboard`, true);
+                exitSelectionMode();
+            }).catch(() => {
+                fallbackCopyText(copyString);
+                exitSelectionMode();
+            });
+        } else {
+            fallbackCopyText(copyString);
+            exitSelectionMode();
+        }
+    }
+
+    function fallbackCopyText(text) {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+            document.execCommand("copy");
+            showChatNotification("Copied to clipboard", true);
+        } catch (_) {
+            showChatNotification("Failed to copy to clipboard", false);
+        }
+        document.body.removeChild(ta);
+    }
+
+    async function shareSelectedMessages() {
+        if (selectedMessageIds.size === 0) return;
+        const messages = [];
+        container.querySelectorAll(".message-bubble").forEach(b => {
+            const mid = parseInt(b.getAttribute("data-message-id"), 10);
+            if (selectedMessageIds.has(mid)) {
+                const contentEl = b.querySelector(".message-content");
+                let text = contentEl ? contentEl.innerText.trim() : "";
+                const isOut = b.classList.contains("justify-content-end");
+                const senderName = isOut ? "You" : ((b.querySelector(".fw-bold.small") ? b.querySelector(".fw-bold.small").textContent.trim() : "Member"));
+                if (!text) {
+                    if (b.querySelector(".chat-attachment-image")) text = "[Image]";
+                    else if (b.querySelector(".chat-attachment-video")) text = "[Video]";
+                    else if (b.querySelector(".chat-attachment-voice")) text = "[Voice Note]";
+                    else if (b.querySelector(".chat-attachment-file")) text = "[File / Document]";
+                }
+                messages.push(`${senderName}: ${text}`);
+            }
+        });
+        const shareText = messages.join("\n\n");
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: "Fellowship Messages",
+                    text: shareText
+                });
+                exitSelectionMode();
+            } catch (err) {
+                if (err.name !== "AbortError") {
+                    fallbackCopyText(shareText);
+                    showChatNotification("Shared content copied to clipboard", true);
+                    exitSelectionMode();
+                }
+            }
+        } else {
+            fallbackCopyText(shareText);
+            showChatNotification("Shared content copied to clipboard", true);
+            exitSelectionMode();
+        }
+    }
+
+    async function deleteSelectedMessages() {
+        if (selectedMessageIds.size === 0) return;
+        const count = selectedMessageIds.size;
+        if (!confirm(`Are you sure you want to delete ${count} selected message${count > 1 ? 's' : ''} for yourself?`)) {
+            return;
+        }
+
+        const ids = Array.from(selectedMessageIds);
+        let successCount = 0;
+        for (const mid of ids) {
+            try {
+                const res = await fetch("/messages/message/delete", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "Accept": "application/json" },
+                    body: JSON.stringify({ message_id: mid, mode: "for_me" })
+                });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    successCount++;
+                    const bubble = container.querySelector(`[data-message-id="${mid}"]`);
+                    if (bubble) bubble.remove();
+                }
+            } catch (_) {}
+        }
+        showChatNotification(`Deleted ${successCount} message${successCount > 1 ? 's' : ''}`, true);
+        exitSelectionMode();
+    }
+
+    function openForwardModal(msgIds = null) {
+        if (msgIds && msgIds.length > 0) {
+            selectedMessageIds.clear();
+            msgIds.forEach(id => selectedMessageIds.add(parseInt(id, 10)));
+        }
+        if (selectedMessageIds.size === 0) {
+            showChatNotification("Please select at least one message to forward.", false);
+            return;
+        }
+
+        const count = selectedMessageIds.size;
+        const countBadge = document.getElementById("forwardMsgCountBadge");
+        if (countBadge) countBadge.textContent = `${count} message${count > 1 ? 's' : ''}`;
+
+        const previewEl = document.getElementById("forwardPreviewSnippet");
+        if (previewEl && container) {
+            const firstId = Array.from(selectedMessageIds)[0];
+            const firstBubble = container.querySelector(`[data-message-id="${firstId}"]`);
+            if (firstBubble) {
+                const contentEl = firstBubble.querySelector(".message-content");
+                let text = contentEl ? contentEl.innerText.trim() : "";
+                if (!text) {
+                    if (firstBubble.querySelector(".chat-attachment-image")) text = "Photo attachment";
+                    else if (firstBubble.querySelector(".chat-attachment-video")) text = "Video clip";
+                    else if (firstBubble.querySelector(".chat-attachment-voice")) text = "Voice note";
+                    else if (firstBubble.querySelector(".chat-attachment-file")) text = "Document";
+                }
+                previewEl.textContent = count === 1 ? `"${text}"` : `"${text}" (+ ${count - 1} more)`;
+            }
+        }
+
+        populateForwardDestinations();
+
+        const fwdModalEl = document.getElementById("forwardModal");
+        if (fwdModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+            const inst = bootstrap.Modal.getOrCreateInstance ? bootstrap.Modal.getOrCreateInstance(fwdModalEl) : new bootstrap.Modal(fwdModalEl);
+            inst.show();
+        }
+    }
+
+    function populateForwardDestinations() {
+        const destList = document.getElementById("forwardDestinationList");
+        if (!destList) return;
+        destList.innerHTML = "";
+        const addedKeys = new Set();
+
+        const convItems = document.querySelectorAll(".conversation-item");
+        convItems.forEach(item => {
+            const href = item.getAttribute("href") || "";
+            const match = href.match(/c=(\d+)/);
+            if (!match) return;
+            const cId = parseInt(match[1], 10);
+            if (cId === convId) return;
+            const nameEl = item.querySelector(".conv-item-title") || item.querySelector("h6");
+            const name = nameEl ? nameEl.textContent.trim() : `Chat #${cId}`;
+            const isGroup = item.getAttribute("data-type") === "group";
+            const key = `c_${cId}`;
+            if (addedKeys.has(key)) return;
+            addedKeys.add(key);
+
+            const div = document.createElement("label");
+            div.className = "list-group-item d-flex align-items-center justify-content-between p-2 border-0 border-bottom forward-dest-item";
+            div.style.cursor = "pointer";
+            div.setAttribute("data-name", name.toLowerCase());
+            div.innerHTML = `
+                <div class="d-flex align-items-center gap-2 overflow-hidden">
+                    <div class="rounded-circle ${isGroup ? 'bg-primary-subtle text-primary' : 'bg-success-subtle text-success'} d-flex align-items-center justify-content-center fw-bold" style="width: 36px; height: 36px; font-size: 0.9rem;">
+                        <i class="bi ${isGroup ? 'bi-people-fill' : 'bi-person-fill'}"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <div class="fw-semibold text-dark text-truncate small">${escapeHtml(name)}</div>
+                        <small class="text-muted" style="font-size: 0.7rem;">${isGroup ? 'Group Conversation' : 'Direct Conversation'}</small>
+                    </div>
+                </div>
+                <input type="checkbox" class="form-check-input forward-dest-checkbox" data-dest-type="conversation" data-dest-id="${cId}" style="width: 1.25rem; height: 1.25rem; cursor: pointer;">
+            `;
+            destList.appendChild(div);
+        });
+
+        const memberItems = document.querySelectorAll(".member-search-item");
+        memberItems.forEach(item => {
+            const uidInput = item.querySelector('input[name="user_id"]');
+            if (!uidInput) return;
+            const uId = parseInt(uidInput.value, 10);
+            if (!uId || uId === currentUserId) return;
+            const key = `u_${uId}`;
+            if (addedKeys.has(key)) return;
+            addedKeys.add(key);
+
+            const nameEl = item.querySelector("h6");
+            const name = nameEl ? nameEl.textContent.trim() : `Member #${uId}`;
+
+            const div = document.createElement("label");
+            div.className = "list-group-item d-flex align-items-center justify-content-between p-2 border-0 border-bottom forward-dest-item";
+            div.style.cursor = "pointer";
+            div.setAttribute("data-name", name.toLowerCase());
+            div.innerHTML = `
+                <div class="d-flex align-items-center gap-2 overflow-hidden">
+                    <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center fw-bold" style="width: 36px; height: 36px; font-size: 0.85rem;">
+                        ${escapeHtml(name.substring(0, 2).toUpperCase())}
+                    </div>
+                    <div class="overflow-hidden">
+                        <div class="fw-semibold text-dark text-truncate small">${escapeHtml(name)}</div>
+                        <small class="text-muted" style="font-size: 0.7rem;">Fellowship Member</small>
+                    </div>
+                </div>
+                <input type="checkbox" class="form-check-input forward-dest-checkbox" data-dest-type="user" data-dest-id="${uId}" style="width: 1.25rem; height: 1.25rem; cursor: pointer;">
+            `;
+            destList.appendChild(div);
+        });
+
+        const btnSubmit = document.getElementById("btnSubmitForward");
+        destList.querySelectorAll(".forward-dest-checkbox").forEach(cb => {
+            cb.addEventListener("change", () => {
+                const anyChecked = Array.from(destList.querySelectorAll(".forward-dest-checkbox")).some(c => c.checked);
+                if (btnSubmit) btnSubmit.disabled = !anyChecked;
+            });
+        });
+    }
+
+    const forwardSearchInput = document.getElementById("forwardSearchInput");
+    if (forwardSearchInput) {
+        forwardSearchInput.addEventListener("input", function() {
+            const q = this.value.toLowerCase().trim();
+            document.querySelectorAll(".forward-dest-item").forEach(item => {
+                const name = item.getAttribute("data-name") || "";
+                item.style.display = (!q || name.includes(q)) ? "flex" : "none";
+            });
+        });
+    }
+
+    const btnSubmitForward = document.getElementById("btnSubmitForward");
+    if (btnSubmitForward) {
+        btnSubmitForward.addEventListener("click", async function() {
+            const destConvIds = [];
+            const destUserIds = [];
+            document.querySelectorAll(".forward-dest-checkbox:checked").forEach(cb => {
+                const type = cb.getAttribute("data-dest-type");
+                const id = parseInt(cb.getAttribute("data-dest-id"), 10);
+                if (type === "conversation") destConvIds.push(id);
+                else if (type === "user") destUserIds.push(id);
+            });
+
+            if (destConvIds.length === 0 && destUserIds.length === 0) {
+                showChatNotification("Please choose at least one destination.", false);
+                return;
+            }
+
+            const msgIds = Array.from(selectedMessageIds);
+            if (msgIds.length === 0) {
+                showChatNotification("No messages selected to forward.", false);
+                return;
+            }
+
+            btnSubmitForward.disabled = true;
+            btnSubmitForward.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status"></span> Forwarding...`;
+
+            try {
+                const res = await fetch("/messages/forward", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    body: JSON.stringify({
+                        message_ids: msgIds,
+                        dest_conversation_ids: destConvIds,
+                        dest_user_ids: destUserIds
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || "Failed to forward messages.");
+                }
+
+                showChatNotification(data.message || "Messages forwarded successfully!", true);
+
+                const fwdModalEl = document.getElementById("forwardModal");
+                if (fwdModalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                    const inst = bootstrap.Modal.getInstance(fwdModalEl);
+                    if (inst) inst.hide();
+                }
+
+                exitSelectionMode();
+            } catch (err) {
+                console.error("Forward error:", err);
+                showChatNotification(err.message || "Error forwarding messages", false);
+            } finally {
+                btnSubmitForward.disabled = false;
+                btnSubmitForward.innerHTML = `<i class="bi bi-arrow-right me-1"></i> Forward`;
+            }
+        });
+    }
+
+    // Fellowship Sticker Sending
+    document.querySelectorAll(".fellowship-sticker-btn").forEach(btn => {
+        btn.addEventListener("click", function() {
+            const code = this.getAttribute("data-sticker-code");
+            if (!code) return;
+            const modalEl = document.getElementById("stickerPickerModal");
+            if (modalEl && typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                const inst = bootstrap.Modal.getInstance(modalEl);
+                if (inst) inst.hide();
+            }
+            sendStickerMessage(code);
+        });
+    });
+
+    async function sendStickerMessage(code) {
+        if (!convId) return;
+        const stickerText = `[sticker:${code}]`;
+        const clientMsgId = "msg-stk-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9);
+        const payload = {
+            conversation_id: convId,
+            body: stickerText,
+            client_message_id: clientMsgId
+        };
+        try {
+            const res = await fetch("/messages/send", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) {
+                throw new Error(data.error || "Failed to send sticker");
+            }
+            if (container && data.message) {
+                const emptyNotice = container.querySelector(".h-100.d-flex");
+                if (emptyNotice) emptyNotice.remove();
+                insertDateSeparatorIfNeeded(container, data.message.CreatedAt);
+                const elem = createMessageElement(data.message);
+                container.appendChild(elem);
+                container.scrollTop = container.scrollHeight;
+            }
+            updateConversationItemPreview(convId, data.message);
+        } catch (err) {
+            showChatNotification(err.message || "Failed to send sticker", false);
+        }
+    }
+
+    if (cancelSelectionBtn) cancelSelectionBtn.addEventListener("click", exitSelectionMode);
+    if (selectAllBtn) selectAllBtn.addEventListener("click", selectAllMessages);
+    if (copySelectedBtn) copySelectedBtn.addEventListener("click", copySelectedMessages);
+    if (forwardSelectedBtn) forwardSelectedBtn.addEventListener("click", () => openForwardModal());
+    if (shareSelectedBtn) shareSelectedBtn.addEventListener("click", shareSelectedMessages);
+    if (deleteSelectedBtn) deleteSelectedBtn.addEventListener("click", deleteSelectedMessages);
+
+    document.addEventListener("keydown", function(e) {
+        if (e.key === "Escape" && isSelectionMode) {
+            exitSelectionMode();
+        }
+    });
+
+    // Enhance stickers on server-rendered messages
+    enhanceStickersOnPage();
+
+    // Message Actions (Reply, Select, Forward, Share, Copy, Delete for Me, Delete for Everyone)
     if (container) {
         container.addEventListener("click", async function (e) {
+            // Select message
+            const selectBtn = e.target.closest(".select-msg-btn");
+            if (selectBtn) {
+                e.preventDefault();
+                const msgId = selectBtn.getAttribute("data-message-id");
+                enterSelectionMode(msgId);
+                return;
+            }
+
+            // Forward single message
+            const fwdBtn = e.target.closest(".forward-msg-btn");
+            if (fwdBtn) {
+                e.preventDefault();
+                const msgId = fwdBtn.getAttribute("data-message-id");
+                openForwardModal([msgId]);
+                return;
+            }
+
+            // Share single message
+            const shareBtn = e.target.closest(".share-msg-btn");
+            if (shareBtn) {
+                e.preventDefault();
+                const msgId = shareBtn.getAttribute("data-message-id");
+                selectedMessageIds.clear();
+                selectedMessageIds.add(parseInt(msgId, 10));
+                shareSelectedMessages();
+                return;
+            }
+
+            // Checkbox change inside bubble
+            const checkbox = e.target.closest(".msg-checkbox");
+            if (checkbox) {
+                const msgId = checkbox.getAttribute("data-message-id");
+                toggleMessageSelection(msgId, checkbox.checked);
+                return;
+            }
+
+            // Click on message bubble in selection mode (toggle selection)
+            if (isSelectionMode) {
+                const bubble = e.target.closest(".message-bubble");
+                if (bubble && !e.target.closest(".dropdown") && !e.target.closest("a") && !e.target.closest("button") && !e.target.closest("audio") && !e.target.closest("video") && !e.target.closest("input")) {
+                    const msgId = bubble.getAttribute("data-message-id");
+                    if (msgId) {
+                        toggleMessageSelection(msgId);
+                    }
+                    return;
+                }
+            }
+
             // Reply
             const replyBtn = e.target.closest(".reply-msg-btn");
             if (replyBtn) {

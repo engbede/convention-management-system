@@ -278,9 +278,9 @@ func SaveMessage(msg *models.Message) error {
 		INSERT INTO messages (
 			conversation_id, sender_id, message_type, body, client_message_id, reply_to_message_id,
 			attachment_url, attachment_name, attachment_size, attachment_type,
-			is_edited, is_deleted, expires_at, created_at, updated_at
+			is_edited, is_deleted, expires_at, is_forwarded, forwarded_from, created_at, updated_at
 		)
-		VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, FALSE, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, FALSE, FALSE, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 	`,
 		helpers.Placeholder(1),
 		helpers.Placeholder(2),
@@ -293,6 +293,8 @@ func SaveMessage(msg *models.Message) error {
 		helpers.Placeholder(9),
 		helpers.Placeholder(10),
 		helpers.Placeholder(11),
+		helpers.Placeholder(12),
+		helpers.Placeholder(13),
 	)
 
 	result, err := database.DB.Exec(
@@ -308,6 +310,8 @@ func SaveMessage(msg *models.Message) error {
 		msg.AttachmentSize,
 		msg.AttachmentType,
 		msg.ExpiresAt,
+		msg.IsForwarded,
+		msg.ForwardedFrom,
 	)
 	if err != nil {
 		return err
@@ -362,7 +366,8 @@ func GetMessagesByIDs(ids []int) (map[int]models.Message, error) {
 			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
 			m.expires_at,
 			m.created_at, m.updated_at,
-			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
+			u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''),
+			COALESCE(m.is_forwarded, FALSE), COALESCE(m.forwarded_from, '')
 		FROM messages m
 		JOIN users u ON m.sender_id = u.id
 		WHERE m.id IN (%s)
@@ -390,6 +395,7 @@ func GetMessagesByIDs(ids []int) (map[int]models.Message, error) {
 			&expiresAtRaw,
 			&createdAtRaw, &updatedAtRaw,
 			&m.Sender.ID, &m.Sender.FullName, &m.Sender.Username, &photo,
+			&m.IsForwarded, &m.ForwardedFrom,
 		)
 		if err != nil {
 			return nil, err
@@ -435,7 +441,8 @@ func GetConversationMessages(conversationID int, limit, offset int, currentUserI
 			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
 			m.expires_at,
 			m.created_at, m.updated_at,
-			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
+			u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''),
+			COALESCE(m.is_forwarded, FALSE), COALESCE(m.forwarded_from, '')
 		FROM messages m
 		JOIN users u ON m.sender_id = u.id
 		LEFT JOIN conversation_members cm_curr ON cm_curr.conversation_id = m.conversation_id AND cm_curr.user_id = %s
@@ -483,6 +490,8 @@ func GetConversationMessages(conversationID int, limit, offset int, currentUserI
 			&m.Sender.FullName,
 			&m.Sender.Username,
 			&photo,
+			&m.IsForwarded,
+			&m.ForwardedFrom,
 		)
 		if err != nil {
 			return nil, err
@@ -1960,7 +1969,8 @@ func GetMessageByID(messageID int) (*models.Message, error) {
 			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
 			m.expires_at,
 			m.created_at, m.updated_at,
-			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
+			u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''),
+			COALESCE(m.is_forwarded, FALSE), COALESCE(m.forwarded_from, '')
 		FROM messages m
 		JOIN users u ON m.sender_id = u.id
 		WHERE m.id = %s
@@ -1980,6 +1990,7 @@ func GetMessageByID(messageID int) (*models.Message, error) {
 		&expiresAtRaw,
 		&createdAtRaw, &updatedAtRaw,
 		&m.Sender.ID, &m.Sender.FullName, &m.Sender.Username, &photo,
+		&m.IsForwarded, &m.ForwardedFrom,
 	)
 	if err != nil {
 		return nil, err
@@ -2454,7 +2465,8 @@ func GetConversationMessagesForExport(conversationID, currentUserID int) (*model
 			COALESCE(m.attachment_size, 0), COALESCE(m.attachment_type, ''),
 			m.expires_at,
 			m.created_at, m.updated_at,
-			u.id, u.full_name, u.username, COALESCE(u.profile_photo, '')
+			u.id, u.full_name, u.username, COALESCE(u.profile_photo, ''),
+			COALESCE(m.is_forwarded, FALSE), COALESCE(m.forwarded_from, '')
 		FROM messages m
 		JOIN users u ON m.sender_id = u.id
 		LEFT JOIN conversation_members cm_curr ON cm_curr.conversation_id = m.conversation_id AND cm_curr.user_id = %s
@@ -2488,6 +2500,7 @@ func GetConversationMessagesForExport(conversationID, currentUserID int) (*model
 			&expiresAtRaw,
 			&createdAtRaw, &updatedAtRaw,
 			&m.Sender.ID, &m.Sender.FullName, &m.Sender.Username, &photo,
+			&m.IsForwarded, &m.ForwardedFrom,
 		)
 		if err != nil {
 			return nil, nil, err
@@ -2529,4 +2542,35 @@ func GetConversationMessagesForExport(conversationID, currentUserID int) (*model
 	}
 
 	return conv, messages, nil
+}
+
+// CanUserAccessChatAttachment verifies if a user is an authorized participant of a conversation
+// that references this chat attachment, or has administrative privileges.
+func CanUserAccessChatAttachment(userID int, filename string) (bool, error) {
+	if userID <= 0 || filename == "" {
+		return false, nil
+	}
+
+	// 1. Check if user is administrator
+	var role string
+	_ = database.DB.QueryRow(fmt.Sprintf("SELECT role FROM users WHERE id = %s", helpers.Placeholder(1)), userID).Scan(&role)
+	if role == "admin" || role == "moderator" {
+		return true, nil
+	}
+
+	// 2. Search if any active conversation member row matches a message with this attachment
+	pattern := "%" + filename
+	query := fmt.Sprintf(`
+		SELECT COUNT(*)
+		FROM messages m
+		JOIN conversation_members cm ON m.conversation_id = cm.conversation_id AND cm.user_id = %s
+		WHERE m.attachment_url LIKE %s
+	`, helpers.Placeholder(1), helpers.Placeholder(2))
+
+	var count int
+	err := database.DB.QueryRow(query, userID, pattern).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

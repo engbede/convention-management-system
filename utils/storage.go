@@ -34,7 +34,7 @@ var DefaultPostImageSVG = []byte(`<svg xmlns="http://www.w3.org/2000/svg" viewBo
   <text x="300" y="320" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" font-size="14" fill="#6c757d" text-anchor="middle">Community Media Unavailable</text>
 </svg>`)
 
-// GetObjectStoragePublicBaseURL returns the configured public CDN or S3 base URL, if any.
+// GetObjectStoragePublicBaseURL returns the configured public CDN or S3/R2 base URL, if any.
 func GetObjectStoragePublicBaseURL() string {
 	for _, env := range []string{"S3_PUBLIC_URL", "MEDIA_BASE_URL", "CLOUDINARY_URL", "CDN_URL"} {
 		if val := strings.TrimSpace(os.Getenv(env)); val != "" {
@@ -44,7 +44,7 @@ func GetObjectStoragePublicBaseURL() string {
 	return ""
 }
 
-// S3Config holds connection parameters for S3-compatible object storage (AWS, Cloudflare R2, MinIO, Backblaze B2).
+// S3Config holds connection parameters for S3-compatible object storage (Cloudflare R2, AWS, MinIO, Backblaze B2).
 type S3Config struct {
 	Bucket    string
 	Region    string
@@ -54,7 +54,7 @@ type S3Config struct {
 	PublicURL string
 }
 
-// GetS3Config reads S3 configuration from environment variables.
+// GetS3Config reads S3/R2 configuration from environment variables.
 func GetS3Config() *S3Config {
 	bucket := strings.TrimSpace(os.Getenv("S3_BUCKET"))
 	if bucket == "" {
@@ -109,6 +109,45 @@ func IsObjectStorageEnabled() bool {
 	return GetS3Config() != nil
 }
 
+// IsCloudflareR2 returns true if the configured endpoint points to Cloudflare R2.
+func IsCloudflareR2() bool {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(cfg.Endpoint), "r2.cloudflarestorage.com")
+}
+
+// ValidateStorageConfig verifies that storage environment variables form a valid configuration
+// without exposing sensitive credentials in error messages.
+func ValidateStorageConfig() error {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return errors.New("object storage is not configured: missing bucket or credentials")
+	}
+
+	if cfg.Bucket == "" {
+		return errors.New("storage bucket name cannot be empty")
+	}
+
+	u, err := url.Parse(cfg.Endpoint)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return errors.New("invalid storage endpoint URL: must be valid absolute URL (e.g. https://<account_id>.r2.cloudflarestorage.com)")
+	}
+	if u.Scheme != "https" && u.Scheme != "http" {
+		return errors.New("storage endpoint scheme must be http or https")
+	}
+
+	if len(cfg.AccessKey) < 4 {
+		return errors.New("storage access key is too short or invalid")
+	}
+	if len(cfg.SecretKey) < 8 {
+		return errors.New("storage secret key is too short or invalid")
+	}
+
+	return nil
+}
+
 func hmacSHA256(key []byte, data string) []byte {
 	h := hmac.New(sha256.New, key)
 	h.Write([]byte(data))
@@ -120,40 +159,42 @@ func sha256Hex(data []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
+func buildCanonicalQueryFromValues(vals url.Values) string {
+	if len(vals) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(vals))
+	for k := range vals {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var builder strings.Builder
+	for _, k := range keys {
+		escapedK := url.QueryEscape(k)
+		vList := vals[k]
+		sort.Strings(vList)
+		for _, val := range vList {
+			if builder.Len() > 0 {
+				builder.WriteString("&")
+			}
+			builder.WriteString(escapedK)
+			builder.WriteString("=")
+			builder.WriteString(url.QueryEscape(val))
+		}
+	}
+	return builder.String()
+}
+
 func buildCanonicalQuery(rawQuery string) string {
 	if rawQuery == "" {
 		return ""
 	}
-	parts := strings.Split(rawQuery, "&")
-	type qParam struct {
-		k, v string
+	parsed, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return rawQuery
 	}
-	var params []qParam
-	for _, p := range parts {
-		if p == "" {
-			continue
-		}
-		kv := strings.SplitN(p, "=", 2)
-		k := url.QueryEscape(kv[0])
-		v := ""
-		if len(kv) > 1 {
-			v = url.QueryEscape(kv[1])
-		}
-		params = append(params, qParam{k: k, v: v})
-	}
-	sort.Slice(params, func(i, j int) bool {
-		return params[i].k < params[j].k
-	})
-	var builder strings.Builder
-	for i, param := range params {
-		if i > 0 {
-			builder.WriteString("&")
-		}
-		builder.WriteString(param.k)
-		builder.WriteString("=")
-		builder.WriteString(param.v)
-	}
-	return builder.String()
+	return buildCanonicalQueryFromValues(parsed)
 }
 
 func signS3Request(req *http.Request, cfg *S3Config, payloadHash string) {
@@ -165,33 +206,32 @@ func signS3Request(req *http.Request, cfg *S3Config, payloadHash string) {
 	req.Header.Set("x-amz-content-sha256", payloadHash)
 
 	host := req.URL.Host
-	var canonicalHeaders strings.Builder
-	var signedHeaders []string
+
+	// Collect headers to sign
+	headersToSign := make(map[string]string)
+	headersToSign["host"] = host
+	headersToSign["x-amz-date"] = amzDate
+	headersToSign["x-amz-content-sha256"] = payloadHash
 
 	if ct := req.Header.Get("Content-Type"); ct != "" {
-		canonicalHeaders.WriteString(fmt.Sprintf("content-type:%s\n", ct))
-		signedHeaders = append(signedHeaders, "content-type")
+		headersToSign["content-type"] = ct
 	}
 
-	canonicalHeaders.WriteString(fmt.Sprintf("host:%s\n", host))
-	signedHeaders = append(signedHeaders, "host")
-
-	if acl := req.Header.Get("x-amz-acl"); acl != "" {
-		canonicalHeaders.WriteString(fmt.Sprintf("x-amz-acl:%s\n", acl))
-		signedHeaders = append(signedHeaders, "x-amz-acl")
+	// Lexicographically sort signed header names (mandatory for SigV4 compliance)
+	sortedKeys := make([]string, 0, len(headersToSign))
+	for k := range headersToSign {
+		sortedKeys = append(sortedKeys, k)
 	}
+	sort.Strings(sortedKeys)
 
-	canonicalHeaders.WriteString(fmt.Sprintf("x-amz-content-sha256:%s\n", payloadHash))
-	signedHeaders = append(signedHeaders, "x-amz-content-sha256")
-
-	canonicalHeaders.WriteString(fmt.Sprintf("x-amz-date:%s\n", amzDate))
-	signedHeaders = append(signedHeaders, "x-amz-date")
-
-	signedHeadersStr := strings.Join(signedHeaders, ";")
-	canonicalHeadersStr := canonicalHeaders.String()
+	var canonicalHeaders strings.Builder
+	for _, k := range sortedKeys {
+		canonicalHeaders.WriteString(fmt.Sprintf("%s:%s\n", k, headersToSign[k]))
+	}
+	signedHeadersStr := strings.Join(sortedKeys, ";")
 
 	canonicalQuery := buildCanonicalQuery(req.URL.RawQuery)
-	canonicalReq := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s", req.Method, req.URL.Path, canonicalQuery, canonicalHeadersStr, signedHeadersStr, payloadHash)
+	canonicalReq := fmt.Sprintf("%s\n%s\n%s\n%s\n%s\n%s", req.Method, req.URL.Path, canonicalQuery, canonicalHeaders.String(), signedHeadersStr, payloadHash)
 	canonicalHash := sha256Hex([]byte(canonicalReq))
 
 	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", dateStamp, cfg.Region)
@@ -207,36 +247,35 @@ func signS3Request(req *http.Request, cfg *S3Config, payloadHash string) {
 	req.Header.Set("Authorization", authHeader)
 }
 
-// UploadToObjectStorage stores an object in S3-compatible cloud storage using AWS SigV4.
+// UploadToObjectStorage stores an object in S3/R2-compatible storage using AWS SigV4.
+// For files of known size, it streams directly from reader using UNSIGNED-PAYLOAD to avoid buffering in memory.
 func UploadToObjectStorage(key string, reader io.Reader, size int64, contentType string) (string, error) {
 	cfg := GetS3Config()
 	if cfg == nil {
-		return "", errors.New("S3 object storage is not configured")
+		return "", errors.New("S3/R2 object storage is not configured")
 	}
 
 	cleanKey := strings.TrimPrefix(key, "/")
 	reqURL := fmt.Sprintf("%s/%s/%s", cfg.Endpoint, cfg.Bucket, cleanKey)
 
-	bodyBytes, err := io.ReadAll(reader)
+	req, err := http.NewRequest(http.MethodPut, reqURL, reader)
 	if err != nil {
-		return "", fmt.Errorf("failed reading object body for S3 upload: %w", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewReader(bodyBytes))
-	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed creating S3 upload request: %w", err)
 	}
 
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("x-amz-acl", "public-read")
 
-	payloadHash := sha256Hex(bodyBytes)
-	signS3Request(req, cfg, payloadHash)
+	if size >= 0 {
+		req.ContentLength = size
+	}
 
-	client := &http.Client{Timeout: 120 * time.Second}
+	// Cloudflare R2 and AWS S3 both support UNSIGNED-PAYLOAD over TLS for streaming uploads without in-memory buffering
+	signS3Request(req, cfg, "UNSIGNED-PAYLOAD")
+
+	client := &http.Client{Timeout: 300 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("S3 upload request failed: %w", err)
@@ -244,7 +283,7 @@ func UploadToObjectStorage(key string, reader io.Reader, size int64, contentType
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(resp.Body)
+		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return "", fmt.Errorf("S3 upload returned status %d: %s", resp.StatusCode, string(respBody))
 	}
 
@@ -254,7 +293,41 @@ func UploadToObjectStorage(key string, reader io.Reader, size int64, contentType
 	return reqURL, nil
 }
 
-// DeleteFromObjectStorage deletes an object from S3-compatible cloud storage using AWS SigV4.
+// CheckObjectExists performs a HEAD request to verify if an object exists in object storage and returns its size.
+func CheckObjectExists(key string) (bool, int64, error) {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return false, 0, errors.New("S3/R2 object storage is not configured")
+	}
+
+	cleanKey := strings.TrimPrefix(key, "/")
+	reqURL := fmt.Sprintf("%s/%s/%s", cfg.Endpoint, cfg.Bucket, cleanKey)
+
+	req, err := http.NewRequest(http.MethodHead, reqURL, nil)
+	if err != nil {
+		return false, 0, err
+	}
+
+	signS3Request(req, cfg, sha256Hex([]byte("")))
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, 0, fmt.Errorf("HEAD object request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		return true, resp.ContentLength, nil
+	}
+	if resp.StatusCode == http.StatusNotFound {
+		return false, 0, nil
+	}
+
+	return false, 0, fmt.Errorf("HEAD object returned status %d", resp.StatusCode)
+}
+
+// DeleteFromObjectStorage deletes an object from S3/R2-compatible storage using AWS SigV4.
 func DeleteFromObjectStorage(key string) error {
 	cfg := GetS3Config()
 	if cfg == nil {
@@ -298,11 +371,12 @@ type initiateMultipartUploadResult struct {
 	UploadId string   `xml:"UploadId"`
 }
 
-// InitiateS3MultipartUpload begins an S3-compatible multipart upload and returns the upload ID.
+// InitiateS3MultipartUpload begins an S3/R2 multipart upload and returns the upload ID.
+// Unsupported S3 ACL headers (like x-amz-acl) are omitted for Cloudflare R2 compatibility.
 func InitiateS3MultipartUpload(key, contentType string) (string, error) {
 	cfg := GetS3Config()
 	if cfg == nil {
-		return "", errors.New("S3 object storage is not configured")
+		return "", errors.New("S3/R2 object storage is not configured")
 	}
 
 	cleanKey := strings.TrimPrefix(key, "/")
@@ -317,7 +391,6 @@ func InitiateS3MultipartUpload(key, contentType string) (string, error) {
 		contentType = "application/octet-stream"
 	}
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("x-amz-acl", "public-read")
 
 	signS3Request(req, cfg, sha256Hex([]byte("")))
 
@@ -329,7 +402,7 @@ func InitiateS3MultipartUpload(key, contentType string) (string, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return "", fmt.Errorf("initiate multipart upload returned status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -345,30 +418,29 @@ func InitiateS3MultipartUpload(key, contentType string) (string, error) {
 	return res.UploadId, nil
 }
 
-// UploadS3Part uploads a single chunk/part to an ongoing S3 multipart upload.
+// UploadS3Part uploads a single chunk/part to an ongoing S3/R2 multipart upload.
+// Streams directly from reader using UNSIGNED-PAYLOAD with bounded memory.
 func UploadS3Part(key, uploadID string, partNumber int, reader io.Reader, size int64) (string, error) {
 	cfg := GetS3Config()
 	if cfg == nil {
-		return "", errors.New("S3 object storage is not configured")
+		return "", errors.New("S3/R2 object storage is not configured")
 	}
 
 	cleanKey := strings.TrimPrefix(key, "/")
 	reqURL := fmt.Sprintf("%s/%s/%s?partNumber=%d&uploadId=%s", cfg.Endpoint, cfg.Bucket, cleanKey, partNumber, url.QueryEscape(uploadID))
 
-	partBytes, err := io.ReadAll(reader)
-	if err != nil {
-		return "", fmt.Errorf("failed to read part data: %w", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewReader(partBytes))
+	req, err := http.NewRequest(http.MethodPut, reqURL, reader)
 	if err != nil {
 		return "", err
 	}
 
-	payloadHash := sha256Hex(partBytes)
-	signS3Request(req, cfg, payloadHash)
+	if size >= 0 {
+		req.ContentLength = size
+	}
 
-	client := &http.Client{Timeout: 180 * time.Second}
+	signS3Request(req, cfg, "UNSIGNED-PAYLOAD")
+
+	client := &http.Client{Timeout: 300 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("upload part %d failed: %w", partNumber, err)
@@ -376,26 +448,26 @@ func UploadS3Part(key, uploadID string, partNumber int, reader io.Reader, size i
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return "", fmt.Errorf("upload part %d returned status %d: %s", partNumber, resp.StatusCode, string(body))
 	}
 
 	etag := strings.Trim(resp.Header.Get("ETag"), `"`)
 	if etag == "" {
-		etag = payloadHash
+		return "", fmt.Errorf("upload part %d succeeded but missing ETag header", partNumber)
 	}
 
 	return etag, nil
 }
 
-// CompleteS3MultipartUpload finalizes an S3 multipart upload after all parts are uploaded.
+// CompleteS3MultipartUpload finalizes an S3/R2 multipart upload after all parts are uploaded.
 func CompleteS3MultipartUpload(key, uploadID string, parts []S3CompletedPart) (string, error) {
 	cfg := GetS3Config()
 	if cfg == nil {
-		return "", errors.New("S3 object storage is not configured")
+		return "", errors.New("S3/R2 object storage is not configured")
 	}
 
-	// Sort parts by PartNumber ascending (required by S3 API)
+	// Sort parts by PartNumber ascending (required by S3/R2 API)
 	sort.Slice(parts, func(i, j int) bool {
 		return parts[i].PartNumber < parts[j].PartNumber
 	})
@@ -424,7 +496,7 @@ func CompleteS3MultipartUpload(key, uploadID string, parts []S3CompletedPart) (s
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return "", fmt.Errorf("complete multipart upload returned status %d: %s", resp.StatusCode, string(body))
 	}
 
@@ -434,7 +506,7 @@ func CompleteS3MultipartUpload(key, uploadID string, parts []S3CompletedPart) (s
 	return fmt.Sprintf("%s/%s/%s", cfg.Endpoint, cfg.Bucket, cleanKey), nil
 }
 
-// AbortS3MultipartUpload cancels an active S3 multipart upload and cleans up stored parts.
+// AbortS3MultipartUpload cancels an active S3/R2 multipart upload and cleans up stored parts.
 func AbortS3MultipartUpload(key, uploadID string) error {
 	cfg := GetS3Config()
 	if cfg == nil {
@@ -460,31 +532,31 @@ func AbortS3MultipartUpload(key, uploadID string) error {
 	return nil
 }
 
-// GeneratePresignedGetURL creates a presigned GET URL with SigV4 query parameters.
+// GeneratePresignedGetURL creates an authenticated presigned GET URL with SigV4 query parameters.
+// It signs directly against the S3/R2 API endpoint with explicit expiration.
 func GeneratePresignedGetURL(key string, expire time.Duration) (string, error) {
 	cfg := GetS3Config()
 	if cfg == nil {
-		return "", errors.New("S3 object storage is not configured")
+		return "", errors.New("S3/R2 object storage is not configured")
 	}
 
 	cleanKey := strings.TrimPrefix(key, "/")
-	if cfg.PublicURL != "" {
-		return fmt.Sprintf("%s/%s", cfg.PublicURL, cleanKey), nil
-	}
-
 	now := time.Now().UTC()
 	dateStamp := now.Format("20060102")
 	amzDate := now.Format("20060102T150405Z")
 	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", dateStamp, cfg.Region)
 
 	if expire <= 0 {
-		expire = 24 * time.Hour
+		expire = 15 * time.Minute
+	}
+	if expire > 7*24*time.Hour {
+		expire = 7 * 24 * time.Hour
 	}
 	expiresSec := int(expire.Seconds())
 
 	u, err := url.Parse(cfg.Endpoint)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("invalid S3 endpoint URL: %w", err)
 	}
 	host := u.Host
 
@@ -495,7 +567,7 @@ func GeneratePresignedGetURL(key string, expire time.Duration) (string, error) {
 	q.Set("X-Amz-Expires", strconv.Itoa(expiresSec))
 	q.Set("X-Amz-SignedHeaders", "host")
 
-	canonicalQuery := buildCanonicalQuery(q.Encode())
+	canonicalQuery := buildCanonicalQueryFromValues(q)
 	canonicalHeaders := fmt.Sprintf("host:%s\n", host)
 	canonicalURI := fmt.Sprintf("/%s/%s", cfg.Bucket, cleanKey)
 	canonicalReq := fmt.Sprintf("GET\n%s\n%s\n%s\nhost\nUNSIGNED-PAYLOAD", canonicalURI, canonicalQuery, canonicalHeaders)
@@ -512,3 +584,54 @@ func GeneratePresignedGetURL(key string, expire time.Duration) (string, error) {
 	return fmt.Sprintf("%s/%s/%s?%s&X-Amz-Signature=%s", cfg.Endpoint, cfg.Bucket, cleanKey, canonicalQuery, signature), nil
 }
 
+// GeneratePresignedPutURL creates an authenticated presigned PUT URL with SigV4 query parameters
+// for direct browser-to-R2 uploads.
+func GeneratePresignedPutURL(key, contentType string, expire time.Duration) (string, error) {
+	cfg := GetS3Config()
+	if cfg == nil {
+		return "", errors.New("S3/R2 object storage is not configured")
+	}
+
+	cleanKey := strings.TrimPrefix(key, "/")
+	now := time.Now().UTC()
+	dateStamp := now.Format("20060102")
+	amzDate := now.Format("20060102T150405Z")
+	credentialScope := fmt.Sprintf("%s/%s/s3/aws4_request", dateStamp, cfg.Region)
+
+	if expire <= 0 {
+		expire = 15 * time.Minute
+	}
+	if expire > 24*time.Hour {
+		expire = 24 * time.Hour
+	}
+	expiresSec := int(expire.Seconds())
+
+	u, err := url.Parse(cfg.Endpoint)
+	if err != nil {
+		return "", fmt.Errorf("invalid S3 endpoint URL: %w", err)
+	}
+	host := u.Host
+
+	q := url.Values{}
+	q.Set("X-Amz-Algorithm", "AWS4-HMAC-SHA256")
+	q.Set("X-Amz-Credential", fmt.Sprintf("%s/%s", cfg.AccessKey, credentialScope))
+	q.Set("X-Amz-Date", amzDate)
+	q.Set("X-Amz-Expires", strconv.Itoa(expiresSec))
+	q.Set("X-Amz-SignedHeaders", "host")
+
+	canonicalQuery := buildCanonicalQueryFromValues(q)
+	canonicalHeaders := fmt.Sprintf("host:%s\n", host)
+	canonicalURI := fmt.Sprintf("/%s/%s", cfg.Bucket, cleanKey)
+	canonicalReq := fmt.Sprintf("PUT\n%s\n%s\n%s\nhost\nUNSIGNED-PAYLOAD", canonicalURI, canonicalQuery, canonicalHeaders)
+	canonicalHash := sha256Hex([]byte(canonicalReq))
+
+	stringToSign := fmt.Sprintf("AWS4-HMAC-SHA256\n%s\n%s\n%s", amzDate, credentialScope, canonicalHash)
+
+	kDate := hmacSHA256([]byte("AWS4"+cfg.SecretKey), dateStamp)
+	kRegion := hmacSHA256(kDate, cfg.Region)
+	kService := hmacSHA256(kRegion, "s3")
+	kSigning := hmacSHA256(kService, "aws4_request")
+	signature := hex.EncodeToString(hmacSHA256(kSigning, stringToSign))
+
+	return fmt.Sprintf("%s/%s/%s?%s&X-Amz-Signature=%s", cfg.Endpoint, cfg.Bucket, cleanKey, canonicalQuery, signature), nil
+}

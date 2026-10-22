@@ -2746,4 +2746,71 @@ func TestStage6_UIRendering(t *testing.T) {
 	}
 }
 
+func TestForwardMessagesAPI_Workflow(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Unauthenticated request should be rejected
+	unauthReq := httptest.NewRequest(http.MethodPost, "/messages/forward", strings.NewReader(`{"message_ids":[1],"conversation_ids":[2]}`))
+	unauthReq.Header.Set("Content-Type", "application/json")
+	unauthRR := httptest.NewRecorder()
+	ForwardMessagesAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected 401 Unauthorized, got %d", unauthRR.Code)
+	}
+
+	// 2. Setup Conversations and Messages
+	convA, err := services.StartDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("StartDirectConversation convA failed: %v", err)
+	}
+	convB, err := services.StartDirectConversation(1, 3)
+	if err != nil {
+		t.Fatalf("StartDirectConversation convB failed: %v", err)
+	}
+
+	msgA, err := services.SendMessage(convA.ID, 2, "Youth Fellowship Prayer Points", "client-msg-1", nil)
+	if err != nil {
+		t.Fatalf("SendMessage failed: %v", err)
+	}
+
+	// 3. User 1 forwards msgA to convB
+	payload := fmt.Sprintf(`{"message_ids":[%d],"conversation_ids":[%d]}`, msgA.ID, convB.ID)
+	req := httptest.NewRequest(http.MethodPost, "/messages/forward", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(req, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(req, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	ForwardMessagesAPI(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ForwardMessagesAPI, got %d (body: %s)", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Success        bool              `json:"success"`
+		ForwardedCount int               `json:"forwarded_count"`
+		Messages       []*models.Message `json:"messages"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("Failed to parse JSON response: %v", err)
+	}
+	if !resp.Success || resp.ForwardedCount != 1 || len(resp.Messages) != 1 {
+		t.Fatalf("Expected 1 forwarded message, got count=%d, len=%d", resp.ForwardedCount, len(resp.Messages))
+	}
+	if !resp.Messages[0].IsForwarded {
+		t.Errorf("Expected IsForwarded to be true")
+	}
+	if resp.Messages[0].ForwardedFrom != "User Two" {
+		t.Errorf("Expected ForwardedFrom 'User Two', got %q", resp.Messages[0].ForwardedFrom)
+	}
+}
+
 

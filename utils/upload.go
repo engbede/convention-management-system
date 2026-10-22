@@ -434,10 +434,31 @@ var allowedChatExtensions = map[string]string{
 	".xlsx": "file",
 	".xls":  "file",
 	".zip":  "file",
+	".ppt":  "file",
+	".pptx": "file",
+	".odt":  "file",
+	".ods":  "file",
+	".odp":  "file",
+	".rtf":  "file",
+}
+
+// GetMaxChatAttachmentSizeMB returns the maximum allowed size for chat attachments in megabytes (default: 25 MB).
+func GetMaxChatAttachmentSizeMB() int64 {
+	if val := os.Getenv("MAX_CHAT_ATTACHMENT_SIZE_MB"); val != "" {
+		if mb, err := strconv.ParseInt(val, 10, 64); err == nil && mb > 0 {
+			return mb
+		}
+	}
+	return 25
+}
+
+// GetMaxChatAttachmentSize returns the maximum allowed size for chat attachments in bytes.
+func GetMaxChatAttachmentSize() int64 {
+	return GetMaxChatAttachmentSizeMB() * 1024 * 1024
 }
 
 // SaveChatAttachment validates and stores an attachment for chat messaging.
-// Supports images, voice notes, videos, and documents up to 10MB.
+// Supports images, voice notes, videos, and documents up to the configured limit (default: 25MB).
 func SaveChatAttachment(
 	file multipart.File,
 	header *multipart.FileHeader,
@@ -446,12 +467,12 @@ func SaveChatAttachment(
 	destination = resolveDestination(destination)
 	defer file.Close()
 
-	const maxFileSize = 10 * 1024 * 1024 // 10 MB
+	maxFileSize := GetMaxChatAttachmentSize()
 	if header.Size <= 0 {
 		return "", "", "", errors.New("attachment file is empty")
 	}
 	if header.Size > maxFileSize {
-		return "", "", "", errors.New("attachment size must not exceed 10 MB")
+		return "", "", "", fmt.Errorf("attachment size must not exceed %d MB", GetMaxChatAttachmentSizeMB())
 	}
 
 	ext := strings.ToLower(filepath.Ext(header.Filename))
@@ -502,6 +523,37 @@ func SaveChatAttachment(
 			default:
 				detectedType = "video/mp4"
 			}
+		}
+	} else if msgType == "file" {
+		switch ext {
+		case ".pdf":
+			detectedType = "application/pdf"
+		case ".docx":
+			detectedType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+		case ".doc":
+			detectedType = "application/msword"
+		case ".xlsx":
+			detectedType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+		case ".xls":
+			detectedType = "application/vnd.ms-excel"
+		case ".pptx":
+			detectedType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+		case ".ppt":
+			detectedType = "application/vnd.ms-powerpoint"
+		case ".odt":
+			detectedType = "application/vnd.oasis.opendocument.text"
+		case ".ods":
+			detectedType = "application/vnd.oasis.opendocument.spreadsheet"
+		case ".odp":
+			detectedType = "application/vnd.oasis.opendocument.presentation"
+		case ".rtf":
+			detectedType = "application/rtf"
+		case ".txt":
+			detectedType = "text/plain; charset=utf-8"
+		case ".csv":
+			detectedType = "text/csv; charset=utf-8"
+		case ".zip":
+			detectedType = "application/zip"
 		}
 	}
 

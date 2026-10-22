@@ -798,6 +798,8 @@ CREATE TABLE IF NOT EXISTS messages (
     attachment_size INTEGER DEFAULT 0,
     attachment_type TEXT,
     expires_at DATETIME,
+    is_forwarded BOOLEAN DEFAULT 0,
+    forwarded_from TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE,
@@ -821,6 +823,8 @@ CREATE TABLE IF NOT EXISTS messages (
 		`ALTER TABLE messages ADD COLUMN attachment_size INTEGER DEFAULT 0`,
 		`ALTER TABLE messages ADD COLUMN attachment_type TEXT`,
 		`ALTER TABLE messages ADD COLUMN expires_at DATETIME`,
+		`ALTER TABLE messages ADD COLUMN is_forwarded BOOLEAN DEFAULT 0`,
+		`ALTER TABLE messages ADD COLUMN forwarded_from TEXT`,
 	} {
 		if err := addColumn(colQ); err != nil {
 			return err

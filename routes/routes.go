@@ -10,6 +10,7 @@ import (
 	"convention-management-system/handlers"
 	"convention-management-system/middleware"
 	"convention-management-system/repository"
+	"convention-management-system/sessions"
 	"convention-management-system/utils"
 )
 
@@ -547,13 +548,15 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 
-	// Resilient Chunked Video Upload APIs (supports up to 10 GB long-form recordings)
+	// Resilient Chunked & Direct Object Upload APIs (supports up to 10 GB long-form recordings & Cloudflare R2 presigned uploads)
 	mux.HandleFunc("/api/upload/config", handlers.GetUploadConfigAPI)
 	mux.HandleFunc("/api/upload/initiate", middleware.RequireLogin(handlers.InitiateUploadAPI))
 	mux.HandleFunc("/api/upload/chunk", middleware.RequireLogin(handlers.UploadChunkAPI))
 	mux.HandleFunc("/api/upload/complete", middleware.RequireLogin(handlers.CompleteUploadAPI))
 	mux.HandleFunc("/api/upload/abort", middleware.RequireLogin(handlers.AbortUploadAPI))
 	mux.HandleFunc("/api/upload/status", middleware.RequireLogin(handlers.GetUploadStatusAPI))
+	mux.HandleFunc("/api/upload/presign", middleware.RequireLogin(handlers.GeneratePresignedUploadAPI))
+	mux.HandleFunc("/api/upload/verify", middleware.RequireLogin(handlers.VerifyUploadedObjectAPI))
 
 	mux.HandleFunc(
 		"/community/comment",
@@ -883,6 +886,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/forward",
+		middleware.RequireLogin(
+			handlers.ForwardMessagesAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/delete",
 		middleware.RequireLogin(
 			handlers.DeleteMessageAPI,
@@ -1151,6 +1160,31 @@ func RegisterRoutes(mux *http.ServeMux) {
 		relPath = strings.TrimPrefix(relPath, "/")
 		fullPath := filepath.Join(uploadDir, filepath.Clean("/"+relPath))
 
+		// Access control for private chat attachments
+		isPrivateChatMedia := strings.HasPrefix(relPath, "chat/")
+		if isPrivateChatMedia {
+			sessionUserID := sessions.GetUserID(r)
+			if sessionUserID <= 0 {
+				http.Error(w, "Unauthorized: authentication required to access private chat attachments", http.StatusUnauthorized)
+				return
+			}
+			filename := filepath.Base(relPath)
+			authorized, aErr := repository.CanUserAccessChatAttachment(sessionUserID, filename)
+			if aErr != nil || !authorized {
+				http.Error(w, "Forbidden: you do not have permission to access this attachment", http.StatusForbidden)
+				return
+			}
+
+			// Private chat media must NEVER redirect to the public CDN domain.
+			// Direct to a short-lived presigned GET URL (15 minutes) only when object storage is active.
+			if utils.IsObjectStorageEnabled() {
+				if presignedURL, pErr := utils.GeneratePresignedGetURL(relPath, 15*time.Minute); pErr == nil && presignedURL != "" {
+					http.Redirect(w, r, presignedURL, http.StatusTemporaryRedirect)
+					return
+				}
+			}
+		}
+
 		// 1. Direct file on disk
 		if fi, err := os.Stat(fullPath); err == nil && !fi.IsDir() {
 			serveMedia(w, r, fullPath, "")
@@ -1185,14 +1219,16 @@ func RegisterRoutes(mux *http.ServeMux) {
 			return
 		}
 
-		// 5. Cloud object storage redirect if configured
-		if s3Base := utils.GetObjectStoragePublicBaseURL(); s3Base != "" {
-			http.Redirect(w, r, strings.TrimSuffix(s3Base, "/")+"/"+strings.TrimPrefix(relPath, "/"), http.StatusTemporaryRedirect)
-			return
-		} else if utils.IsObjectStorageEnabled() {
-			if presignedURL, pErr := utils.GeneratePresignedGetURL(relPath, 6*time.Hour); pErr == nil && presignedURL != "" {
-				http.Redirect(w, r, presignedURL, http.StatusTemporaryRedirect)
+		// 5. Cloud object storage redirect for public media (posts, profiles, covers)
+		if !isPrivateChatMedia {
+			if s3Base := utils.GetObjectStoragePublicBaseURL(); s3Base != "" {
+				http.Redirect(w, r, strings.TrimSuffix(s3Base, "/")+"/"+strings.TrimPrefix(relPath, "/"), http.StatusTemporaryRedirect)
 				return
+			} else if utils.IsObjectStorageEnabled() {
+				if presignedURL, pErr := utils.GeneratePresignedGetURL(relPath, 6*time.Hour); pErr == nil && presignedURL != "" {
+					http.Redirect(w, r, presignedURL, http.StatusTemporaryRedirect)
+					return
+				}
 			}
 		}
 

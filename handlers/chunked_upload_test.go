@@ -278,3 +278,74 @@ func makeChunkPostReq(t *testing.T, cookies []*http.Cookie, uploadID string, chu
 	}
 	return req, httptest.NewRecorder()
 }
+
+func TestPresignedUploadAPI_Workflow(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Authenticated user session
+	initReq := httptest.NewRequest(http.MethodPost, "/api/upload/presign", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 42
+	_ = session.Save(initReq, saveRec)
+	sessionCookies := saveRec.Result().Cookies()
+
+	// 1. Unconfigured storage returns 503
+	t.Setenv("S3_BUCKET", "")
+	t.Setenv("S3_ACCESS_KEY", "")
+	t.Setenv("S3_SECRET_KEY", "")
+
+	body, _ := json.Marshal(map[string]any{
+		"filename":     "camera_clip.mp4",
+		"file_size":    1024 * 1024,
+		"content_type": "video/mp4",
+		"media_type":   "post_video",
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/upload/presign", bytes.NewReader(body))
+	for _, c := range sessionCookies {
+		req.AddCookie(c)
+	}
+	rr := httptest.NewRecorder()
+	GeneratePresignedUploadAPI(rr, req)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected 503 Service Unavailable when R2 is unconfigured, got %d", rr.Code)
+	}
+
+	// 2. Configured R2 storage returns presigned URL and unique object key
+	t.Setenv("S3_BUCKET", "convention-media")
+	t.Setenv("S3_ENDPOINT", "https://xyz123.r2.cloudflarestorage.com")
+	t.Setenv("S3_REGION", "auto")
+	t.Setenv("S3_ACCESS_KEY", "r2_key_val")
+	t.Setenv("S3_SECRET_KEY", "r2_secret_val_123456")
+
+	reqAuth := httptest.NewRequest(http.MethodPost, "/api/upload/presign", bytes.NewReader(body))
+	for _, c := range sessionCookies {
+		reqAuth.AddCookie(c)
+	}
+	rrAuth := httptest.NewRecorder()
+	GeneratePresignedUploadAPI(rrAuth, reqAuth)
+	if rrAuth.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK, got %d: %s", rrAuth.Code, rrAuth.Body.String())
+	}
+
+	var presignResp struct {
+		Success   bool   `json:"success"`
+		UploadURL string `json:"upload_url"`
+		Key       string `json:"key"`
+		ExpiresIn int    `json:"expires_in"`
+	}
+	if err := json.Unmarshal(rrAuth.Body.Bytes(), &presignResp); err != nil {
+		t.Fatalf("Failed to parse presign JSON: %v", err)
+	}
+
+	if !presignResp.Success {
+		t.Errorf("Expected success true")
+	}
+	if !strings.HasPrefix(presignResp.Key, "posts/") || !strings.HasSuffix(presignResp.Key, ".mp4") {
+		t.Errorf("Unexpected generated key: %s", presignResp.Key)
+	}
+	if !strings.Contains(presignResp.UploadURL, "X-Amz-Signature=") {
+		t.Errorf("Presigned upload URL missing X-Amz-Signature: %s", presignResp.UploadURL)
+	}
+}

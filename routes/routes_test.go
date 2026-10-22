@@ -13,6 +13,7 @@ import (
 	"convention-management-system/database"
 	"convention-management-system/repository"
 	"convention-management-system/routes"
+	"convention-management-system/sessions"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -542,6 +543,23 @@ func TestServeMedia_AudioMimeTypes(t *testing.T) {
 
 	_ = os.MkdirAll("uploads/chat", 0755)
 
+	attachUserSession := func(req *http.Request, userID int) {
+		saveRec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, saveRec)
+		for _, cookie := range saveRec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+	}
+
+	_, _ = database.DB.Exec(`
+		INSERT INTO users (id, full_name, username, password_hash)
+		VALUES (1, 'User One', 'user1', 'hash1'),
+		       (2, 'User Two', 'user2', 'hash2');
+	`)
+	conv, _ := repository.CreateOrGetDirectConversation(1, 2)
+
 	testFiles := []struct {
 		filename    string
 		expectedSub string
@@ -566,7 +584,13 @@ func TestServeMedia_AudioMimeTypes(t *testing.T) {
 			t.Fatalf("Failed to write test file %s: %v", filePath, err)
 		}
 
+		_, _ = database.DB.Exec(`
+			INSERT INTO messages (conversation_id, sender_id, message_type, body, attachment_url)
+			VALUES (?, 1, 'voice', 'voice note', ?);
+		`, conv.ID, "/uploads/chat/"+tf.filename)
+
 		req := httptest.NewRequest(http.MethodGet, "/uploads/chat/"+tf.filename, nil)
+		attachUserSession(req, 1)
 		rr := httptest.NewRecorder()
 		mux.ServeHTTP(rr, req)
 
@@ -586,6 +610,7 @@ func TestServeMedia_AudioMimeTypes(t *testing.T) {
 
 	// Test Byte-Range request on WebM voice note
 	reqRange := httptest.NewRequest(http.MethodGet, "/uploads/chat/voice-1.webm", nil)
+	attachUserSession(reqRange, 1)
 	reqRange.Header.Set("Range", "bytes=0-9")
 	rrRange := httptest.NewRecorder()
 	mux.ServeHTTP(rrRange, reqRange)
@@ -598,6 +623,86 @@ func TestServeMedia_AudioMimeTypes(t *testing.T) {
 	}
 	if !bytes.Equal(rrRange.Body.Bytes(), fakeAudioData[:10]) {
 		t.Errorf("Expected byte-range chunk %q, got %q", fakeAudioData[:10], rrRange.Body.Bytes())
+	}
+}
+
+func TestUploadsRoute_R2PublicAndPrivateAccessControl(t *testing.T) {
+	mux, cleanup := setupTestEnv(t)
+	defer cleanup()
+
+	attachUserSession := func(req *http.Request, userID int) {
+		saveRec := httptest.NewRecorder()
+		session, _ := sessions.Store.Get(req, "youth-community")
+		session.Values["user_id"] = userID
+		_ = session.Save(req, saveRec)
+		for _, cookie := range saveRec.Result().Cookies() {
+			req.AddCookie(cookie)
+		}
+	}
+
+	_, _ = database.DB.Exec(`
+		INSERT INTO users (id, full_name, username, password_hash)
+		VALUES (1, 'User One', 'user1', 'hash1'),
+		       (2, 'User Two', 'user2', 'hash2');
+	`)
+	conv, _ := repository.CreateOrGetDirectConversation(1, 2)
+	_, _ = database.DB.Exec(`
+		INSERT INTO messages (conversation_id, sender_id, message_type, body, attachment_url)
+		VALUES (?, 1, 'voice', 'secret voice', '/uploads/chat/voice-secret-message.webm');
+	`, conv.ID)
+
+	t.Setenv("S3_BUCKET", "convention-media")
+	t.Setenv("S3_ENDPOINT", "https://xyz123.r2.cloudflarestorage.com")
+	t.Setenv("S3_REGION", "auto")
+	t.Setenv("S3_ACCESS_KEY", "mock_key")
+	t.Setenv("S3_SECRET_KEY", "mock_secret_key_12345")
+	t.Setenv("S3_PUBLIC_URL", "https://media.convention.org")
+
+	// 1. Public post video: redirects to public CDN URL without session required
+	reqPub := httptest.NewRequest(http.MethodGet, "/uploads/posts/sermon.mp4", nil)
+	rrPub := httptest.NewRecorder()
+	mux.ServeHTTP(rrPub, reqPub)
+
+	if rrPub.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("Expected 307 Temporary Redirect for public video, got %d", rrPub.Code)
+	}
+	expectedLoc := "https://media.convention.org/posts/sermon.mp4"
+	if loc := rrPub.Header().Get("Location"); loc != expectedLoc {
+		t.Errorf("Expected Location %q, got %q", expectedLoc, loc)
+	}
+
+	// 2. Private chat attachment without authentication: rejected with 401 Unauthorized
+	reqUnauth := httptest.NewRequest(http.MethodGet, "/uploads/chat/voice-secret-message.webm", nil)
+	rrUnauth := httptest.NewRecorder()
+	mux.ServeHTTP(rrUnauth, reqUnauth)
+	if rrUnauth.Code != http.StatusUnauthorized {
+		t.Fatalf("Expected 401 Unauthorized for unauthenticated private chat request, got %d", rrUnauth.Code)
+	}
+
+	// 3. Private chat attachment with authorized member session: redirects to short-lived signed URL
+	reqPriv := httptest.NewRequest(http.MethodGet, "/uploads/chat/voice-secret-message.webm", nil)
+	attachUserSession(reqPriv, 1)
+	rrPriv := httptest.NewRecorder()
+	mux.ServeHTTP(rrPriv, reqPriv)
+
+	if rrPriv.Code != http.StatusTemporaryRedirect {
+		t.Fatalf("Expected 307 Temporary Redirect for private chat attachment, got %d", rrPriv.Code)
+	}
+	privLoc := rrPriv.Header().Get("Location")
+	if strings.Contains(privLoc, "https://media.convention.org") {
+		t.Errorf("CRITICAL SECURITY LEAK: Private chat attachment redirected to public CDN URL: %s", privLoc)
+	}
+	if !strings.Contains(privLoc, "X-Amz-Signature=") || !strings.Contains(privLoc, "xyz123.r2.cloudflarestorage.com") {
+		t.Errorf("Private chat attachment should redirect to short-lived signed R2 URL, got: %s", privLoc)
+	}
+
+	// 4. Stranger without conversation membership: rejected with 403 Forbidden
+	reqStranger := httptest.NewRequest(http.MethodGet, "/uploads/chat/voice-secret-message.webm", nil)
+	attachUserSession(reqStranger, 999)
+	rrStranger := httptest.NewRecorder()
+	mux.ServeHTTP(rrStranger, reqStranger)
+	if rrStranger.Code != http.StatusForbidden {
+		t.Fatalf("Expected 403 Forbidden for non-member stranger, got %d", rrStranger.Code)
 	}
 }
 

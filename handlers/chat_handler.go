@@ -347,20 +347,30 @@ func SendMessageAPI(w http.ResponseWriter, r *http.Request) {
 		msg, err = services.SendMessage(convID, currentUserID, body, clientMsgID, replyToID)
 	}
 
-	if err != nil {
-		if strings.Contains(err.Error(), "access denied") {
-			http.Error(w, err.Error(), http.StatusForbidden)
-			return
-		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Respond with JSON if requested or AJAX
+	// Determine if AJAX/JSON response is expected
 	isAJAX := strings.Contains(r.Header.Get("Accept"), "application/json") ||
 		strings.Contains(contentType, "application/json") ||
 		r.Header.Get("X-Requested-With") == "XMLHttpRequest" ||
 		r.URL.Path == "/messages/upload"
+
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") {
+			statusCode = http.StatusForbidden
+		}
+		if isAJAX {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(statusCode)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"success": false,
+				"error":   err.Error(),
+				"message": err.Error(),
+			})
+			return
+		}
+		http.Error(w, err.Error(), statusCode)
+		return
+	}
 
 	if isAJAX {
 		w.Header().Set("Content-Type", "application/json")
@@ -2685,6 +2695,67 @@ func DeleteMessageAPI(w http.ResponseWriter, r *http.Request) {
 		"message_id": messageID,
 		"mode":       "for_everyone",
 		"message":    "Message has been deleted successfully",
+	})
+}
+
+// ForwardMessagesAPI handles forwarding selected messages to specified conversations or user contacts.
+func ForwardMessagesAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Unauthorized"})
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	termsAccepted, reqVersion, _, _ := services.CheckTermsAcceptance(currentUserID)
+	if !termsAccepted {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"success":          false,
+			"error":            "terms_acceptance_required",
+			"message":          "You must review and accept the latest platform terms of use before forwarding messages.",
+			"required_version": reqVersion,
+		})
+		return
+	}
+
+	var req struct {
+		MessageIDs      []int `json:"message_ids"`
+		ConversationIDs []int `json:"conversation_ids"`
+		UserIDs         []int `json:"user_ids"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": "Invalid request body"})
+		return
+	}
+
+	forwarded, err := services.ForwardMessages(currentUserID, req.MessageIDs, req.ConversationIDs, req.UserIDs)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		if strings.Contains(strings.ToLower(err.Error()), "access denied") || strings.Contains(strings.ToLower(err.Error()), "unauthorized") {
+			statusCode = http.StatusForbidden
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(statusCode)
+		_ = json.NewEncoder(w).Encode(map[string]any{"success": false, "error": err.Error(), "message": err.Error()})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"success":         true,
+		"forwarded_count": len(forwarded),
+		"messages":        forwarded,
 	})
 }
 

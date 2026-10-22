@@ -133,6 +133,8 @@ type Message struct {
 	AttachmentSize    int64
 	AttachmentType    string
 	ExpiresAt         *time.Time
+	IsForwarded       bool   `json:"is_forwarded,omitempty"`
+	ForwardedFrom     string `json:"forwarded_from,omitempty"`
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 

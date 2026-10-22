@@ -268,3 +268,62 @@ func TestSaveMessage_VoiceNoteWithoutBody(t *testing.T) {
 		t.Errorf("Expected RelativeTime 'Just now', got %q", convs[0].RelativeTime())
 	}
 }
+
+func TestForwardedMessageAndAttachmentAccess(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	conv, err := CreateOrGetDirectConversation(1, 2)
+	if err != nil {
+		t.Fatalf("Setup direct conversation failed: %v", err)
+	}
+
+	// 1. Save a forwarded message with attachment
+	fwdMsg := &models.Message{
+		ConversationID: conv.ID,
+		SenderID:       1,
+		MessageType:    "file",
+		Body:           "Check this out!",
+		AttachmentURL:  "/uploads/chat/doc-secure-abc123.pdf",
+		AttachmentName: "guide.pdf",
+		AttachmentType: "application/pdf",
+		AttachmentSize: 20480,
+		IsForwarded:    true,
+		ForwardedFrom:  "Rev. Johnson",
+	}
+
+	if err := SaveMessage(fwdMsg); err != nil {
+		t.Fatalf("SaveMessage failed for forwarded message: %v", err)
+	}
+
+	// 2. Retrieve message by ID and verify forwarded fields
+	retrieved, err := GetMessageByID(fwdMsg.ID)
+	if err != nil {
+		t.Fatalf("GetMessageByID failed: %v", err)
+	}
+	if !retrieved.IsForwarded {
+		t.Errorf("Expected IsForwarded to be true, got false")
+	}
+	if retrieved.ForwardedFrom != "Rev. Johnson" {
+		t.Errorf("Expected ForwardedFrom 'Rev. Johnson', got %q", retrieved.ForwardedFrom)
+	}
+
+	// 3. Verify CanUserAccessChatAttachment
+	// Participant (User 1) -> Allowed
+	canAccess1, err := CanUserAccessChatAttachment(1, "doc-secure-abc123.pdf")
+	if err != nil || !canAccess1 {
+		t.Errorf("Expected participant (User 1) to have access, got %v (err: %v)", canAccess1, err)
+	}
+
+	// Participant (User 2) -> Allowed
+	canAccess2, err := CanUserAccessChatAttachment(2, "doc-secure-abc123.pdf")
+	if err != nil || !canAccess2 {
+		t.Errorf("Expected participant (User 2) to have access, got %v (err: %v)", canAccess2, err)
+	}
+
+	// Non-participant (User 999) -> Denied
+	canAccessStranger, err := CanUserAccessChatAttachment(999, "doc-secure-abc123.pdf")
+	if err != nil || canAccessStranger {
+		t.Errorf("Expected stranger (User 999) to be denied, got %v (err: %v)", canAccessStranger, err)
+	}
+}

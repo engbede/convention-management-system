@@ -1978,3 +1978,161 @@ func ExportChat(conversationID, userID int, format string) (string, []byte, erro
 	filename := fmt.Sprintf("chat-export-%d-%s.txt", conversationID, timestamp)
 	return filename, []byte(buf.String()), nil
 }
+
+// ForwardMessages forwards one or more messages to one or more destination conversations or users,
+// strictly verifying authorization, membership, blocks, and preserving attribution to the original author.
+func ForwardMessages(
+	senderID int,
+	messageIDs []int,
+	destConvIDs []int,
+	destUserIDs []int,
+) ([]*models.Message, error) {
+	if senderID <= 0 {
+		return nil, errors.New("unauthorized: valid sender required")
+	}
+	if len(messageIDs) == 0 {
+		return nil, errors.New("no messages specified for forwarding")
+	}
+
+	sender, err := repository.GetUserByID(senderID)
+	if err != nil || sender.ID == 0 {
+		return nil, errors.New("sender profile not found")
+	}
+
+	// 1. Verify access to all original messages
+	originalMessages := make([]*models.Message, 0, len(messageIDs))
+	seenMsgIDs := make(map[int]bool)
+	for _, mID := range messageIDs {
+		if mID <= 0 || seenMsgIDs[mID] {
+			continue
+		}
+		seenMsgIDs[mID] = true
+
+		origMsg, err := repository.GetMessageByID(mID)
+		if err != nil || origMsg == nil {
+			return nil, fmt.Errorf("message %d not found", mID)
+		}
+		if origMsg.IsDeleted {
+			return nil, fmt.Errorf("message %d cannot be forwarded as it has been deleted", mID)
+		}
+		if origMsg.IsExpired() {
+			return nil, fmt.Errorf("message %d has expired and cannot be forwarded", mID)
+		}
+
+		// Ensure requesting user is a member of the conversation where original message was posted
+		isMember, err := repository.IsConversationMember(origMsg.ConversationID, senderID)
+		if err != nil || !isMember {
+			return nil, fmt.Errorf("access denied: you are not authorized to access message %d", mID)
+		}
+
+		originalMessages = append(originalMessages, origMsg)
+	}
+
+	if len(originalMessages) == 0 {
+		return nil, errors.New("no valid messages found for forwarding")
+	}
+
+	// 2. Resolve target conversations
+	targetConvMap := make(map[int]bool)
+	for _, cid := range destConvIDs {
+		if cid <= 0 {
+			continue
+		}
+		// Verify sender is member of destination conversation
+		isMember, err := repository.IsConversationMember(cid, senderID)
+		if err != nil || !isMember {
+			return nil, fmt.Errorf("access denied: you are not a member of conversation %d", cid)
+		}
+		// If direct, ensure not blocked
+		conv, otherUser, err := GetConversationDetails(cid, senderID)
+		if err == nil && conv.Type == "direct" && otherUser != nil {
+			blocked, _ := repository.IsCommunicationBlocked(senderID, otherUser.ID)
+			if blocked {
+				return nil, fmt.Errorf("cannot forward: communication with %s is blocked", otherUser.FullName)
+			}
+		}
+		targetConvMap[cid] = true
+	}
+
+	for _, uid := range destUserIDs {
+		if uid <= 0 || uid == senderID {
+			continue
+		}
+		// Start or get direct conversation
+		conv, err := StartDirectConversation(senderID, uid)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initiate conversation with user %d: %v", uid, err)
+		}
+		targetConvMap[conv.ID] = true
+	}
+
+	if len(targetConvMap) == 0 {
+		return nil, errors.New("no valid destination conversations or recipients selected")
+	}
+
+	createdMessages := make([]*models.Message, 0, len(targetConvMap)*len(originalMessages))
+
+	// 3. Create forwarded messages in each target conversation
+	for destID := range targetConvMap {
+		conv, otherUser, _ := GetConversationDetails(destID, senderID)
+
+		for _, orig := range originalMessages {
+			// Attribute to original author
+			origAuthor := ""
+			if orig.IsForwarded && orig.ForwardedFrom != "" {
+				origAuthor = orig.ForwardedFrom
+			} else if orig.Sender.FullName != "" {
+				origAuthor = orig.Sender.FullName
+			} else if orig.Sender.Username != "" {
+				origAuthor = "@" + orig.Sender.Username
+			} else {
+				origAuthor = "Member"
+			}
+
+			clientMsgID := fmt.Sprintf("fwd-%d-%d-%d", senderID, orig.ID, time.Now().UnixNano())
+
+			fwdMsg := &models.Message{
+				ConversationID:  destID,
+				SenderID:        senderID,
+				MessageType:     orig.MessageType,
+				Body:            orig.Body,
+				ClientMessageID: clientMsgID,
+				AttachmentURL:   orig.AttachmentURL,
+				AttachmentName:  orig.AttachmentName,
+				AttachmentSize:  orig.AttachmentSize,
+				AttachmentType:  orig.AttachmentType,
+				IsForwarded:     true,
+				ForwardedFrom:   origAuthor,
+			}
+
+			if err := repository.SaveMessage(fwdMsg); err != nil {
+				return nil, fmt.Errorf("failed persisting forwarded message: %v", err)
+			}
+			fwdMsg.Sender = sender
+
+			// Notification for direct conversation recipient if not muted
+			if conv != nil && conv.Type == "direct" && otherUser != nil {
+				if !repository.IsConversationMutedBy(destID, otherUser.ID) {
+					notification := models.Notification{
+						SenderID:   senderID,
+						ReceiverID: otherUser.ID,
+						Type:       "message",
+						Message:    fmt.Sprintf("forwarded a message from %s.", origAuthor),
+					}
+					_ = CreateNotification(notification)
+				}
+			}
+
+			// Broadcast real-time event to conversation
+			GlobalHub.BroadcastToConversation(destID, WSEvent{
+				Type:           "new_message",
+				ConversationID: destID,
+				Message:        fwdMsg,
+			})
+
+			createdMessages = append(createdMessages, fwdMsg)
+		}
+	}
+
+	return createdMessages, nil
+}
