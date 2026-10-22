@@ -5686,19 +5686,28 @@ document.addEventListener("DOMContentLoaded", function () {
                             sdp: data.sdp
                         })).then(() => {
                             if (callStatusText) callStatusText.textContent = "Connected";
-                            startTimer();
+                            if (!callTimerInterval) startTimer();
                             while (pendingIceCandidates.length > 0) {
                                 const cand = pendingIceCandidates.shift();
-                                peerConnection.addIceCandidate(new RTCIceCandidate(cand)).catch(console.error);
+                                if (cand) {
+                                    peerConnection.addIceCandidate(new RTCIceCandidate(cand)).catch(e => {
+                                        console.warn("Drain ice candidate error:", e);
+                                    });
+                                }
+                            }
+                            if (remoteVideo && remoteVideo.srcObject && remoteVideo.paused) {
+                                remoteVideo.play().catch(() => {});
                             }
                         }).catch(console.error);
                     }
                     break;
 
                 case "ice_candidate":
-                    if (peerConnection && data.candidate) {
-                        if (peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
-                            peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(console.error);
+                    if (data.candidate) {
+                        if (peerConnection && peerConnection.remoteDescription && peerConnection.remoteDescription.type) {
+                            peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e => {
+                                console.warn("Add ice candidate error:", e);
+                            });
                         } else {
                             pendingIceCandidates.push(data.candidate);
                         }
@@ -6242,6 +6251,33 @@ document.addEventListener("DOMContentLoaded", function () {
                     remoteVideo.style.display = "block";
                     if (audioCallDisplay) audioCallDisplay.style.display = "none";
                 }
+                const playPromise = remoteVideo.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(err => {
+                        console.warn("remoteVideo unmuted autoplay deferred:", err);
+                        // Autoplay fallback: play muted to display video frames immediately
+                        remoteVideo.muted = true;
+                        remoteVideo.play().catch(e => console.error("Muted remoteVideo play error:", e));
+                    });
+                }
+            }
+        };
+
+        peerConnection.oniceconnectionstatechange = function () {
+            if (peerConnection.iceConnectionState === "connected" || peerConnection.iceConnectionState === "completed") {
+                clearTimeout(outgoingCallRingTimeout);
+                if (callStatusText && callStatusText.textContent !== "Connected") {
+                    callStatusText.textContent = "Connected";
+                }
+                if (!callTimerInterval) startTimer();
+                if (remoteVideo && remoteVideo.srcObject && remoteVideo.paused) {
+                    remoteVideo.play().catch(() => {});
+                }
+            } else if (peerConnection.iceConnectionState === "failed") {
+                console.warn("ICE connection failed, checking restart...");
+                if (typeof peerConnection.restartIce === "function") {
+                    peerConnection.restartIce();
+                }
             }
         };
 
@@ -6249,7 +6285,13 @@ document.addEventListener("DOMContentLoaded", function () {
             if (peerConnection.connectionState === "connected") {
                 clearTimeout(outgoingCallRingTimeout);
                 if (callStatusText) callStatusText.textContent = "Connected";
-                startTimer();
+                if (!callTimerInterval) startTimer();
+                if (remoteVideo && remoteVideo.srcObject && remoteVideo.paused) {
+                    remoteVideo.play().catch(() => {});
+                }
+                if (localVideo && localVideo.srcObject && localVideo.paused) {
+                    localVideo.play().catch(() => {});
+                }
             } else if (peerConnection.connectionState === "disconnected" || peerConnection.connectionState === "failed" || peerConnection.connectionState === "closed") {
                 handleCallEnded();
             }
@@ -6302,6 +6344,7 @@ document.addEventListener("DOMContentLoaded", function () {
             if (localVideo && type === "video") {
                 localVideo.srcObject = localStream;
                 if (localVideoContainer) localVideoContainer.style.display = "block";
+                localVideo.play().catch(e => console.warn("caller localVideo play error:", e));
             }
 
             setupPeerConnection(activeCallPeerId, activeCallConvId, 0);
@@ -6569,6 +6612,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (localVideo && activeCallType === "video") {
                     localVideo.srcObject = localStream;
                     if (localVideoContainer) localVideoContainer.style.display = "block";
+                    localVideo.play().catch(e => console.warn("callee localVideo play error:", e));
                 }
 
                 setupPeerConnection(activeCallPeerId, activeCallConvId, activeCallId);
@@ -6584,7 +6628,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 while (pendingIceCandidates.length > 0) {
                     const cand = pendingIceCandidates.shift();
-                    peerConnection.addIceCandidate(new RTCIceCandidate(cand)).catch(console.error);
+                    if (cand) {
+                        peerConnection.addIceCandidate(new RTCIceCandidate(cand)).catch(e => {
+                            console.warn("Drain callee ice candidate error:", e);
+                        });
+                    }
                 }
 
                 const answer = await peerConnection.createAnswer();
@@ -6630,6 +6678,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let isUserInGroupCall = false;
     let currentGroupCallType = "audio";
     let groupPeerConnections = {}; // peerUserId -> RTCPeerConnection
+    let groupPendingIceCandidates = {}; // peerUserId -> array of RTCIceCandidate objects
     let groupLocalStream = null;
     let groupCallTimerInterval = null;
     let groupCallDurationSeconds = 0;
@@ -6786,6 +6835,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
         const pc = new RTCPeerConnection({ iceServers: iceServersConfig });
         groupPeerConnections[peerId] = pc;
+        pc._remoteStream = null;
 
         pc.onicecandidate = function (event) {
             if (event.candidate && socket && socketConnected) {
@@ -6800,10 +6850,32 @@ document.addEventListener("DOMContentLoaded", function () {
         };
 
         pc.ontrack = function (event) {
-            if (event.streams && event.streams[0]) {
+            let stream = (event.streams && event.streams[0]) || null;
+            if (!stream) {
+                stream = pc._remoteStream || new MediaStream();
+                if (event.track) stream.addTrack(event.track);
+            }
+            pc._remoteStream = stream;
+
+            const peerVideo = document.getElementById(`groupVideo_${peerId}`);
+            if (peerVideo) {
+                peerVideo.srcObject = stream;
+                const playPromise = peerVideo.play();
+                if (playPromise !== undefined) {
+                    playPromise.catch(e => {
+                        console.warn("Group peerVideo unmuted autoplay deferred:", e);
+                        peerVideo.muted = true;
+                        peerVideo.play().catch(err => console.error("Muted group play error:", err));
+                    });
+                }
+            }
+        };
+
+        pc.oniceconnectionstatechange = function () {
+            if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
                 const peerVideo = document.getElementById(`groupVideo_${peerId}`);
-                if (peerVideo) {
-                    peerVideo.srcObject = event.streams[0];
+                if (peerVideo && peerVideo.srcObject && peerVideo.paused) {
+                    peerVideo.play().catch(() => {});
                 }
             }
         };
@@ -6848,6 +6920,20 @@ document.addEventListener("DOMContentLoaded", function () {
                     type: "offer",
                     sdp: data.sdp
                 }));
+
+                // Drain any queued ICE candidates received before remoteDescription was set
+                if (groupPendingIceCandidates[peerId] && groupPendingIceCandidates[peerId].length > 0) {
+                    const queue = groupPendingIceCandidates[peerId];
+                    groupPendingIceCandidates[peerId] = [];
+                    for (const cand of queue) {
+                        try {
+                            await pc.addIceCandidate(new RTCIceCandidate(cand));
+                        } catch (e) {
+                            console.warn("Error adding queued group ICE candidate:", e);
+                        }
+                    }
+                }
+
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
 
@@ -6871,17 +6957,37 @@ document.addEventListener("DOMContentLoaded", function () {
                         type: "answer",
                         sdp: data.sdp
                     }));
+
+                    // Drain any queued ICE candidates received before remoteDescription was set
+                    if (groupPendingIceCandidates[peerId] && groupPendingIceCandidates[peerId].length > 0) {
+                        const queue = groupPendingIceCandidates[peerId];
+                        groupPendingIceCandidates[peerId] = [];
+                        for (const cand of queue) {
+                            try {
+                                await pc.addIceCandidate(new RTCIceCandidate(cand));
+                            } catch (e) {
+                                console.warn("Error adding queued group ICE candidate:", e);
+                            }
+                        }
+                    }
                 } catch (err) {
                     console.error("Error setting remote description for answer:", err);
                 }
             }
         } else if (data.signal_type === "ice_candidate") {
             const pc = groupPeerConnections[peerId];
-            if (pc && data.candidate) {
-                try {
-                    await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-                } catch (err) {
-                    console.error("Error adding ice candidate:", err);
+            if (data.candidate) {
+                if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    } catch (err) {
+                        console.warn("Error adding group ice candidate:", err);
+                    }
+                } else {
+                    if (!groupPendingIceCandidates[peerId]) {
+                        groupPendingIceCandidates[peerId] = [];
+                    }
+                    groupPendingIceCandidates[peerId].push(data.candidate);
                 }
             }
         }
@@ -6916,6 +7022,18 @@ document.addEventListener("DOMContentLoaded", function () {
                 </div>
             `;
             groupCallVideoGrid.appendChild(tile);
+
+            // Connect existing stream if tracks arrived before tile rendering
+            const pc = groupPeerConnections[p.user_id];
+            if (pc && pc._remoteStream) {
+                const peerVideo = tile.querySelector(`#groupVideo_${p.user_id}`);
+                if (peerVideo) {
+                    peerVideo.srcObject = pc._remoteStream;
+                    if (!p.is_cam_off) {
+                        peerVideo.play().catch(e => console.warn("Group tile play error:", e));
+                    }
+                }
+            }
         } else {
             updateRemoteParticipantState(p.user_id, p.is_muted, p.is_cam_off, p.is_speaking);
         }
@@ -6937,6 +7055,9 @@ document.addEventListener("DOMContentLoaded", function () {
             } else {
                 videoEl.style.display = "block";
                 avatarEl.style.display = "none";
+                if (videoEl.paused && videoEl.srcObject) {
+                    videoEl.play().catch(e => console.warn("Play on unhide:", e));
+                }
             }
         }
 
@@ -6951,6 +7072,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function removeRemoteParticipantTile(userId) {
         const tile = document.getElementById(`groupTile_${userId}`);
         if (tile) tile.remove();
+        delete groupPendingIceCandidates[userId];
     }
 
     function updateGroupRoster(participants) {
@@ -7074,6 +7196,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     groupLocalVideo.srcObject = groupLocalStream;
                     groupLocalVideo.style.display = "block";
                     if (groupLocalAvatar) groupLocalAvatar.style.display = "none";
+                    groupLocalVideo.play().catch(e => console.warn("groupLocalVideo play error:", e));
                 } else {
                     groupLocalVideo.style.display = "none";
                     if (groupLocalAvatar) groupLocalAvatar.style.display = "block";
@@ -7142,6 +7265,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     groupLocalVideo.srcObject = groupLocalStream;
                     groupLocalVideo.style.display = "block";
                     if (groupLocalAvatar) groupLocalAvatar.style.display = "none";
+                    groupLocalVideo.play().catch(e => console.warn("groupLocalVideo play error:", e));
                 } else {
                     groupLocalVideo.style.display = "none";
                     if (groupLocalAvatar) groupLocalAvatar.style.display = "block";
@@ -7229,6 +7353,7 @@ document.addEventListener("DOMContentLoaded", function () {
             } catch (e) {}
         }
         groupPeerConnections = {};
+        groupPendingIceCandidates = {};
 
         if (groupCallVideoGrid) {
             const remoteTiles = groupCallVideoGrid.querySelectorAll(".group-video-tile:not(#groupTile_local)");
@@ -10152,7 +10277,31 @@ document.addEventListener("DOMContentLoaded", function () {
         newUrl.searchParams.delete("call_id");
         window.history.replaceState({}, document.title, newUrl.pathname + newUrl.search);
 
-        // If this is an incoming call opened from notification click
+        // If this is an incoming call opened from cross-page navigation or notification click
+        const roleParam = (urlParams.get("role") || "").toLowerCase();
+        let savedOffer = null;
+        try {
+            const raw = sessionStorage.getItem("pendingCallOffer");
+            if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && (Date.now() - (parsed.accepted_at || 0) < 45000)) {
+                    savedOffer = parsed;
+                }
+                sessionStorage.removeItem("pendingCallOffer");
+            }
+        } catch (e) {}
+
+        if (savedOffer && savedOffer.sdp && (!incomingCallId || savedOffer.call_id == incomingCallId)) {
+            pendingOfferData = savedOffer;
+            showChatNotification("Connecting to incoming call...", true);
+            setTimeout(() => {
+                if (acceptCallBtn) {
+                    acceptCallBtn.click();
+                }
+            }, 300);
+            return;
+        }
+
         if (incomingCallId) {
             try {
                 const resp = await fetch(`/messages/call/status?call_id=${incomingCallId}`);

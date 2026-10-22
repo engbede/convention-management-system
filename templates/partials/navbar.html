@@ -402,6 +402,11 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     function connectGlobalSocket() {
+        // Chat and messages page manages its own dedicated WebSocket and in-call signaling
+        if (window.location.pathname.startsWith('/messages')) {
+            return;
+        }
+
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
 
@@ -564,7 +569,13 @@ document.addEventListener("DOMContentLoaded", function() {
                     if (bsModal) bsModal.hide();
                 }
                 if (globalCallOfferData) {
-                    window.location.href = `/messages?c=${globalCallOfferData.conversation_id}&autocall=${globalCallOfferData.call_type || 'audio'}`;
+                    try {
+                        sessionStorage.setItem("pendingCallOffer", JSON.stringify({
+                            ...globalCallOfferData,
+                            accepted_at: Date.now()
+                        }));
+                    } catch(e) {}
+                    window.location.href = `/messages?c=${globalCallOfferData.conversation_id}&call_id=${globalCallOfferData.call_id}&role=callee&autocall=${globalCallOfferData.call_type || 'audio'}`;
                 }
             });
         }

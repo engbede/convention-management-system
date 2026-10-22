@@ -3458,5 +3458,220 @@ func TestChatTemplate_AllCallingAndVoiceControlsRendered(t *testing.T) {
 	}
 }
 
+func TestDirectVideoCall_OfferAnswerAndSignalingFlow(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Seed users and direct conversation
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, created_by) VALUES (50, 'direct', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (50, 1, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (50, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed conversation: %v", err)
+	}
+
+	// 1. Caller initiates video call
+	expiresAt := time.Now().Add(45 * time.Second)
+	callLog := &models.CallLog{
+		ConversationID: 50,
+		CallerID:       1,
+		ReceiverID:     2,
+		CallType:       "video",
+		Status:         "initiated",
+		ExpiresAt:      &expiresAt,
+	}
+	if err := repository.CreateCallLog(callLog); err != nil {
+		t.Fatalf("CreateCallLog failed for video call: %v", err)
+	}
+	if callLog.ID <= 0 {
+		t.Fatalf("Expected positive CallID, got %d", callLog.ID)
+	}
+	if callLog.CallType != "video" {
+		t.Errorf("Expected CallType 'video', got %q", callLog.CallType)
+	}
+
+	// 2. Callee accepts and status moves to connected
+	if err := repository.UpdateCallLogStatus(callLog.ID, "connected"); err != nil {
+		t.Fatalf("Failed updating call status to connected: %v", err)
+	}
+
+	cl, err := repository.GetCallLogByID(callLog.ID)
+	if err != nil || cl == nil {
+		t.Fatalf("Failed retrieving call log: %v", err)
+	}
+	if cl.Status != "connected" {
+		t.Errorf("Expected status 'connected', got %q", cl.Status)
+	}
+
+	// 3. Complete call via LogCallAPI
+	logReq := httptest.NewRequest(http.MethodPost, "/messages/call/log", strings.NewReader(fmt.Sprintf(`{"call_id": %d, "status": "completed", "duration_seconds": 180}`, callLog.ID)))
+	logReq.Header.Set("Content-Type", "application/json")
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(logReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(logReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		logReq.AddCookie(cookie)
+	}
+
+	logRR := httptest.NewRecorder()
+	LogCallAPI(logRR, logReq)
+	if logRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from LogCallAPI, got %d (body: %s)", logRR.Code, logRR.Body.String())
+	}
+
+	finalLog, err := repository.GetCallLogByID(callLog.ID)
+	if err != nil || finalLog == nil {
+		t.Fatalf("Failed retrieving final call log: %v", err)
+	}
+	if finalLog.Status != "completed" {
+		t.Errorf("Expected completed status, got %q", finalLog.Status)
+	}
+	if finalLog.DurationSeconds != 180 {
+		t.Errorf("Expected duration 180, got %d", finalLog.DurationSeconds)
+	}
+}
+
+func TestGroupVideoCall_MeshSignalingAndRoster(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Seed community group conversation
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, title, created_by) VALUES (60, 'group', 'Video Fellowship', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (60, 1, 'owner');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (60, 2, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (60, 3, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed group conversation: %v", err)
+	}
+
+	// 1. User 1 initiates group video call
+	room, err := services.GlobalGroupCallManager.StartGroupCall(60, 1, "video")
+	if err != nil {
+		t.Fatalf("StartGroupCall failed: %v", err)
+	}
+	if room.CallType != "video" {
+		t.Errorf("Expected room call type 'video', got %q", room.CallType)
+	}
+	if len(room.Participants) != 1 {
+		t.Errorf("Expected 1 initial participant, got %d", len(room.Participants))
+	}
+
+	// 2. User 2 and User 3 join
+	_, p2, err := services.GlobalGroupCallManager.JoinGroupCall(60, 2)
+	if err != nil {
+		t.Fatalf("User 2 join failed: %v", err)
+	}
+	if p2.IsCamOff {
+		t.Errorf("Expected User 2 camera to be on for video call, got IsCamOff=true")
+	}
+
+	_, p3, err := services.GlobalGroupCallManager.JoinGroupCall(60, 3)
+	if err != nil {
+		t.Fatalf("User 3 join failed: %v", err)
+	}
+	if p3.UserID != 3 {
+		t.Errorf("Expected User 3 info, got ID %d", p3.UserID)
+	}
+
+	// 3. Verify AreParticipantsInCall for mesh pairs
+	callID, inCall := services.GlobalGroupCallManager.AreParticipantsInCall(60, 1, 2)
+	if !inCall || callID <= 0 {
+		t.Errorf("Expected User 1 and User 2 to be in active group call, got inCall=%v callID=%d", inCall, callID)
+	}
+	_, inCall2 := services.GlobalGroupCallManager.AreParticipantsInCall(60, 1, 3)
+	if !inCall2 {
+		t.Errorf("Expected User 1 and User 3 to be in active group call")
+	}
+	_, inCallNonMember := services.GlobalGroupCallManager.AreParticipantsInCall(60, 1, 999)
+	if inCallNonMember {
+		t.Errorf("Expected non-participant 999 to return false for AreParticipantsInCall")
+	}
+
+	// 4. Update media state (toggle camera and mute)
+	updatedParticipant, err := services.GlobalGroupCallManager.UpdateParticipantMediaState(60, 2, true, true, false)
+	if err != nil {
+		t.Fatalf("UpdateParticipantMediaState failed: %v", err)
+	}
+	if !updatedParticipant.IsMuted || !updatedParticipant.IsCamOff {
+		t.Errorf("Expected participant 2 to be muted and camera off")
+	}
+
+	// 5. End group call by owner
+	endedRoom, err := services.GlobalGroupCallManager.EndGroupCall(60, 1)
+	if err != nil {
+		t.Fatalf("EndGroupCall failed: %v", err)
+	}
+	if endedRoom == nil {
+		t.Fatalf("Expected ended room return")
+	}
+
+	_, stillActive := services.GlobalGroupCallManager.GetActiveGroupCall(60)
+	if stillActive {
+		t.Errorf("Expected group call room to be removed from active manager")
+	}
+}
+
+func TestChatTemplate_GroupVideoCallingControlsRendered(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// Seed users and group conversation
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, title, created_by) VALUES (70, 'group', 'Youth Praise Team', 1);
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (70, 1, 'owner');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (70, 2, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed group conversation: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/messages?c=70", nil)
+	initReq := httptest.NewRequest(http.MethodGet, "/messages", nil)
+	saveRec := httptest.NewRecorder()
+	session, _ := sessions.Store.Get(initReq, "youth-community")
+	session.Values["user_id"] = 1
+	_ = session.Save(initReq, saveRec)
+	for _, cookie := range saveRec.Result().Cookies() {
+		req.AddCookie(cookie)
+	}
+
+	rr := httptest.NewRecorder()
+	ChatInbox(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from ChatInbox, got %d", rr.Code)
+	}
+
+	html := rr.Body.String()
+
+	// Verify group call modal, grid, controls, and incoming call UI
+	expectedGroupIDs := []string{
+		`id="startGroupVideoCallBtn"`,
+		`id="startGroupAudioCallBtn"`,
+		`id="chatGroupCallDropdownBtn"`,
+		`id="groupCallModal"`,
+		`id="groupCallVideoGrid"`,
+		`id="groupLocalVideo"`,
+		`id="groupLocalAvatar"`,
+		`id="groupToggleMicBtn"`,
+		`id="groupToggleCamBtn"`,
+		`id="groupLeaveCallBtn"`,
+		`id="incomingGroupCallModal"`,
+		`id="activeGroupCallBanner"`,
+	}
+
+	for _, expectedID := range expectedGroupIDs {
+		if !strings.Contains(html, expectedID) {
+			t.Errorf("Expected group chat.html to render %s, but was not found", expectedID)
+		}
+	}
+}
+
+
 
 

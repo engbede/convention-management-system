@@ -618,27 +618,20 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			convID = client.SubscribedConvID
 		}
 		if convID > 0 && event.TargetUserID > 0 {
-			room, exists := GlobalGroupCallManager.GetActiveGroupCall(convID)
-			if exists {
-				GlobalGroupCallManager.mu.RLock()
-				_, senderInRoom := room.Participants[client.UserID]
-				_, targetInRoom := room.Participants[event.TargetUserID]
-				GlobalGroupCallManager.mu.RUnlock()
-
-				if senderInRoom && targetInRoom {
-					h.BroadcastToUser(event.TargetUserID, WSEvent{
-						Type:           "group_call_signal",
-						ConversationID: convID,
-						UserID:         client.UserID,
-						Username:       client.Username,
-						CallerName:     client.FullName,
-						TargetUserID:   event.TargetUserID,
-						CallID:         room.CallID,
-						SignalType:     event.SignalType,
-						SDP:            event.SDP,
-						Candidate:      event.Candidate,
-					})
-				}
+			callID, inCall := GlobalGroupCallManager.AreParticipantsInCall(convID, client.UserID, event.TargetUserID)
+			if inCall {
+				h.BroadcastToUser(event.TargetUserID, WSEvent{
+					Type:           "group_call_signal",
+					ConversationID: convID,
+					UserID:         client.UserID,
+					Username:       client.Username,
+					CallerName:     client.FullName,
+					TargetUserID:   event.TargetUserID,
+					CallID:         callID,
+					SignalType:     event.SignalType,
+					SDP:            event.SDP,
+					Candidate:      event.Candidate,
+				})
 			}
 		}
 

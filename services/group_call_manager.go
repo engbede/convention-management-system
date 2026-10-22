@@ -478,3 +478,21 @@ func (m *GroupCallManager) GetActiveGroupCall(convID int) (*models.GroupCallRoom
 	room, exists := m.rooms[convID]
 	return room, exists
 }
+
+// AreParticipantsInCall atomically checks if all provided users are actively in the group call.
+// Returns the call ID and true if all specified users are in the room.
+func (m *GroupCallManager) AreParticipantsInCall(convID int, userIDs ...int) (int, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	room, exists := m.rooms[convID]
+	if !exists || room == nil {
+		return 0, false
+	}
+	for _, uid := range userIDs {
+		if _, ok := room.Participants[uid]; !ok {
+			return 0, false
+		}
+	}
+	return room.CallID, true
+}
