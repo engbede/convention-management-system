@@ -159,6 +159,20 @@ func GetCallStatusAPI(w http.ResponseWriter, r *http.Request) {
 		isActive = false
 		_ = repository.UpdateCallLog(callID, "missed", 0)
 		callLog.Status = "missed"
+		services.RemoveStoredCallOffer(callID)
+	}
+
+	callerName := ""
+	callerAvatar := ""
+	sdp := ""
+
+	if storedOffer, ok := services.GetStoredCallOffer(callID); ok && storedOffer != nil {
+		callerName = storedOffer.CallerName
+		callerAvatar = storedOffer.CallerAvatar
+		sdp = storedOffer.SDP
+	} else if callerUser, uErr := repository.GetUserByID(callLog.CallerID); uErr == nil && callerUser.ID != 0 {
+		callerName = callerUser.FullName
+		callerAvatar = callerUser.ProfilePhoto
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -166,10 +180,13 @@ func GetCallStatusAPI(w http.ResponseWriter, r *http.Request) {
 		"call_id":         callLog.ID,
 		"conversation_id": callLog.ConversationID,
 		"caller_id":       callLog.CallerID,
+		"caller_name":     callerName,
+		"caller_avatar":   callerAvatar,
 		"receiver_id":     callLog.ReceiverID,
 		"call_type":       callLog.CallType,
 		"status":          callLog.Status,
 		"is_active":       isActive,
+		"sdp":             sdp,
 		"started_at":      callLog.StartedAt,
 		"expires_at":      callLog.ExpiresAt,
 	})

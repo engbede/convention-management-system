@@ -31,7 +31,7 @@ func setupTestDB(t *testing.T) func() {
 		_ = os.Chdir("..")
 	}
 
-	testDBPath := "test_handlers.db"
+	testDBPath := fmt.Sprintf("test_handlers_%d_%d.db", os.Getpid(), time.Now().UnixNano())
 	_ = os.Remove(testDBPath)
 
 	db, err := sql.Open("sqlite3", testDBPath)
@@ -3492,6 +3492,45 @@ func TestDirectVideoCall_OfferAnswerAndSignalingFlow(t *testing.T) {
 		t.Errorf("Expected CallType 'video', got %q", callLog.CallType)
 	}
 
+	// 1b. Verify call offer storage and retrieval via GetCallStatusAPI
+	services.StoreCallOffer(&services.StoredCallOffer{
+		CallID:         callLog.ID,
+		ConversationID: 50,
+		CallerID:       1,
+		ReceiverID:     2,
+		CallerName:     "User One",
+		CallerAvatar:   "",
+		CallType:       "video",
+		SDP:            "v=0\r\no=- 12345 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n",
+		CreatedAt:      time.Now(),
+		ExpiresAt:      expiresAt,
+	})
+
+	// User 2 (callee) retrieves call status and stored offer
+	statusReq := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/messages/call/status?call_id=%d", callLog.ID), nil)
+	statusRec := httptest.NewRecorder()
+	sessionCallee, _ := sessions.Store.Get(statusReq, "youth-community")
+	sessionCallee.Values["user_id"] = 2
+	_ = sessionCallee.Save(statusReq, statusRec)
+	for _, cookie := range statusRec.Result().Cookies() {
+		statusReq.AddCookie(cookie)
+	}
+	statusRR := httptest.NewRecorder()
+	GetCallStatusAPI(statusRR, statusReq)
+	if statusRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from GetCallStatusAPI for callee, got %d", statusRR.Code)
+	}
+	var statusResult map[string]any
+	if err := json.Unmarshal(statusRR.Body.Bytes(), &statusResult); err != nil {
+		t.Fatalf("Failed to decode status response: %v", err)
+	}
+	if !statusResult["is_active"].(bool) {
+		t.Errorf("Expected call to be active")
+	}
+	if sdpVal, _ := statusResult["sdp"].(string); !strings.Contains(sdpVal, "m=video") {
+		t.Errorf("Expected SDP offer in status response for video call, got %v", statusResult["sdp"])
+	}
+
 	// 2. Callee accepts and status moves to connected
 	if err := repository.UpdateCallLogStatus(callLog.ID, "connected"); err != nil {
 		t.Fatalf("Failed updating call status to connected: %v", err)
@@ -3679,6 +3718,18 @@ func TestChatTemplate_GroupVideoCallingControlsRendered(t *testing.T) {
 	// Verify remoteAudio is rendered in activeCallModal
 	if !strings.Contains(html, `id="remoteAudio"`) {
 		t.Errorf("Expected remoteAudio element to be rendered in activeCallModal")
+	}
+
+	// Verify safeSendSocket and video restoration logic in template
+	expectedJSLogic := []string{
+		"safeSendSocket",
+		"directRemoteStream",
+		"attachLocalStreamToAllGroupPeers",
+	}
+	for _, logicToken := range expectedJSLogic {
+		if !strings.Contains(html, logicToken) {
+			t.Errorf("Expected chat.html script to contain %q, but not found", logicToken)
+		}
 	}
 }
 

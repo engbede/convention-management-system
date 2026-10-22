@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"convention-management-system/database"
 	"convention-management-system/repository"
@@ -15,7 +16,7 @@ import (
 
 func setupGroupCallTestDB(t *testing.T) (func(), int, []int) {
 	t.Helper()
-	testDBPath := "test_group_call.db"
+	testDBPath := fmt.Sprintf("test_group_call_%d_%d.db", os.Getpid(), time.Now().UnixNano())
 	_ = os.Remove(testDBPath)
 
 	db, err := sql.Open("sqlite3", testDBPath)

@@ -188,13 +188,28 @@ func (h *ChatHub) Subscribe(client *WSClient, conversationID int) error {
 
 // BroadcastToConversation broadcasts an event to all participants of a conversation who are connected.
 func (h *ChatHub) BroadcastToConversation(conversationID int, event WSEvent) {
+	members, err := repository.GetConversationMembers(conversationID)
+	memberMap := make(map[int]bool)
+	if err == nil {
+		for _, m := range members {
+			memberMap[m.UserID] = true
+		}
+	} else {
+		// Fallback check if error
+		h.mu.RLock()
+		for userID := range h.clients {
+			if isM, mErr := repository.IsConversationMember(conversationID, userID); mErr == nil && isM {
+				memberMap[userID] = true
+			}
+		}
+		h.mu.RUnlock()
+	}
+
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
 	for userID, userClients := range h.clients {
-		// Check membership
-		isMember, err := repository.IsConversationMember(conversationID, userID)
-		if err == nil && isMember {
+		if memberMap[userID] {
 			for client := range userClients {
 				go func(c *WSClient) {
 					_ = c.Send(event)
@@ -379,9 +394,23 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 
 		callerUser, _ := repository.GetUserByID(client.UserID)
 		avatar := ""
-		if callerUser.ProfilePhoto != "" {
+		if callerUser.ID != 0 && callerUser.ProfilePhoto != "" {
 			avatar = callerUser.ProfilePhoto
 		}
+
+		// Store active call offer in memory so callee can retrieve it across navigation or push notifications
+		StoreCallOffer(&StoredCallOffer{
+			CallID:         callLog.ID,
+			ConversationID: convID,
+			CallerID:       client.UserID,
+			ReceiverID:     targetUserID,
+			CallerName:     client.FullName,
+			CallerAvatar:   avatar,
+			CallType:       callType,
+			SDP:            event.SDP,
+			CreatedAt:      time.Now(),
+			ExpiresAt:      expiresAt,
+		})
 
 		// Send real-time WebSocket event to active recipient sessions
 		if isOnline {
@@ -420,7 +449,7 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			CallType:       callType,
 			Title:          fmt.Sprintf("Incoming %s call", callType),
 			Body:           fmt.Sprintf("%s is calling on Youth Community...", client.FullName),
-			URL:            fmt.Sprintf("/messages?c=%d&call_id=%d&autocall=%s", convID, callLog.ID, callType),
+			URL:            fmt.Sprintf("/messages?c=%d&call_id=%d&role=callee&autocall=%s", convID, callLog.ID, callType),
 			Tag:            fmt.Sprintf("call-%d", callLog.ID),
 			ExpiresAt:      expiresAt.Unix(),
 		}
@@ -429,6 +458,7 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 		// Start authoritative ringing timer (45 seconds)
 		go func(cID, callerID, targetID, callID int) {
 			time.Sleep(45 * time.Second)
+			RemoveStoredCallOffer(callID)
 			cl, err := repository.GetCallLogByID(callID)
 			if err == nil && cl != nil && (cl.Status == "initiated" || cl.Status == "ringing") {
 				_ = repository.UpdateCallLog(callID, "missed", 0)
@@ -452,6 +482,7 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 
 	case "call_answer":
 		if event.CallID > 0 {
+			RemoveStoredCallOffer(event.CallID)
 			cl, err := repository.GetCallLogByID(event.CallID)
 			if err == nil && cl != nil {
 				if cl.Status != "initiated" && cl.Status != "ringing" {
@@ -496,6 +527,7 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			}
 		}
 		if event.CallID > 0 {
+			RemoveStoredCallOffer(event.CallID)
 			_ = repository.UpdateCallLog(event.CallID, "declined", 0)
 			_ = SendCallCancelPush(client.UserID, event.CallID, event.ConversationID)
 		}
@@ -516,6 +548,7 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			}
 		}
 		if event.CallID > 0 {
+			RemoveStoredCallOffer(event.CallID)
 			_ = repository.UpdateCallLog(event.CallID, "cancelled", 0)
 			_ = SendCallCancelPush(client.UserID, event.CallID, event.ConversationID)
 		}
@@ -539,6 +572,7 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			}
 		}
 		if event.CallID > 0 {
+			RemoveStoredCallOffer(event.CallID)
 			status := "completed"
 			if event.Duration == 0 {
 				status = "missed"
@@ -558,6 +592,7 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 
 	case "call_busy":
 		if event.CallID > 0 {
+			RemoveStoredCallOffer(event.CallID)
 			_ = repository.UpdateCallLog(event.CallID, "busy", 0)
 		}
 		if event.TargetUserID > 0 {

@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -92,6 +93,17 @@ func (m *GroupCallManager) StartGroupCall(convID, initiatorID int, callType stri
 	_, _ = repository.AddCallParticipant(callLog.ID, initiatorID)
 
 	initiatorUser, _ := repository.GetUserByID(initiatorID)
+	initiatorFullName := "Member"
+	initiatorUsername := ""
+	initiatorAvatar := ""
+	if initiatorUser.ID != 0 {
+		if initiatorUser.FullName != "" {
+			initiatorFullName = initiatorUser.FullName
+		}
+		initiatorUsername = initiatorUser.Username
+		initiatorAvatar = initiatorUser.ProfilePhoto
+	}
+
 	initiatorMember, _ := repository.GetConversationMember(convID, initiatorID)
 	role := "member"
 	if initiatorMember != nil && initiatorMember.Role != "" {
@@ -100,9 +112,9 @@ func (m *GroupCallManager) StartGroupCall(convID, initiatorID int, callType stri
 
 	initiatorInfo := &models.CallParticipantInfo{
 		UserID:       initiatorID,
-		FullName:     initiatorUser.FullName,
-		Username:     initiatorUser.Username,
-		ProfilePhoto: initiatorUser.ProfilePhoto,
+		FullName:     initiatorFullName,
+		Username:     initiatorUsername,
+		ProfilePhoto: initiatorAvatar,
 		Role:         role,
 		JoinedAt:     time.Now(),
 		IsMuted:      false,
@@ -120,7 +132,7 @@ func (m *GroupCallManager) StartGroupCall(convID, initiatorID int, callType stri
 		ConversationID: convID,
 		Title:          groupTitle,
 		InitiatorID:    initiatorID,
-		InitiatorName:  initiatorUser.FullName,
+		InitiatorName:  initiatorFullName,
 		CallType:       callType,
 		StartedAt:      time.Now(),
 		Participants: map[int]*models.CallParticipantInfo{
@@ -131,10 +143,6 @@ func (m *GroupCallManager) StartGroupCall(convID, initiatorID int, callType stri
 	m.rooms[convID] = room
 
 	// Post system message to the chat
-	initiatorName := initiatorUser.FullName
-	if initiatorName == "" {
-		initiatorName = "Member"
-	}
 	callName := "audio"
 	if callType == "video" {
 		callName = "video"
@@ -143,7 +151,7 @@ func (m *GroupCallManager) StartGroupCall(convID, initiatorID int, callType stri
 		ConversationID: convID,
 		SenderID:       initiatorID,
 		MessageType:    "system",
-		Body:           fmt.Sprintf("%s started a group %s call.", initiatorName, callName),
+		Body:           fmt.Sprintf("%s started a group %s call.", initiatorFullName, callName),
 	}
 	_ = repository.SaveMessage(sysMsg)
 
@@ -154,13 +162,37 @@ func (m *GroupCallManager) StartGroupCall(convID, initiatorID int, callType stri
 		CallID:         callLog.ID,
 		CallType:       callType,
 		UserID:         initiatorID,
-		Username:       initiatorUser.Username,
-		CallerName:     initiatorName,
-		CallerAvatar:   initiatorUser.ProfilePhoto,
+		Username:       initiatorUsername,
+		CallerName:     initiatorFullName,
+		CallerAvatar:   initiatorAvatar,
 		GroupTitle:     groupTitle,
 		Room:           room,
 		Message:        sysMsg,
 	})
+
+	// Dispatch background web push notifications to other conversation members
+	go func(cID, initID, callLogID int, cName, cAvatar, cType, gTitle string) {
+		members, err := repository.GetConversationMembers(cID)
+		if err == nil {
+			for _, m := range members {
+				if m.UserID != initID {
+					_ = SendCallPushNotification(m.UserID, &models.CallNotificationPayload{
+						Type:           "call_offer",
+						CallID:         callLogID,
+						ConversationID: cID,
+						CallerID:       initID,
+						CallerName:     cName,
+						CallerAvatar:   cAvatar,
+						CallType:       cType,
+						Title:          fmt.Sprintf("Group %s Call in %s", strings.Title(cType), gTitle),
+						Body:           fmt.Sprintf("%s started a group %s call in %s. Tap to join.", cName, cType, gTitle),
+						URL:            fmt.Sprintf("/messages?c=%d&autocall=%s", cID, cType),
+						Tag:            fmt.Sprintf("group-call-%d", callLogID),
+					})
+				}
+			}
+		}
+	}(convID, initiatorID, callLog.ID, initiatorFullName, initiatorAvatar, callType, groupTitle)
 
 	return room, nil
 }

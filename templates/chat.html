@@ -5526,6 +5526,27 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    // Safe WebSocket dispatch preventing InvalidStateError during connection handshakes
+    function safeSendSocket(messageObj) {
+        if (!socket) return false;
+        if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify(messageObj));
+            return true;
+        } else if (socket.readyState === WebSocket.CONNECTING) {
+            const pendingSender = function () {
+                try {
+                    socket.send(JSON.stringify(messageObj));
+                } catch (e) {
+                    console.warn("Deferred WebSocket send error:", e);
+                }
+                socket.removeEventListener("open", pendingSender);
+            };
+            socket.addEventListener("open", pendingSender);
+            return true;
+        }
+        return false;
+    }
+
     // Connect WebSocket
     function connectWebSocket() {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -5874,7 +5895,16 @@ document.addEventListener("DOMContentLoaded", function () {
                                 "badge bg-success-subtle text-success border border-success-subtle rounded-pill mx-auto mb-4 px-3 py-2";
                         }
                         startCallChime();
+                        startChatBackgroundCallAlert(data.caller_name, `group_${data.call_type || 'audio'}`, data.caller_avatar, data.call_id, data.conversation_id);
                         if (incomingGroupCallModal) incomingGroupCallModal.show();
+
+                        clearTimeout(incomingGroupCallRingTimeout);
+                        incomingGroupCallRingTimeout = setTimeout(() => {
+                            stopCallChime();
+                            stopChatBackgroundCallAlert();
+                            if (incomingGroupCallModal) incomingGroupCallModal.hide();
+                            pendingIncomingGroupCall = null;
+                        }, 35000);
                     }
                     break;
 
@@ -6034,6 +6064,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let isCamOff = false;
     let outgoingCallRingTimeout = null;
     let incomingCallRingTimeout = null;
+    let incomingGroupCallRingTimeout = null;
 
     // Fetch STUN server configuration
     fetch("/messages/call/ice-servers")
@@ -6136,7 +6167,7 @@ document.addEventListener("DOMContentLoaded", function () {
         const title = `${callerName || "Member"} is calling you...`;
         const body = `Incoming ${callType === "video" ? "Video" : "Audio"} Call on Youth Community. Tap to return.`;
         const icon = avatarUrl ? (avatarUrl.startsWith("http") ? avatarUrl : `/uploads/profiles/${avatarUrl}`) : "/static/img/call-icon.png";
-        const targetUrl = convId ? `/messages?c=${convId}&autocall=${callType || 'audio'}` : '/messages';
+        const targetUrl = convId ? `/messages?c=${convId}&call_id=${callId || ''}&role=callee&autocall=${callType || 'audio'}` : '/messages';
 
         // 1. Android Chrome requires ServiceWorkerRegistration.showNotification()
         if ("serviceWorker" in navigator) {
@@ -6285,6 +6316,10 @@ document.addEventListener("DOMContentLoaded", function () {
         if (remoteAudio) {
             remoteAudio.srcObject = null;
         }
+        if (directRemoteStream) {
+            directRemoteStream.getTracks().forEach(t => t.stop());
+            directRemoteStream = new MediaStream();
+        }
         if (remoteVideo) {
             remoteVideo.srcObject = null;
             remoteVideo.muted = false;
@@ -6375,27 +6410,32 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    let directRemoteStream = new MediaStream();
+
     function setupPeerConnection(peerId, conversationId, callId) {
         peerConnection = new RTCPeerConnection({ iceServers: iceServersConfig });
+        directRemoteStream = new MediaStream();
 
         peerConnection.onicecandidate = function (event) {
-            if (event.candidate && socket && socketConnected) {
-                socket.send(JSON.stringify({
+            if (event.candidate) {
+                safeSendSocket({
                     type: "ice_candidate",
                     conversation_id: conversationId,
                     target_user_id: peerId,
                     call_id: activeCallId || callId,
                     candidate: event.candidate
-                }));
+                });
             }
         };
 
         peerConnection.ontrack = function (event) {
-            let stream = (event.streams && event.streams[0]) || null;
-            if (!stream) {
-                stream = (remoteVideo && remoteVideo.srcObject) || (remoteAudio && remoteAudio.srcObject) || new MediaStream();
-                if (event.track) stream.addTrack(event.track);
+            if (event.track) {
+                if (!directRemoteStream.getTracks().some(t => t.id === event.track.id)) {
+                    directRemoteStream.addTrack(event.track);
+                }
             }
+            const stream = (event.streams && event.streams[0]) || directRemoteStream;
+
             if (remoteAudio) {
                 if (remoteAudio.srcObject !== stream) {
                     remoteAudio.srcObject = stream;
@@ -6403,25 +6443,28 @@ document.addEventListener("DOMContentLoaded", function () {
                 remoteAudio.muted = false;
                 remoteAudio.play().catch(e => console.warn("remoteAudio play deferred:", e));
             }
+
             if (remoteVideo) {
-                if (remoteVideo.srcObject !== stream) {
+                const hasVideo = (event.track && event.track.kind === "video") ||
+                                 (stream.getVideoTracks && stream.getVideoTracks().length > 0) ||
+                                 (activeCallType === "video");
+
+                if (hasVideo) {
                     remoteVideo.srcObject = stream;
-                }
-                if (activeCallType === "video") {
                     remoteVideo.style.display = "block";
                     if (audioCallDisplay) audioCallDisplay.style.display = "none";
+                    const playPromise = remoteVideo.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(err => {
+                            console.warn("remoteVideo unmuted autoplay deferred:", err);
+                            // Autoplay fallback: play muted to display video frames immediately while remoteAudio plays audio
+                            remoteVideo.muted = true;
+                            remoteVideo.play().catch(e => console.error("Muted remoteVideo play error:", e));
+                        });
+                    }
                 } else {
                     remoteVideo.style.display = "none";
                     if (audioCallDisplay) audioCallDisplay.style.display = "block";
-                }
-                const playPromise = remoteVideo.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(err => {
-                        console.warn("remoteVideo unmuted autoplay deferred:", err);
-                        // Autoplay fallback: play muted to display video frames immediately while remoteAudio plays audio
-                        remoteVideo.muted = true;
-                        remoteVideo.play().catch(e => console.error("Muted remoteVideo play error:", e));
-                    });
                 }
             }
         };
@@ -6452,8 +6495,12 @@ document.addEventListener("DOMContentLoaded", function () {
                 clearTimeout(outgoingCallRingTimeout);
                 if (callStatusText) callStatusText.textContent = "Connected";
                 if (!callTimerInterval) startTimer();
-                if (remoteVideo && remoteVideo.srcObject && remoteVideo.paused) {
-                    remoteVideo.play().catch(() => {});
+                if (activeCallType === "video" && remoteVideo) {
+                    remoteVideo.style.display = "block";
+                    if (audioCallDisplay) audioCallDisplay.style.display = "none";
+                    if (remoteVideo.paused && remoteVideo.srcObject) {
+                        remoteVideo.play().catch(() => {});
+                    }
                 }
                 if (localVideo && localVideo.srcObject && localVideo.paused) {
                     localVideo.play().catch(() => {});
@@ -6522,13 +6569,13 @@ document.addEventListener("DOMContentLoaded", function () {
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
 
-            socket.send(JSON.stringify({
+            safeSendSocket({
                 type: "call_offer",
                 conversation_id: activeCallConvId,
                 target_user_id: activeCallPeerId,
                 call_type: activeCallType,
                 sdp: offer.sdp
-            }));
+            });
 
             // 35s outgoing ring timeout
             clearTimeout(outgoingCallRingTimeout);
@@ -6804,13 +6851,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
 
-                socket.send(JSON.stringify({
+                safeSendSocket({
                     type: "call_answer",
                     conversation_id: activeCallConvId,
                     target_user_id: activeCallPeerId,
                     call_id: activeCallId,
                     sdp: answer.sdp
-                }));
+                });
             } catch (err) {
                 handleMediaDeviceError(err, activeCallType, null);
             }
@@ -7028,6 +7075,21 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
+    function attachLocalStreamToAllGroupPeers() {
+        if (!groupLocalStream) return;
+        for (const peerId in groupPeerConnections) {
+            const pc = groupPeerConnections[peerId];
+            if (pc && pc.signalingState !== "closed") {
+                const senders = (typeof pc.getSenders === "function") ? pc.getSenders() : [];
+                groupLocalStream.getTracks().forEach(track => {
+                    if (!senders.some(s => s.track && s.track.id === track.id)) {
+                        pc.addTrack(track, groupLocalStream);
+                    }
+                });
+            }
+        }
+    }
+
     function setupGroupPeerConnection(peerId) {
         if (groupPeerConnections[peerId]) {
             try { groupPeerConnections[peerId].close(); } catch (e) {}
@@ -7038,14 +7100,14 @@ document.addEventListener("DOMContentLoaded", function () {
         pc._remoteStream = null;
 
         pc.onicecandidate = function (event) {
-            if (event.candidate && socket && socketConnected) {
-                socket.send(JSON.stringify({
+            if (event.candidate) {
+                safeSendSocket({
                     type: "group_call_signal",
                     conversation_id: convId,
                     target_user_id: peerId,
                     signal_type: "ice_candidate",
                     candidate: event.candidate
-                }));
+                });
             }
         };
 
@@ -7074,17 +7136,24 @@ document.addEventListener("DOMContentLoaded", function () {
             peerAudio.play().catch(e => console.warn("Group peerAudio unmuted play deferred:", e));
 
             const peerVideo = document.getElementById(`groupVideo_${peerId}`);
+            const peerAvatar = document.getElementById(`groupAvatar_${peerId}`);
+            const hasVideo = (event.track && event.track.kind === "video") ||
+                             (stream.getVideoTracks && stream.getVideoTracks().length > 0) ||
+                             (currentGroupCallType === "video");
+
             if (peerVideo) {
-                if (peerVideo.srcObject !== stream) {
-                    peerVideo.srcObject = stream;
-                }
-                const playPromise = peerVideo.play();
-                if (playPromise !== undefined) {
-                    playPromise.catch(e => {
-                        console.warn("Group peerVideo unmuted autoplay deferred:", e);
-                        peerVideo.muted = true;
-                        peerVideo.play().catch(err => console.error("Muted group play error:", err));
-                    });
+                peerVideo.srcObject = stream;
+                if (hasVideo) {
+                    peerVideo.style.display = "block";
+                    if (peerAvatar) peerAvatar.style.display = "none";
+                    const playPromise = peerVideo.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(e => {
+                            console.warn("Group peerVideo unmuted autoplay deferred:", e);
+                            peerVideo.muted = true;
+                            peerVideo.play().catch(err => console.error("Muted group play error:", err));
+                        });
+                    }
                 }
             }
         };
@@ -7103,8 +7172,11 @@ document.addEventListener("DOMContentLoaded", function () {
         };
 
         if (groupLocalStream) {
+            const senders = (typeof pc.getSenders === "function") ? pc.getSenders() : [];
             groupLocalStream.getTracks().forEach(track => {
-                pc.addTrack(track, groupLocalStream);
+                if (!senders.some(s => s.track && s.track.id === track.id)) {
+                    pc.addTrack(track, groupLocalStream);
+                }
             });
         }
 
@@ -7117,15 +7189,13 @@ document.addEventListener("DOMContentLoaded", function () {
             const offer = await pc.createOffer();
             await pc.setLocalDescription(offer);
 
-            if (socket && socketConnected) {
-                socket.send(JSON.stringify({
-                    type: "group_call_signal",
-                    conversation_id: convId,
-                    target_user_id: newcomerUserId,
-                    signal_type: "offer",
-                    sdp: offer.sdp
-                }));
-            }
+            safeSendSocket({
+                type: "group_call_signal",
+                conversation_id: convId,
+                target_user_id: newcomerUserId,
+                signal_type: "offer",
+                sdp: offer.sdp
+            });
         } catch (err) {
             console.error("Error creating offer for peer:", newcomerUserId, err);
         }
@@ -7159,15 +7229,13 @@ document.addEventListener("DOMContentLoaded", function () {
                 const answer = await pc.createAnswer();
                 await pc.setLocalDescription(answer);
 
-                if (socket && socketConnected) {
-                    socket.send(JSON.stringify({
-                        type: "group_call_signal",
-                        conversation_id: convId,
-                        target_user_id: peerId,
-                        signal_type: "answer",
-                        sdp: answer.sdp
-                    }));
-                }
+                safeSendSocket({
+                    type: "group_call_signal",
+                    conversation_id: convId,
+                    target_user_id: peerId,
+                    signal_type: "answer",
+                    sdp: answer.sdp
+                });
             } catch (err) {
                 console.error("Error responding to group call offer:", err);
             }
@@ -7468,6 +7536,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 video: callType === "video"
             });
             groupLocalStream = stream;
+            attachLocalStreamToAllGroupPeers();
         } catch (mediaErr) {
             console.error("Camera/Mic error starting group call:", mediaErr);
             if (groupCallModal) groupCallModal.hide();
@@ -7516,12 +7585,10 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         // 6. Notify server/peers via WebSocket
-        if (socket && socketConnected) {
-            socket.send(JSON.stringify({
-                type: "group_call_join",
-                conversation_id: convId
-            }));
-        }
+        safeSendSocket({
+            type: "group_call_join",
+            conversation_id: convId
+        });
     }
 
     async function joinGroupCall() {
@@ -7558,6 +7625,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 video: callType === "video"
             });
             groupLocalStream = stream;
+            attachLocalStreamToAllGroupPeers();
 
             const joinResp = await fetch("/messages/call/group/join", {
                 method: "POST",
@@ -7610,16 +7678,14 @@ document.addEventListener("DOMContentLoaded", function () {
                 updateGroupRoster(roster);
             }
 
-            if (socket && socketConnected) {
-                socket.send(JSON.stringify({
-                    type: "group_call_join",
-                    conversation_id: convId
-                }));
-            }
+            safeSendSocket({
+                type: "group_call_join",
+                conversation_id: convId
+            });
         } catch (err) {
             console.error("Camera/Mic error joining group call:", err);
             leaveGroupMeeting(false);
-            handleMediaDeviceError(err, "audio", () => joinGroupCall());
+            handleMediaDeviceError(err, currentGroupCallType || "audio", () => joinGroupCall());
         }
     }
 
@@ -7942,71 +8008,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 alert(err.message || "Failed to share message or file.");
             } finally {
                 if (sendBtn) sendBtn.disabled = false;
-                if (inCallMessageInput) inCallMessageInput.focus();
-            }
-        });
-    }
-
-    if (groupToggleMicBtn) {
-        groupToggleMicBtn.addEventListener("click", function () {
-            if (groupLocalStream) {
-                const track = groupLocalStream.getAudioTracks()[0];
-                if (track) {
-                    track.enabled = !track.enabled;
-                    groupIsMicMuted = !track.enabled;
-                    groupMicIcon.className = groupIsMicMuted ? "bi bi-mic-mute-fill fs-5 text-danger" : "bi bi-mic-fill fs-5";
-                    groupToggleMicBtn.className = groupIsMicMuted ? "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow" : "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
-                    if (groupLocalMicBadge) {
-                        groupLocalMicBadge.className = groupIsMicMuted ? "bi bi-mic-mute-fill text-danger ms-1" : "bi bi-mic-fill text-white ms-1";
-                    }
-                    sendGroupStateUpdate();
-                }
-            }
-        });
-    }
-
-    if (groupToggleCamBtn) {
-        groupToggleCamBtn.addEventListener("click", function () {
-            if (groupLocalStream) {
-                const track = groupLocalStream.getVideoTracks()[0];
-                if (track) {
-                    track.enabled = !track.enabled;
-                    groupIsCamOff = !track.enabled;
-                    groupCamIcon.className = groupIsCamOff ? "bi bi-camera-video-off-fill fs-5 text-danger" : "bi bi-camera-video-fill fs-5";
-                    groupToggleCamBtn.className = groupIsCamOff ? "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow" : "btn btn-secondary rounded-circle d-flex justify-content-center align-items-center shadow";
-                    if (groupLocalVideo && groupLocalAvatar) {
-                        if (groupIsCamOff) {
-                            groupLocalVideo.style.display = "none";
-                            groupLocalAvatar.style.display = "block";
-                        } else {
-                            groupLocalVideo.style.display = "block";
-                            groupLocalAvatar.style.display = "none";
-                        }
-                    }
-                    sendGroupStateUpdate();
-                }
-            }
-        });
-    }
-
-    const sendGroupCallLinkBtn = document.getElementById("sendGroupCallLinkBtn");
-
-    if (startGroupAudioCallBtn) {
-        startGroupAudioCallBtn.addEventListener("click", function(e) {
-            e.preventDefault();
-            hideCallDropdown("chatGroupCallDropdownBtn");
-            initiateGroupCall("audio");
-        });
-    }
-    if (startGroupVideoCallBtn) {
-        startGroupVideoCallBtn.addEventListener("click", function(e) {
-            e.preventDefault();
-            hideCallDropdown("chatGroupCallDropdownBtn");
-            initiateGroupCall("video");
-        });
-    }
-    if (sendGroupCallLinkBtn) {
-        sendGroupCallLinkBtn.addEventListener("click", function(e) {
+                if (inCallMess
             e.preventDefault();
             hideCallDropdown("chatGroupCallDropdownBtn");
             if (sendCallLinkModal) {
@@ -8047,6 +8049,9 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
     if (acceptGroupCallBtn) acceptGroupCallBtn.addEventListener("click", () => {
+        clearTimeout(incomingGroupCallRingTimeout);
+        stopCallChime();
+        stopChatBackgroundCallAlert();
         if (pendingIncomingGroupCall) {
             const targetCId = pendingIncomingGroupCall.conversation_id;
             const cType = pendingIncomingGroupCall.call_type || "audio";
@@ -8059,6 +8064,9 @@ document.addEventListener("DOMContentLoaded", function () {
         joinGroupCall();
     });
     if (declineGroupCallBtn) declineGroupCallBtn.addEventListener("click", () => {
+        clearTimeout(incomingGroupCallRingTimeout);
+        stopCallChime();
+        stopChatBackgroundCallAlert();
         if (incomingGroupCallModal) incomingGroupCallModal.hide();
         pendingIncomingGroupCall = null;
     });
@@ -10657,28 +10665,52 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        if (incomingCallId) {
-            try {
-                const resp = await fetch(`/messages/call/status?call_id=${incomingCallId}`);
-                if (!resp.ok) {
-                    showChatNotification("Call is no longer active", false);
-                    return;
-                }
-                const statusData = await resp.json();
-                if (!statusData.is_active) {
-                    if (statusData.status === "cancelled") {
-                        showChatNotification("Call was cancelled by caller", false);
-                    } else if (statusData.status === "missed") {
-                        showChatNotification("This call has expired or was missed", false);
-                    } else {
-                        showChatNotification("This call has ended", false);
+        // If callee arriving from push notification or cross-page redirect without saved offer, query authoritative status & offer
+        if (incomingCallId || roleParam === "callee") {
+            const checkCallId = incomingCallId || (savedOffer && savedOffer.call_id);
+            if (checkCallId) {
+                try {
+                    const resp = await fetch(`/messages/call/status?call_id=${checkCallId}`);
+                    if (!resp.ok) {
+                        showChatNotification("Call is no longer active", false);
+                        return;
                     }
-                    return;
+                    const statusData = await resp.json();
+                    if (!statusData.is_active) {
+                        if (statusData.status === "cancelled") {
+                            showChatNotification("Call was cancelled by caller", false);
+                        } else if (statusData.status === "missed") {
+                            showChatNotification("This call has expired or was missed", false);
+                        } else {
+                            showChatNotification("This call has ended", false);
+                        }
+                        return;
+                    }
+
+                    if (statusData.sdp) {
+                        pendingOfferData = {
+                            call_id: statusData.call_id,
+                            conversation_id: statusData.conversation_id,
+                            user_id: statusData.caller_id,
+                            caller_name: statusData.caller_name || "Member",
+                            caller_avatar: statusData.caller_avatar || "",
+                            call_type: statusData.call_type || autoCallParam || "audio",
+                            sdp: statusData.sdp
+                        };
+                        showChatNotification("Connecting to incoming call...", true);
+                        setTimeout(() => {
+                            if (acceptCallBtn) {
+                                acceptCallBtn.click();
+                            }
+                        }, 300);
+                        return;
+                    }
+                    showChatNotification("Connecting to incoming call...", true);
+                } catch (err) {
+                    console.warn("Call status check failed:", err);
                 }
-                showChatNotification("Connecting to incoming call...", true);
-            } catch (err) {
-                console.warn("Call status check failed:", err);
             }
+            // Callee must never accidentally initiate an outgoing call back to caller!
             return;
         }
 

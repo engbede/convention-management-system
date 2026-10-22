@@ -507,6 +507,17 @@ document.addEventListener("DOMContentLoaded", function() {
                         startGlobalBackgroundAlert(data.caller_name, `group_${data.call_type || 'audio'}`, data.caller_avatar, data.call_id, data.conversation_id);
                         const bsGModal = bootstrap.Modal.getInstance(gModalEl) || new bootstrap.Modal(gModalEl);
                         bsGModal.show();
+
+                        clearTimeout(globalGroupCallTimeout);
+                        globalGroupCallTimeout = setTimeout(() => {
+                            stopGlobalChime();
+                            stopGlobalBackgroundAlert();
+                            if (gModalEl && typeof bootstrap !== "undefined") {
+                                const bs = bootstrap.Modal.getInstance(gModalEl);
+                                if (bs) bs.hide();
+                            }
+                            globalGroupCallData = null;
+                        }, 35000);
                     } else if (data.type === "group_call_ended") {
                         stopGlobalChime();
                         stopGlobalBackgroundAlert();
@@ -666,6 +677,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         if (acceptGroupBtn) {
             acceptGroupBtn.addEventListener("click", function() {
+                clearTimeout(globalGroupCallTimeout);
                 stopGlobalChime();
                 stopGlobalBackgroundAlert();
                 if (groupModalEl && typeof bootstrap !== "undefined") {
@@ -680,6 +692,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
         if (dismissGroupBtn) {
             dismissGroupBtn.addEventListener("click", function() {
+                clearTimeout(globalGroupCallTimeout);
                 stopGlobalChime();
                 stopGlobalBackgroundAlert();
                 if (groupModalEl && typeof bootstrap !== "undefined") {
