@@ -3589,7 +3589,7 @@
                 <!-- Dedicated Remote Audio (guarantees crystal-clear unmuted audio playback across all browsers) -->
                 <audio id="remoteAudio" autoplay playsinline style="position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none;"></audio>
                 <!-- Remote Video -->
-                <video id="remoteVideo" class="w-100 h-100 object-fit-cover rounded-3" autoplay playsinline style="max-height: 460px; display: none;"></video>
+                <video id="remoteVideo" class="w-100 h-100 object-fit-cover rounded-3" autoplay playsinline muted style="max-height: 460px; display: none;"></video>
 
                 <!-- Audio Presentation (when video track not active) -->
                 <div id="audioCallDisplay" class="text-center p-4">
@@ -5968,8 +5968,13 @@ document.addEventListener("DOMContentLoaded", function () {
                     break;
 
                 case "group_call_signal":
-                    if (data.conversation_id === convId && isUserInGroupCall) {
-                        handleGroupCallSignal(data);
+                    if (data.conversation_id === convId) {
+                        if (isUserInGroupCall) {
+                            handleGroupCallSignal(data);
+                        } else if (isGroupCallConnecting) {
+                            console.log("[WebRTC:Group] Queuing incoming signal while connecting:", data.signal_type, "from peer:", data.user_id);
+                            queuedGroupSignals.push(data);
+                        }
                     }
                     break;
 
@@ -6549,10 +6554,26 @@ document.addEventListener("DOMContentLoaded", function () {
         if (activeCallModal) activeCallModal.show();
 
         try {
-            localStream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: type === "video"
-            });
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: type === "video"
+                });
+            } catch (camErr) {
+                if (type === "video") {
+                    console.warn("Camera access failed or unavailable, starting call with audio only:", camErr);
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                        video: false
+                    });
+                    isCamOff = true;
+                    if (camIcon) camIcon.className = "bi bi-camera-video-off-fill fs-5 text-danger";
+                    if (toggleCamBtn) toggleCamBtn.className = "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow";
+                    showChatNotification("Camera unavailable. Initiating call with audio.", false);
+                } else {
+                    throw camErr;
+                }
+            }
 
             if (localVideo && type === "video") {
                 localVideo.srcObject = localStream;
@@ -6817,10 +6838,26 @@ document.addEventListener("DOMContentLoaded", function () {
             if (activeCallModal) activeCallModal.show();
 
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    audio: true,
-                    video: activeCallType === "video"
-                });
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                        video: activeCallType === "video"
+                    });
+                } catch (camErr) {
+                    if (activeCallType === "video") {
+                        console.warn("Camera access failed or unavailable, answering call with audio only:", camErr);
+                        localStream = await navigator.mediaDevices.getUserMedia({
+                            audio: true,
+                            video: false
+                        });
+                        isCamOff = true;
+                        if (camIcon) camIcon.className = "bi bi-camera-video-off-fill fs-5 text-danger";
+                        if (toggleCamBtn) toggleCamBtn.className = "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow";
+                        showChatNotification("Camera unavailable. Connected with audio only.", false);
+                    } else {
+                        throw camErr;
+                    }
+                }
 
                 if (localVideo && activeCallType === "video") {
                     localVideo.srcObject = localStream;
@@ -6889,6 +6926,8 @@ document.addEventListener("DOMContentLoaded", function () {
     // WebRTC Multi-Party Group Audio & Video Engine
     // ==========================================
     let isUserInGroupCall = false;
+    let isGroupCallConnecting = false;
+    let queuedGroupSignals = [];
     let currentGroupCallType = "audio";
     let groupPeerConnections = {}; // peerUserId -> RTCPeerConnection
     let groupPendingIceCandidates = {}; // peerUserId -> array of RTCIceCandidate objects
@@ -7142,16 +7181,17 @@ document.addEventListener("DOMContentLoaded", function () {
                              (currentGroupCallType === "video");
 
             if (peerVideo) {
-                peerVideo.srcObject = stream;
+                if (peerVideo.srcObject !== stream) {
+                    peerVideo.srcObject = stream;
+                }
+                peerVideo.muted = true;
                 if (hasVideo) {
                     peerVideo.style.display = "block";
                     if (peerAvatar) peerAvatar.style.display = "none";
                     const playPromise = peerVideo.play();
                     if (playPromise !== undefined) {
                         playPromise.catch(e => {
-                            console.warn("Group peerVideo unmuted autoplay deferred:", e);
-                            peerVideo.muted = true;
-                            peerVideo.play().catch(err => console.error("Muted group play error:", err));
+                            console.warn("Group peerVideo autoplay warning:", e);
                         });
                     }
                 }
@@ -7206,6 +7246,16 @@ document.addEventListener("DOMContentLoaded", function () {
         if (!peerId || peerId === currentUserId) return;
 
         if (data.signal_type === "offer") {
+            // Ensure remote participant tile exists so DOM elements for video and audio are present
+            renderRemoteParticipantTile({
+                user_id: peerId,
+                full_name: data.caller_name || data.username || "Member",
+                username: data.username || "",
+                profile_photo: data.caller_avatar || "",
+                is_cam_off: false,
+                is_muted: false
+            });
+
             const pc = setupGroupPeerConnection(peerId);
             try {
                 await pc.setRemoteDescription(new RTCSessionDescription({
@@ -7531,10 +7581,27 @@ document.addEventListener("DOMContentLoaded", function () {
         // 3. Update status to connecting and acquire microphone/camera
         setGroupCallStatus("connecting");
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: callType === "video"
-            });
+            let stream = null;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: callType === "video"
+                });
+            } catch (camErr) {
+                if (callType === "video") {
+                    console.warn("Camera access failed or unavailable, starting group call with audio only:", camErr);
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                        video: false
+                    });
+                    groupIsCamOff = true;
+                    if (groupCamIcon) groupCamIcon.className = "bi bi-camera-video-off-fill fs-5 text-danger";
+                    if (groupToggleCamBtn) groupToggleCamBtn.className = "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow";
+                    showChatNotification("Camera unavailable. Started with audio.", false);
+                } else {
+                    throw camErr;
+                }
+            }
             groupLocalStream = stream;
             attachLocalStreamToAllGroupPeers();
         } catch (mediaErr) {
@@ -7548,10 +7615,12 @@ document.addEventListener("DOMContentLoaded", function () {
         isUserInGroupCall = true;
         currentGroupCallType = callType;
         groupIsMicMuted = false;
-        groupIsCamOff = (callType === "audio");
+        if (callType === "audio") {
+            groupIsCamOff = true;
+        }
 
         if (groupLocalVideo) {
-            if (callType === "video") {
+            if (callType === "video" && !groupIsCamOff) {
                 groupLocalVideo.srcObject = groupLocalStream;
                 groupLocalVideo.style.display = "block";
                 if (groupLocalAvatar) groupLocalAvatar.style.display = "none";
@@ -7591,8 +7660,15 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    async function joinGroupCall() {
-        if (!convId || !isGroupConversation) return;
+    async function joinGroupCall(targetConversationId) {
+        const targetId = targetConversationId || (pendingIncomingGroupCall && pendingIncomingGroupCall.conversation_id) || convId;
+        if (!targetId) return;
+
+        if (targetId !== convId) {
+            const cType = (pendingIncomingGroupCall && pendingIncomingGroupCall.call_type) || "video";
+            window.location.href = `/messages?c=${targetId}&autocall=${cType}`;
+            return;
+        }
 
         if (isUserInGroupCall) {
             if (groupCallModal) groupCallModal.show();
@@ -7600,6 +7676,9 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if (incomingGroupCallModal) incomingGroupCallModal.hide();
+
+        isGroupCallConnecting = true;
+        queuedGroupSignals = [];
 
         // 1. Immediately show modal in connecting state
         setGroupCallStatus("connecting");
@@ -7610,9 +7689,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
         try {
             // Check active room
-            const activeRes = await fetch(`/messages/call/group/active?conversation_id=${convId}`);
+            const activeRes = await fetch(`/messages/call/group/active?conversation_id=${targetId}`);
             const activeData = await activeRes.json();
             if (!activeData || !activeData.active) {
+                isGroupCallConnecting = false;
                 showChatNotification("No active group call found to join.", false);
                 if (groupCallModal) groupCallModal.hide();
                 return;
@@ -7620,32 +7700,53 @@ document.addEventListener("DOMContentLoaded", function () {
 
             const callType = (activeData.room && activeData.room.call_type === "video") ? "video" : "audio";
 
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: callType === "video"
-            });
+            let stream = null;
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: callType === "video"
+                });
+            } catch (camErr) {
+                if (callType === "video") {
+                    console.warn("Camera access failed or blocked, falling back to audio-only stream for group video call:", camErr);
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        audio: true,
+                        video: false
+                    });
+                    groupIsCamOff = true;
+                    if (groupCamIcon) groupCamIcon.className = "bi bi-camera-video-off-fill fs-5 text-danger";
+                    if (groupToggleCamBtn) groupToggleCamBtn.className = "btn btn-danger rounded-circle d-flex justify-content-center align-items-center shadow";
+                    showChatNotification("Camera unavailable. Joining with audio.", false);
+                } else {
+                    throw camErr;
+                }
+            }
             groupLocalStream = stream;
             attachLocalStreamToAllGroupPeers();
 
             const joinResp = await fetch("/messages/call/group/join", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ conversation_id: convId })
+                body: JSON.stringify({ conversation_id: targetId })
             });
             const joinData = await joinResp.json();
             if (!joinResp.ok || !joinData.success) {
+                isGroupCallConnecting = false;
                 showChatNotification(joinData.error || "Failed to join group call", false);
                 if (groupCallModal) groupCallModal.hide();
                 return;
             }
 
             isUserInGroupCall = true;
+            isGroupCallConnecting = false;
             currentGroupCallType = callType;
             groupIsMicMuted = false;
-            groupIsCamOff = (callType === "audio");
+            if (callType === "audio") {
+                groupIsCamOff = true;
+            }
 
             if (groupLocalVideo) {
-                if (callType === "video") {
+                if (callType === "video" && !groupIsCamOff) {
                     groupLocalVideo.srcObject = groupLocalStream;
                     groupLocalVideo.style.display = "block";
                     if (groupLocalAvatar) groupLocalAvatar.style.display = "none";
@@ -7680,16 +7781,44 @@ document.addEventListener("DOMContentLoaded", function () {
 
             safeSendSocket({
                 type: "group_call_join",
-                conversation_id: convId
+                conversation_id: targetId
             });
+
+            // Drain any group call signals that arrived while we were connecting
+            while (queuedGroupSignals.length > 0) {
+                const queuedSig = queuedGroupSignals.shift();
+                if (queuedSig) {
+                    handleGroupCallSignal(queuedSig);
+                }
+            }
+
+            // Fallback mesh handshake: if existing participants exist, ensure connections
+            if (roomObj && roomObj.participants) {
+                setTimeout(() => {
+                    if (!isUserInGroupCall) return;
+                    for (const uid in roomObj.participants) {
+                        const pId = parseInt(uid);
+                        if (pId !== currentUserId) {
+                            if (!groupPeerConnections[pId] || (groupPeerConnections[pId].connectionState !== "connected" && groupPeerConnections[pId].iceConnectionState !== "connected")) {
+                                console.log("[WebRTC:Group] Fallback initiating peer connection to existing participant:", pId);
+                                initiatePeerConnectionToNewcomer(pId);
+                            }
+                        }
+                    }
+                }, 2000);
+            }
         } catch (err) {
+            isGroupCallConnecting = false;
+            queuedGroupSignals = [];
             console.error("Camera/Mic error joining group call:", err);
             leaveGroupMeeting(false);
-            handleMediaDeviceError(err, currentGroupCallType || "audio", () => joinGroupCall());
+            handleMediaDeviceError(err, currentGroupCallType || "audio", () => joinGroupCall(targetConversationId));
         }
     }
 
     function leaveGroupMeeting(notifyServer = true) {
+        isGroupCallConnecting = false;
+        queuedGroupSignals = [];
         if (!isUserInGroupCall) return;
         isUserInGroupCall = false;
 
@@ -8008,12 +8137,35 @@ document.addEventListener("DOMContentLoaded", function () {
                 alert(err.message || "Failed to share message or file.");
             } finally {
                 if (sendBtn) sendBtn.disabled = false;
-                if (inCallMess
+                if (inCallMessageInput) inCallMessageInput.focus();
+            }
+        });
+    }
+
+    const sendGroupCallLinkBtn = document.getElementById("sendGroupCallLinkBtn");
+    if (sendGroupCallLinkBtn) {
+        sendGroupCallLinkBtn.addEventListener("click", function (e) {
             e.preventDefault();
             hideCallDropdown("chatGroupCallDropdownBtn");
             if (sendCallLinkModal) {
                 sendCallLinkModal.show();
             }
+        });
+    }
+
+    if (startGroupAudioCallBtn) {
+        startGroupAudioCallBtn.addEventListener("click", function (e) {
+            e.preventDefault();
+            hideCallDropdown("chatGroupCallDropdownBtn");
+            initiateGroupCall("audio");
+        });
+    }
+
+    if (startGroupVideoCallBtn) {
+        startGroupVideoCallBtn.addEventListener("click", function (e) {
+            e.preventDefault();
+            hideCallDropdown("chatGroupCallDropdownBtn");
+            initiateGroupCall("video");
         });
     }
 

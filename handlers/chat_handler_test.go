@@ -3725,6 +3725,10 @@ func TestChatTemplate_GroupVideoCallingControlsRendered(t *testing.T) {
 		"safeSendSocket",
 		"directRemoteStream",
 		"attachLocalStreamToAllGroupPeers",
+		"startGroupVideoCallBtn.addEventListener",
+		"startGroupAudioCallBtn.addEventListener",
+		"isGroupCallConnecting",
+		"queuedGroupSignals",
 	}
 	for _, logicToken := range expectedJSLogic {
 		if !strings.Contains(html, logicToken) {

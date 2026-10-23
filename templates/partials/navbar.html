@@ -350,7 +350,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const title = `${callerName || "Member"} is calling you...`;
         const body = `Incoming ${callType === "video" ? "Video" : "Audio"} Call on Youth Community. Tap to answer.`;
         const icon = avatarUrl ? (avatarUrl.startsWith("http") ? avatarUrl : `/uploads/profiles/${avatarUrl}`) : "/static/img/call-icon.png";
-        const targetUrl = convId ? `/messages?c=${convId}&autocall=${callType || 'audio'}` : '/messages';
+        const targetUrl = convId ? `/messages?c=${convId}&call_id=${callId || ''}&role=callee&autocall=${callType || 'audio'}` : '/messages';
 
         if ("serviceWorker" in navigator) {
             try {

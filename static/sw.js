@@ -82,7 +82,7 @@ self.addEventListener('push', event => {
         }
 
         const targetUrl = payload.url || (payload.conversation_id 
-            ? `/messages?c=${payload.conversation_id}&call_id=${callId}&autocall=${callType}` 
+            ? `/messages?c=${payload.conversation_id}&call_id=${callId}&role=callee&autocall=${callType}` 
             : '/messages');
 
         const options = {
