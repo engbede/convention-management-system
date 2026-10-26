@@ -465,6 +465,14 @@ document.addEventListener("DOMContentLoaded", function() {
                 try {
                     const data = JSON.parse(event.data);
                     if (data.type === "call_offer") {
+                        console.log("[DirectCall] 8. Recipient-side event receipt on navbar/global:", {
+                            call_id: data.call_id,
+                            call_type: data.call_type,
+                            caller_name: data.caller_name,
+                            user_id: data.user_id,
+                            target_user_id: data.target_user_id,
+                            conversation_id: data.conversation_id
+                        });
                         globalCallOfferData = data;
                         const modalEl = document.getElementById("globalIncomingCallModal");
                         if (!modalEl || typeof bootstrap === "undefined") return;
@@ -495,7 +503,10 @@ document.addEventListener("DOMContentLoaded", function() {
                         try { startGlobalBackgroundAlert(data.caller_name, data.call_type, data.caller_avatar, data.call_id, data.conversation_id); } catch(e) {}
                         const bsModal = (typeof bootstrap !== "undefined" && bootstrap.Modal) ?
                             (bootstrap.Modal.getOrCreateInstance ? bootstrap.Modal.getOrCreateInstance(modalEl) : (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl))) : null;
-                        if (bsModal) bsModal.show();
+                        if (bsModal) {
+                            bsModal.show();
+                            console.log("[DirectCall] 9. Global notification handler execution result: modal shown for call_id:", data.call_id);
+                        }
 
                         clearTimeout(globalCallTimeout);
                         globalCallTimeout = setTimeout(() => {

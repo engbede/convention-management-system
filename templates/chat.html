@@ -1061,7 +1061,7 @@
                                             </button>
                                         </li>
                                         <li>
-                                            <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2" data-bs-toggle="modal" data-bs-target="#searchMessagesModal">
+                                            <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2" data-bs-toggle="modal" data-bs-target="#searchMessagesModal" title="Search Messages">
                                                 <i class="bi bi-search text-secondary"></i> Search Messages
                                             </button>
                                         </li>
@@ -1198,7 +1198,7 @@
                                             </a>
                                         </li>
                                         <li>
-                                            <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2" data-bs-toggle="modal" data-bs-target="#searchMessagesModal">
+                                            <button type="button" class="dropdown-item d-flex align-items-center gap-2 py-2" data-bs-toggle="modal" data-bs-target="#searchMessagesModal" title="Search Messages">
                                                 <i class="bi bi-search text-secondary"></i> Search Messages
                                             </button>
                                         </li>
@@ -5899,10 +5899,24 @@ document.addEventListener("DOMContentLoaded", function () {
                     break;
 
                 case "call_offer":
+                    console.log("[DirectCall] 8. Recipient-side event receipt on chat page:", {
+                        call_id: data.call_id,
+                        call_type: data.call_type,
+                        caller_name: data.caller_name,
+                        user_id: data.user_id,
+                        target_user_id: data.target_user_id,
+                        conversation_id: data.conversation_id
+                    });
                     // Check if already in an active 1-on-1 call or community group call
                     if (isUserInGroupCall ||
                         (peerConnection && (peerConnection.connectionState === "connected" || peerConnection.connectionState === "connecting")) ||
                         (activeCallModalEl && activeCallModalEl.classList.contains("show"))) {
+                        console.warn("[DirectCall] Recipient busy, rejecting call:", {
+                            call_id: data.call_id,
+                            isUserInGroupCall,
+                            pcState: peerConnection ? peerConnection.connectionState : "none",
+                            modalShow: activeCallModalEl ? activeCallModalEl.classList.contains("show") : false
+                        });
                         if (socket && socketConnected) {
                             socket.send(JSON.stringify({
                                 type: "call_busy",
@@ -5935,7 +5949,10 @@ document.addEventListener("DOMContentLoaded", function () {
                     try { startChatBackgroundCallAlert(data.caller_name, data.call_type, data.caller_avatar, data.call_id, data.conversation_id); } catch(e) {}
                     
                     const incModal = getIncomingCallModal();
-                    if (incModal) incModal.show();
+                    if (incModal) {
+                        incModal.show();
+                        console.log("[DirectCall] 9. Notification handler execution result: incomingCallModal shown for call_id:", data.call_id);
+                    }
                     showChatNotification("Incoming " + (data.call_type === "video" ? "Video" : "Audio") + " Call from " + (data.caller_name || "Member"), true);
 
                     // 35s incoming ring timeout
@@ -6758,13 +6775,21 @@ document.addEventListener("DOMContentLoaded", function () {
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
 
-            safeSendSocket({
+            console.log("[DirectCall] 1. Initiating direct call from caller:", {
+                type: activeCallType,
+                peerId: activeCallPeerId,
+                convId: activeCallConvId,
+                hasLocalStream: !!localStream,
+                tracks: localStream ? localStream.getTracks().map(t => ({ kind: t.kind, enabled: t.enabled, readyState: t.readyState })) : []
+            });
+            const sendSuccess = safeSendSocket({
                 type: "call_offer",
                 conversation_id: activeCallConvId,
                 target_user_id: activeCallPeerId,
                 call_type: activeCallType,
                 sdp: offer.sdp
             });
+            console.log("[DirectCall] 1b. safeSendSocket offer dispatch:", { sendSuccess, socketReadyState: socket ? socket.readyState : "null" });
 
             // 35s outgoing ring timeout
             clearTimeout(outgoingCallRingTimeout);

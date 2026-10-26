@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -227,9 +228,15 @@ func (h *ChatHub) BroadcastToUser(userID int, event WSEvent) {
 	if userClients, ok := h.clients[userID]; ok {
 		for client := range userClients {
 			go func(c *WSClient) {
-				_ = c.Send(event)
+				if err := c.Send(event); err != nil {
+					log.Printf("[DirectCall] 7b. Transport delivery failed for user_id=%d: %v", c.UserID, err)
+				} else {
+					log.Printf("[DirectCall] 7b. Transport delivery succeeded for user_id=%d, event=%s", c.UserID, event.Type)
+				}
 			}(client)
 		}
+	} else {
+		log.Printf("[DirectCall] 7b. Transport delivery skipped: no active connection for user_id=%d", userID)
 	}
 }
 
@@ -340,7 +347,18 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			}
 		}
 
+		callType := event.CallType
+		if callType == "" {
+			callType = "audio"
+		}
+
+		log.Printf("[DirectCall] 1. Direct-call initiation received: caller_id=%d (%s), target_id=%d, conv_id=%d, call_type=%s, sdp_len=%d",
+			client.UserID, client.Username, targetUserID, convID, callType, len(event.SDP))
+		log.Printf("[DirectCall] 2&3. Caller identity: %d (%s), Intended recipient identity: %d",
+			client.UserID, client.Username, targetUserID)
+
 		if targetUserID <= 0 {
+			log.Printf("[DirectCall] Recipient not found for call from caller_id=%d", client.UserID)
 			_ = client.Send(WSEvent{Type: "error", Error: "recipient not found for call"})
 			return
 		}
@@ -348,13 +366,9 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 		// Check privacy block
 		blocked, bErr := repository.IsCommunicationBlocked(client.UserID, targetUserID)
 		if bErr == nil && blocked {
+			log.Printf("[DirectCall] Call blocked between caller_id=%d and target_id=%d", client.UserID, targetUserID)
 			_ = client.Send(WSEvent{Type: "error", Error: "communication between these members is blocked"})
 			return
-		}
-
-		callType := event.CallType
-		if callType == "" {
-			callType = "audio"
 		}
 
 		// Check if target user is online or has registered push subscriptions
@@ -362,7 +376,14 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 		pushSubs, _ := repository.GetPushSubscriptionsByUserID(targetUserID)
 		hasPush := len(pushSubs) > 0
 
+		h.mu.RLock()
+		activeConns := len(h.clients[targetUserID])
+		h.mu.RUnlock()
+		log.Printf("[DirectCall] 6. Recipient connection lookup: target_id=%d, is_online=%v, active_connections=%d, has_push=%v",
+			targetUserID, isOnline, activeConns, hasPush)
+
 		if !isOnline && !hasPush {
+			log.Printf("[DirectCall] Target user %d is offline with no push subscriptions, recording missed call", targetUserID)
 			missedCall := &models.CallLog{
 				ConversationID: convID,
 				CallerID:       client.UserID,
@@ -390,7 +411,14 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 			Status:         "initiated",
 			ExpiresAt:      &expiresAt,
 		}
-		_ = repository.CreateCallLog(callLog)
+		if err := repository.CreateCallLog(callLog); err != nil {
+			log.Printf("[DirectCall] 5. Call-session creation FAILED: %v", err)
+			_ = client.Send(WSEvent{Type: "error", Error: "failed to create call session"})
+			return
+		}
+
+		log.Printf("[DirectCall] 4&5. Call-session creation result: call_id=%d, call_type=%s, status=%s, conv_id=%d",
+			callLog.ID, callLog.CallType, callLog.Status, callLog.ConversationID)
 
 		callerUser, _ := repository.GetUserByID(client.UserID)
 		avatar := ""
@@ -414,6 +442,8 @@ func (h *ChatHub) HandleClientMessage(client *WSClient, payload []byte) {
 
 		// Send real-time WebSocket event to active recipient sessions
 		if isOnline {
+			log.Printf("[DirectCall] 7. Incoming event emission: broadcasting 'call_offer' to target_id=%d (call_id=%d, call_type=%s)",
+				targetUserID, callLog.ID, callType)
 			h.BroadcastToUser(targetUserID, WSEvent{
 				Type:           "call_offer",
 				ConversationID: convID,
