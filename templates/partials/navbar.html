@@ -1,44 +1,70 @@
 {{define "navbar"}}
 
-<nav class="navbar navbar-expand-lg navbar-dark bg-success shadow-sm sticky-top">
+<nav class="navbar navbar-expand-lg navbar-dark shadow-sm sticky-top youth-sticky-navbar">
 
     <div class="container">
 
-        <!-- Logo -->
-
-        <a class="navbar-brand fw-bold me-4" href="/community">
-
-            <i class="bi bi-people-fill"></i>
-
-            Youth Community
-
-        </a>
-
-        <!-- Mobile Button -->
-
+        <!-- Mobile Left: Hamburger Toggler -->
         <button
-            class="navbar-toggler"
+            class="navbar-toggler border-0 p-1 me-2 order-0"
             type="button"
             data-bs-toggle="collapse"
-            data-bs-target="#navbarMenu">
-
-            <span class="navbar-toggler-icon"></span>
-
+            data-bs-target="#navbarMenu"
+            aria-controls="navbarMenu"
+            aria-expanded="false"
+            aria-label="Toggle navigation">
+            <i class="bi bi-list fs-2 text-white"></i>
         </button>
 
-        <!-- Navbar -->
+        <!-- Brand: Colorful Emblem + Youth Community + Connect • Share • Grow -->
+        <a class="navbar-brand-wrapper order-1 me-auto me-lg-4" href="/community">
+            <div class="youth-brand-logo me-2">
+                <svg width="34" height="34" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="24" cy="24" r="22" fill="#FFFFFF" fill-opacity="0.18"/>
+                    <circle cx="24" cy="14" r="4.5" fill="#FFD166"/>
+                    <path d="M18 29C18 24.5 21 21 24 21C27 21 30 24.5 30 29V35H18V29Z" fill="#F72585"/>
+                    <circle cx="14" cy="18" r="3.5" fill="#4CC9F0"/>
+                    <path d="M9 31C9 27 12 24.5 15 24.5C16.8 24.5 18 25.5 19 27C18 29.5 18 32 18 35H10C9.4 35 9 33 9 31Z" fill="#4361EE"/>
+                    <circle cx="34" cy="18" r="3.5" fill="#F72585"/>
+                    <path d="M39 31C39 27 36 24.5 33 24.5C31.2 24.5 30 25.5 29 27C30 29.5 30 32 30 35H38C38.6 35 39 33 39 31Z" fill="#FF9E00"/>
+                </svg>
+            </div>
+            <div class="d-flex flex-column">
+                <span class="navbar-brand-title">Youth Community</span>
+                <span class="navbar-brand-subtitle">Connect • Share • Grow</span>
+            </div>
+        </a>
 
-        <div class="collapse navbar-collapse" id="navbarMenu">
+        <!-- Mobile Quick Icons (Search & Notifications) -->
+        <div class="d-flex align-items-center gap-2 order-2 d-lg-none">
+            <a href="/discover" class="text-white p-1" title="Search">
+                <i class="bi bi-search fs-5"></i>
+            </a>
+            <a href="/notifications" class="text-white position-relative p-1" title="Notifications">
+                <i class="bi bi-bell-fill fs-5"></i>
+                {{if and .UnreadCount (gt .UnreadCount 0)}}
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
+                    {{.UnreadCount}}
+                </span>
+                {{end}}
+            </a>
+        </div>
+
+        <!-- Navbar Menu Collapse -->
+        <div class="collapse navbar-collapse order-3 order-lg-2" id="navbarMenu">
 
             <!-- Search -->
-
-            <form class="mx-auto w-100 my-2 my-lg-0" style="max-width: 450px;">
-
-                <input
-                    class="form-control rounded-pill"
-                    type="search"
-                    placeholder="Search people, posts or groups">
-
+            <form action="/discover" method="GET" class="mx-auto w-100 my-2 my-lg-0" style="max-width: 420px;">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0 rounded-start-pill ps-3 text-muted">
+                        <i class="bi bi-search"></i>
+                    </span>
+                    <input
+                        class="form-control border-start-0 rounded-end-pill ps-1"
+                        type="search"
+                        name="q"
+                        placeholder="Search people, posts or groups">
+                </div>
             </form>
 
             <!-- Menu -->

@@ -271,3 +271,112 @@ body{
 
     font-size:18px;
 }
+
+/* ===========================================
+   PROFESSIONAL STICKY HEADER & THEME TOKENS
+   Inspired by Youth Community Visual Reference
+=========================================== */
+
+:root {
+    --youth-primary-purple: #5E17EB;
+    --youth-gradient-purple: linear-gradient(135deg, #4A148C 0%, #5E17EB 50%, #7B1FA2 100%);
+    --youth-gradient-purple-accent: linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%);
+    --youth-lavender-bg: #F3E8FF;
+    --youth-lavender-border: #E9D5FF;
+    --youth-purple-dark: #4C1D95;
+}
+
+/* Sticky Navbar */
+.youth-sticky-navbar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 1030 !important;
+    background: linear-gradient(135deg, #4A148C 0%, #5E17EB 50%, #7B1FA2 100%) !important;
+    box-shadow: 0 4px 20px rgba(74, 20, 140, 0.22) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.navbar-brand-wrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+}
+
+.navbar-brand-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.15;
+    letter-spacing: -0.3px;
+}
+
+.navbar-brand-subtitle {
+    font-size: 0.72rem;
+    color: #E9D5FF;
+    font-style: italic;
+    font-weight: 400;
+    letter-spacing: 0.2px;
+    line-height: 1;
+    margin-top: 2px;
+}
+
+/* Feed Sticky Capsule Sub-Navigation */
+.feed-sticky-subnav {
+    position: sticky;
+    top: 56px;
+    z-index: 1020;
+    background: rgba(240, 242, 245, 0.96);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    padding: 10px 0;
+    margin-bottom: 18px;
+}
+
+.feed-tab-pill {
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    padding: 7px 18px;
+    transition: all 0.2s ease;
+    border: 1px solid #E5E7EB;
+    background: #FFFFFF;
+    color: #4B5563;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    white-space: nowrap;
+}
+
+.feed-tab-pill.active {
+    background: #4C1D95 !important;
+    color: #FFFFFF !important;
+    border-color: #4C1D95 !important;
+    box-shadow: 0 3px 10px rgba(76, 29, 149, 0.3) !important;
+}
+
+.feed-tab-pill:hover:not(.active) {
+    background: #F3F4F6;
+    color: #111827;
+    transform: translateY(-1px);
+}
+
+.hashtag-purple {
+    color: #6D28D9;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.hashtag-purple:hover {
+    color: #4C1D95;
+    text-decoration: underline;
+}
+
+.verified-badge {
+    color: #0284C7;
+    font-size: 0.95rem;
+    display: inline-flex;
+    align-items: center;
+}

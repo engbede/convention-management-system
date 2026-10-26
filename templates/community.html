@@ -10,6 +10,26 @@
 
         <div class="col-lg-6 feed">
 
+            <!-- Feed Sticky Subnav Capsule Pills -->
+            <div class="feed-sticky-subnav d-flex align-items-center gap-2 overflow-x-auto pb-1 mb-3" style="scrollbar-width: none;">
+                <a href="/community" class="feed-tab-pill active">
+                    <i class="bi bi-house-door-fill"></i>
+                    <span>For You</span>
+                </a>
+                <a href="/friends" class="feed-tab-pill">
+                    <i class="bi bi-people-fill"></i>
+                    <span>Following</span>
+                </a>
+                <a href="/messages" class="feed-tab-pill">
+                    <i class="bi bi-collection-fill"></i>
+                    <span>Groups</span>
+                </a>
+                <a href="/programmes" class="feed-tab-pill">
+                    <i class="bi bi-calendar-event"></i>
+                    <span>Events</span>
+                </a>
+            </div>
+
             {{template "create_post" .}}
 
             {{template "post_card" .}}

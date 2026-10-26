@@ -30,8 +30,8 @@
 }
 .chat-composer-input:focus {
     background-color: #ffffff !important;
-    border-color: #198754 !important;
-    box-shadow: 0 0 0 3px rgba(25, 135, 84, 0.2) !important;
+    border-color: #7C3AED !important;
+    box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.2) !important;
     outline: none !important;
 }
 .chat-composer-input::placeholder {
@@ -44,6 +44,155 @@
 .composer-action-btn:hover {
     transform: scale(1.05);
     background-color: #e2e8f0 !important;
+}
+
+/* Sticky Header & Toolbar Theming Inspired by Visual Reference */
+.chat-header-toolbar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 1025 !important;
+    background: linear-gradient(135deg, #4A148C 0%, #5E17EB 50%, #7B1FA2 100%) !important;
+    color: #ffffff !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 4px 15px rgba(74, 20, 140, 0.15) !important;
+    flex-shrink: 0 !important;
+}
+
+.chat-header-toolbar h6,
+.chat-header-toolbar .text-dark,
+.chat-header-toolbar #groupHeaderTitle {
+    color: #ffffff !important;
+}
+
+.chat-header-toolbar small,
+.chat-header-toolbar .text-muted {
+    color: #E9D5FF !important;
+}
+
+.chat-header-toolbar .btn-light {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+    transition: all 0.2s ease;
+}
+
+.chat-header-toolbar .btn-light:hover {
+    background: rgba(255, 255, 255, 0.28) !important;
+    color: #ffffff !important;
+    transform: scale(1.04);
+}
+
+.chat-header-toolbar .btn-light i,
+.chat-header-toolbar .btn-light .text-secondary {
+    color: #ffffff !important;
+}
+
+.chat-header-toolbar #chatBackToInboxBtn {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255, 255, 255, 0.22) !important;
+}
+
+.chat-header-toolbar #chatBackToInboxBtn i {
+    color: #ffffff !important;
+}
+
+.chat-header-toolbar .btn-outline-success,
+.chat-header-toolbar .btn-outline-primary,
+.chat-header-toolbar .btn-outline-secondary {
+    background: rgba(255, 255, 255, 0.18) !important;
+    color: #ffffff !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+.chat-header-toolbar .btn-outline-success:hover,
+.chat-header-toolbar .btn-outline-primary:hover,
+.chat-header-toolbar .btn-outline-secondary:hover {
+    background: rgba(255, 255, 255, 0.3) !important;
+    color: #ffffff !important;
+}
+
+.chat-header-toolbar .btn-outline-success i,
+.chat-header-toolbar .btn-outline-primary i,
+.chat-header-toolbar .btn-outline-secondary i {
+    color: #ffffff !important;
+}
+
+/* Active Call Banner Soft Lavender Theming */
+#activeGroupCallBanner {
+    background: #F3E8FF !important;
+    color: #4C1D95 !important;
+    border-bottom: 1px solid #E9D5FF !important;
+    flex-shrink: 0 !important;
+}
+
+/* Outgoing Messages - Royal Purple Gradient */
+.justify-content-end .message-content-box.bg-success,
+.message-bubble.justify-content-end .bg-success.message-content-box {
+    background: linear-gradient(135deg, #6D28D9 0%, #7C3AED 100%) !important;
+    color: #ffffff !important;
+    border-radius: 18px !important;
+    border-bottom-right-radius: 4px !important;
+    box-shadow: 0 2px 8px rgba(109, 40, 217, 0.22) !important;
+    border: none !important;
+}
+
+/* Incoming Messages - Clean Rounded White */
+.justify-content-start .message-content-box.bg-white,
+.message-bubble.justify-content-start .bg-white.message-content-box {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    border-radius: 18px !important;
+    border-bottom-left-radius: 4px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06) !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+/* Composer Buttons Theming */
+#plusAttachmentBtn {
+    background: linear-gradient(135deg, #5E17EB 0%, #7C3AED 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(94, 23, 235, 0.3) !important;
+}
+
+#plusAttachmentBtn i {
+    color: #ffffff !important;
+}
+
+#sendBtn {
+    background: linear-gradient(135deg, #5E17EB 0%, #7C3AED 100%) !important;
+    border: none !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(94, 23, 235, 0.3) !important;
+}
+
+#sendBtn i {
+    color: #ffffff !important;
+}
+
+/* Chat Main Area & Independent Scrolling */
+#chatMainCard {
+    height: calc(100vh - 84px) !important;
+    min-height: 520px;
+}
+#chatMainArea {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+}
+#messageContainer {
+    flex: 1 1 auto !important;
+    overflow-y: auto !important;
+    min-height: 0 !important;
+    background-color: #F8FAFC !important;
+}
+.chat-composer-container {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 1020 !important;
+    flex-shrink: 0 !important;
 }
 
 /* Chat Message Multiline Preservation */
@@ -689,86 +838,85 @@
                     <!-- Chat Top Header -->
                     <div class="p-2 p-sm-3 bg-white border-bottom d-flex justify-content-between align-items-center shadow-sm chat-header-toolbar" style="min-width: 0; width: 100%;">
                         <div class="d-flex align-items-center gap-2 overflow-hidden flex-grow-1 me-1" style="min-width: 0;">
-                            <a href="/messages" id="chatBackToInboxBtn" class="btn btn-sm btn-light d-md-none me-1 touch-target-44 d-inline-flex align-items-center justify-content-center flex-shrink-0" title="Back to conversations" aria-label="Back to conversations"><i class="bi bi-chevron-left fs-5"></i></a>
+                            <a href="/messages" id="chatBackToInboxBtn" class="btn btn-sm btn-light d-md-none me-1 touch-target-44 d-inline-flex align-items-center justify-content-center flex-shrink-0" title="Back to conversations" aria-label="Back to conversations"><i class="bi bi-chevron-left fs-5 text-white"></i></a>
                             {{if .ActiveRecipient}}
-                                {{if .ActiveRecipient.ProfilePhoto}}
-                                    <img src="/uploads/profiles/{{.ActiveRecipient.ProfilePhoto}}" alt="{{.ActiveRecipient.FullName}}" class="rounded-circle object-fit-cover shadow-sm flex-shrink-0" style="width: 42px; height: 42px;">
-                                {{else}}
-                                    <div class="rounded-circle bg-success text-white d-flex justify-content-center align-items-center fw-bold shadow-sm flex-shrink-0" style="width: 42px; height: 42px; font-size: 1rem;">
-                                        {{.ActiveRecipient.Initials}}
-                                    </div>
-                                {{end}}
+                                <div class="position-relative flex-shrink-0">
+                                    {{if .ActiveRecipient.ProfilePhoto}}
+                                        <img src="/uploads/profiles/{{.ActiveRecipient.ProfilePhoto}}" alt="{{.ActiveRecipient.FullName}}" class="rounded-circle object-fit-cover shadow-sm flex-shrink-0 border border-2 border-white" style="width: 44px; height: 44px;">
+                                    {{else}}
+                                        <div class="rounded-circle bg-white text-dark d-flex justify-content-center align-items-center fw-bold shadow-sm flex-shrink-0" style="width: 44px; height: 44px; font-size: 1.1rem; color: #5E17EB !important;">
+                                            {{.ActiveRecipient.Initials}}
+                                        </div>
+                                    {{end}}
+                                    <span class="position-absolute bottom-0 end-0 rounded-circle border border-2 border-white {{if .IsActiveOnline}}bg-success{{else}}bg-secondary{{end}}" style="width: 12px; height: 12px;" title="{{if .IsActiveOnline}}Online{{else}}Offline{{end}}"></span>
+                                </div>
                                 <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
-                                    <h6 class="mb-0 fw-bold text-dark d-flex align-items-center text-truncate">
+                                    <h6 class="mb-0 fw-bold text-white d-flex align-items-center text-truncate">
                                         <span class="text-truncate d-inline-block" style="max-width: min(200px, 45vw);" title="{{.ActiveRecipient.FullName}}">{{.ActiveRecipient.FullName}}</span>
-                                        <span class="badge {{if .IsActiveOnline}}bg-success{{else}}bg-secondary{{end}} rounded-pill ms-1 small d-inline-flex align-items-center gap-1 flex-shrink-0" style="font-size: 0.65rem;" id="userPresenceBadge" data-user-id="{{.ActiveRecipient.ID}}">
-                                            {{if .IsActiveOnline}}
-                                                <span class="spinner-grow spinner-grow-sm" style="width: 0.35rem; height: 0.35rem;" role="status"></span> Online
-                                            {{else}}
-                                                Offline
-                                            {{end}}
-                                        </span>
                                         <span id="headerMuteContainer" class="{{if not .IsActiveMuted}}d-none{{end}}">
                                             <i class="bi bi-bell-slash text-warning ms-1 small" title="Notifications Muted{{if .ActiveMutedUntil}} (until {{.ActiveMutedUntil.Format "15:04"}}){{end}}" id="headerMuteIcon"></i>
                                         </span>
-                                        <span id="headerDisappearingBadge" class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill ms-1 small {{if not .ActiveConversation.HasDisappearingMessages}}d-none{{end}}" title="Messages disappear after {{.ActiveConversation.FormattedDisappearingDuration}}" style="font-size: 0.65rem;">
+                                        <span id="headerDisappearingBadge" class="badge bg-light text-dark rounded-pill ms-1 small {{if not .ActiveConversation.HasDisappearingMessages}}d-none{{end}}" title="Messages disappear after {{.ActiveConversation.FormattedDisappearingDuration}}" style="font-size: 0.65rem;">
                                             <i class="bi bi-clock-history me-1"></i><span id="headerDisappearingLabel">{{.ActiveConversation.FormattedDisappearingDuration}}</span>
                                         </span>
                                         <span id="headerPinnedIcon" class="{{if not .IsActivePinned}}d-none{{end}}">
                                             <i class="bi bi-pin-angle-fill text-warning ms-1 small" title="Conversation Pinned"></i>
                                         </span>
                                     </h6>
-                                    <small class="text-muted d-block text-truncate">@{{.ActiveRecipient.Username}}</small>
+                                    <small class="d-block text-truncate" style="color: #E9D5FF !important;">@{{.ActiveRecipient.Username}} • {{if .IsActiveOnline}}Online{{else}}Offline{{end}}</small>
                                 </div>
                             {{else}}
                                 <!-- Group Conversation Header -->
                                 <div class="position-relative flex-shrink-0">
                                     {{if eq .ActiveConversation.Category "bible_study"}}
-                                        <div class="rounded-circle bg-primary-subtle text-primary border border-primary d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 42px; height: 42px; font-size: 1.2rem;">
+                                        <div class="rounded-circle bg-white text-primary border border-2 border-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1.2rem;">
                                             <i class="bi bi-book-half"></i>
                                         </div>
                                     {{else if eq .ActiveConversation.Category "prayer"}}
-                                        <div class="rounded-circle bg-warning-subtle text-warning-emphasis border border-warning d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 42px; height: 42px; font-size: 1.2rem;">
+                                        <div class="rounded-circle bg-white text-danger border border-2 border-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1.2rem;">
                                             <i class="bi bi-heart-pulse-fill"></i>
                                         </div>
                                     {{else if eq .ActiveConversation.Category "evangelism"}}
-                                        <div class="rounded-circle bg-danger-subtle text-danger border border-danger d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 42px; height: 42px; font-size: 1.2rem;">
+                                        <div class="rounded-circle bg-white text-danger border border-2 border-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1.2rem;">
                                             <i class="bi bi-megaphone-fill"></i>
                                         </div>
                                     {{else}}
-                                        <div class="rounded-circle bg-success-subtle text-success border border-success d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 42px; height: 42px; font-size: 1.2rem;">
+                                        <div class="rounded-circle bg-white text-success border border-2 border-white d-flex justify-content-center align-items-center fw-bold shadow-sm" style="width: 44px; height: 44px; font-size: 1.2rem;">
                                             <i class="bi bi-people-fill"></i>
                                         </div>
                                     {{end}}
+                                    <span class="position-absolute bottom-0 end-0 rounded-circle border border-2 border-white bg-success" style="width: 12px; height: 12px;" title="Group Active"></span>
                                 </div>
                                 <div class="overflow-hidden flex-grow-1" style="min-width: 0;">
-                                    <h6 class="mb-0 fw-bold text-dark d-flex align-items-center flex-wrap gap-1 text-truncate">
-                                        <span id="groupHeaderTitle" class="text-truncate d-inline-block" style="max-width: min(220px, 45vw);" title="{{.ActiveConversation.Title}}">{{.ActiveConversation.Title}}</span>
+                                    <h6 class="mb-0 fw-bold text-white d-flex align-items-center flex-wrap gap-1 text-truncate">
+                                        <span id="groupHeaderTitle" class="text-truncate d-inline-block text-white" style="max-width: min(220px, 45vw);" title="{{.ActiveConversation.Title}}">{{.ActiveConversation.Title}}</span>
                                         <span id="groupHeaderCategoryBadge">
                                         {{if eq .ActiveConversation.Category "bible_study"}}
-                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill ms-1 small">Bible Study</span>
+                                            <span class="badge bg-light text-dark rounded-pill ms-1 small">Bible Study</span>
                                         {{else if eq .ActiveConversation.Category "prayer"}}
-                                            <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill ms-1 small">Prayer</span>
+                                            <span class="badge bg-light text-dark rounded-pill ms-1 small">Prayer</span>
                                         {{else if eq .ActiveConversation.Category "evangelism"}}
-                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill ms-1 small">Evangelism</span>
+                                            <span class="badge bg-light text-dark rounded-pill ms-1 small">Evangelism</span>
                                         {{else}}
-                                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill ms-1 small">General</span>
+                                            <span class="badge bg-light text-dark rounded-pill ms-1 small">General</span>
                                         {{end}}
                                         </span>
                                         <span id="groupHeaderMuteContainer" class="{{if not .IsActiveMuted}}d-none{{end}}">
                                             <i class="bi bi-bell-slash text-warning ms-1 small" title="Notifications Muted{{if .ActiveMutedUntil}} (until {{.ActiveMutedUntil.Format "15:04"}}){{end}}" id="groupHeaderMuteIcon"></i>
                                         </span>
-                                        <span id="groupHeaderDisappearingBadge" class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill ms-1 small {{if not .ActiveConversation.HasDisappearingMessages}}d-none{{end}}" title="Messages disappear after {{.ActiveConversation.FormattedDisappearingDuration}}" style="font-size: 0.65rem;">
+                                        <span id="groupHeaderDisappearingBadge" class="badge bg-light text-dark rounded-pill ms-1 small {{if not .ActiveConversation.HasDisappearingMessages}}d-none{{end}}" title="Messages disappear after {{.ActiveConversation.FormattedDisappearingDuration}}" style="font-size: 0.65rem;">
                                             <i class="bi bi-clock-history me-1"></i><span id="groupHeaderDisappearingLabel">{{.ActiveConversation.FormattedDisappearingDuration}}</span>
                                         </span>
                                         <span id="groupHeaderPinnedIcon" class="{{if not .IsActivePinned}}d-none{{end}}">
                                             <i class="bi bi-pin-angle-fill text-warning ms-1 small" title="Conversation Pinned"></i>
                                         </span>
                                     </h6>
-                                    <small class="text-muted d-flex align-items-center gap-2 text-truncate">
-                                        <span><i class="bi bi-people me-1"></i><span id="groupHeaderMemberCount">{{len .ActiveGroupMembers}}</span> members</span>
+                                    <small class="d-flex align-items-center gap-1 text-truncate" style="color: #E9D5FF !important;">
+                                        <span><span id="groupHeaderMemberCount">{{len .ActiveGroupMembers}}</span> members</span>
+                                        <span>•</span>
+                                        <span class="text-white"><i class="bi bi-circle-fill text-success me-1" style="font-size: 0.45rem;"></i>Online</span>
                                         {{if .ActiveUserRole}}
-                                            <span class="badge bg-light text-dark border text-capitalize" style="font-size: 0.65rem;">{{.ActiveUserRole}}</span>
+                                            <span class="badge bg-white bg-opacity-25 text-white ms-1 text-capitalize" style="font-size: 0.65rem;">{{.ActiveUserRole}}</span>
                                         {{end}}
                                     </small>
                                 </div>
@@ -778,15 +926,16 @@
                         <!-- Header Actions -->
                         <div class="d-flex align-items-center gap-1 gap-sm-2 flex-shrink-0">
                             {{if .ActiveRecipient}}
-                                <a href="/user/{{.ActiveRecipient.Username}}" class="btn btn-sm btn-outline-secondary rounded-pill px-2 px-sm-3 d-none d-sm-inline-flex align-items-center gap-1" title="View Profile">
-                                    <i class="bi bi-person"></i> <span class="d-none d-md-inline">Profile</span>
-                                </a>
-                                <button class="btn btn-sm btn-outline-primary rounded-pill px-2 px-sm-3 d-none d-sm-inline-flex align-items-center gap-1 shadow-sm" type="button" data-bs-toggle="modal" data-bs-target="#addMemberToDirectModal" title="Add people to this conversation">
-                                    <i class="bi bi-person-plus-fill"></i> <span class="d-none d-md-inline">Add people</span>
-                                </button>
                                 {{if and (not .IsRecipientBlocked) (not .IsBlockedByRecipient)}}
+                                    <!-- Quick Call Action Icons -->
+                                    <button type="button" class="btn btn-sm btn-light rounded-circle shadow-sm d-flex align-items-center justify-content-center" onclick="document.getElementById('startAudioCallBtn') && document.getElementById('startAudioCallBtn').click()" title="Voice Audio Call" style="width: 36px; height: 36px;">
+                                        <i class="bi bi-telephone-fill text-white fs-6"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-light rounded-circle shadow-sm d-flex align-items-center justify-content-center" onclick="document.getElementById('startVideoCallBtn') && document.getElementById('startVideoCallBtn').click()" title="Face-to-Face Video Call" style="width: 36px; height: 36px;">
+                                        <i class="bi bi-camera-video-fill text-white fs-6"></i>
+                                    </button>
                                     <!-- Unified Direct Call Dropdown -->
-                                    <div class="dropdown d-inline-block position-relative" id="chatDirectCallDropdownContainer">
+                                    <div class="dropdown d-inline-block position-relative" id="chatDirectCallDropdownContainer" style="display: none !important;">
                                         <button class="btn btn-sm btn-outline-success rounded-pill px-2 px-sm-3 d-inline-flex align-items-center gap-1 shadow-sm touch-target-44" type="button" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="true" aria-expanded="false" id="chatCallDropdownBtn" title="Call Options" aria-label="Call options">
                                             <i class="bi bi-telephone-fill"></i>
                                             <span class="d-none d-sm-inline fw-semibold">Call</span>
@@ -836,8 +985,17 @@
                                     <span class="spinner-grow spinner-grow-sm text-white" role="status" style="width: 0.45rem; height: 0.45rem;"></span>
                                     <span class="d-none d-sm-inline" id="joinActiveGroupCallBtnText">Join Call</span> <span id="joinActiveGroupCallBtnCount">({{if .ActiveGroupCall}}{{len .ActiveGroupCall.Participants}}{{else}}1{{end}})</span>
                                 </button>
+                                {{if .CanStartCall}}
+                                    <!-- Quick Group Call Action Icons -->
+                                    <button type="button" class="btn btn-sm btn-light rounded-circle shadow-sm d-flex align-items-center justify-content-center" onclick="document.getElementById('startGroupAudioCallBtn') && document.getElementById('startGroupAudioCallBtn').click()" title="Group Audio Call" style="width: 36px; height: 36px;">
+                                        <i class="bi bi-telephone-fill text-white fs-6"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-light rounded-circle shadow-sm d-flex align-items-center justify-content-center" onclick="document.getElementById('startGroupVideoCallBtn') && document.getElementById('startGroupVideoCallBtn').click()" title="Group Video Call" style="width: 36px; height: 36px;">
+                                        <i class="bi bi-camera-video-fill text-white fs-6"></i>
+                                    </button>
+                                {{end}}
                                 <!-- Unified Group Call Dropdown -->
-                                <div class="dropdown d-inline-block position-relative" id="chatGroupCallDropdownContainer">
+                                <div class="dropdown d-inline-block position-relative" id="chatGroupCallDropdownContainer" style="display: none !important;">
                                     <button class="btn btn-sm btn-outline-success rounded-pill px-2 px-sm-3 d-inline-flex align-items-center gap-1 shadow-sm touch-target-44" type="button" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="true" aria-expanded="false" id="chatGroupCallDropdownBtn" title="Group Call Options" aria-label="Group call options">
                                         <i class="bi bi-telephone-fill"></i>
                                         <span class="d-none d-sm-inline fw-semibold">Call</span>
@@ -890,21 +1048,9 @@
                                     </ul>
                                 </div>
                             {{end}}
-                            {{if or (eq .CurrentUser.Role "admin") (eq .CurrentUser.Role "moderator")}}
-                                <button class="btn btn-sm btn-outline-warning text-dark rounded-circle shadow-sm position-relative d-none d-sm-flex align-items-center justify-content-center" type="button" data-bs-toggle="modal" data-bs-target="#moderationReportsModal" title="Moderation Reports" style="width: 34px; height: 34px;">
-                                    <i class="bi bi-shield-flag text-warning"></i>
-                                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.6rem; {{if eq .PendingReportsCount 0}}display: none;{{end}}" id="headerReportsBadge">{{.PendingReportsCount}}</span>
-                                </button>
-                            {{end}}
-                            <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="modal" data-bs-target="#searchMessagesModal" title="Search Messages" style="width: 34px; height: 34px;">
-                                <i class="bi bi-search text-secondary"></i>
-                            </button>
-                            <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#conversationDetailsOffcanvas" title="Conversation Details" style="width: 34px; height: 34px;">
-                                <i class="bi bi-info-circle text-secondary"></i>
-                            </button>
                             <div class="dropdown">
-                                <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="width: 34px; height: 34px;" title="More Options">
-                                    <i class="bi bi-three-dots-vertical"></i>
+                                <button class="btn btn-sm btn-light rounded-circle shadow-sm" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="width: 36px; height: 36px;" title="More Options">
+                                    <i class="bi bi-three-dots-vertical text-white"></i>
                                 </button>
                                 <ul class="dropdown-menu dropdown-menu-end shadow border-0 rounded-3" style="min-width: 230px;">
                                     {{if eq .ActiveConversation.Type "group"}}
@@ -1166,19 +1312,26 @@
                         </div>
                     </div>
                     <!-- Active Group Call Banner (visible when live call in group) -->
-                    <div id="activeGroupCallBanner" class="px-3 py-2 bg-success text-white d-flex align-items-center justify-content-between shadow-sm" style="{{if not .ActiveGroupCall}}display: none !important;{{end}}">
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="spinner-grow spinner-grow-sm text-white" role="status"></span>
-                            <span class="small fw-semibold" id="activeGroupCallBannerText">
-                                {{if .ActiveGroupCall}}
-                                    Live Group {{if eq .ActiveGroupCall.CallType "video"}}Video{{else}}Audio{{end}} Call in progress ({{len .ActiveGroupCall.Participants}} participant{{if ne (len .ActiveGroupCall.Participants) 1}}s{{end}})
-                                {{else}}
-                                    Live Group Call in progress
-                                {{end}}
-                            </span>
+                    <div id="activeGroupCallBanner" class="px-3 py-2 d-flex align-items-center justify-content-between shadow-sm" style="background: #F3E8FF !important; border-bottom: 1px solid #E9D5FF !important; {{if not .ActiveGroupCall}}display: none !important;{{end}}">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 38px; height: 38px; background: rgba(109, 40, 217, 0.12); color: #6D28D9;">
+                                <i class="bi bi-megaphone-fill fs-5"></i>
+                            </div>
+                            <div class="d-flex flex-column">
+                                <span class="fw-bold" style="color: #4C1D95; font-size: 0.92rem;" id="activeGroupCallBannerTitle">
+                                    Group {{if and .ActiveGroupCall (eq .ActiveGroupCall.CallType "video")}}video{{else}}audio{{end}} call is active
+                                </span>
+                                <span class="small" style="color: #6D28D9; font-size: 0.78rem;" id="activeGroupCallBannerText">
+                                    {{if .ActiveGroupCall}}
+                                        Live Group {{if eq .ActiveGroupCall.CallType "video"}}Video{{else}}Audio{{end}} Call in progress ({{len .ActiveGroupCall.Participants}} participant{{if ne (len .ActiveGroupCall.Participants) 1}}s{{end}})
+                                    {{else}}
+                                        Live Group Call in progress
+                                    {{end}}
+                                </span>
+                            </div>
                         </div>
-                        <button type="button" class="btn btn-xs btn-light rounded-pill px-3 fw-bold text-success" id="bannerJoinGroupCallBtn">
-                            Join Call
+                        <button type="button" class="btn btn-sm rounded-pill px-3 py-1 fw-bold text-white shadow-sm flex-shrink-0" id="bannerJoinGroupCallBtn" style="background: linear-gradient(135deg, #4A148C 0%, #6D28D9 100%); border: none;">
+                            Join {{if and .ActiveGroupCall (eq .ActiveGroupCall.CallType "video")}}Video{{else}}Audio{{end}}
                         </button>
                     </div>
                     <div id="callNotificationBanner" class="alert alert-info border-0 rounded-0 mb-0 d-none d-flex align-items-center justify-content-between px-3 py-2" style="background-color: #e0f2fe; color: #0369a1; border-bottom: 1px solid #bae6fd !important;">
