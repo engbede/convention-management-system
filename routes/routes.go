@@ -642,6 +642,12 @@ func RegisterRoutes(mux *http.ServeMux) {
 		),
 	)
 	mux.HandleFunc(
+		"/messages/current-user",
+		middleware.RequireLogin(
+			handlers.CurrentUserIDAPI,
+		),
+	)
+	mux.HandleFunc(
 		"/messages/start",
 		middleware.RequireLogin(
 			handlers.StartDirectChat,

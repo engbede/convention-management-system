@@ -1171,6 +1171,20 @@ func ICEServersAPI(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// CurrentUserIDAPI returns the authenticated user's ID as JSON.
+func CurrentUserIDAPI(w http.ResponseWriter, r *http.Request) {
+	currentUserID := getCurrentUserID(r)
+	if currentUserID == 0 {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"user_id": currentUserID,
+	})
+}
+
 // LogCallAPI updates call completion or duration.
 func LogCallAPI(w http.ResponseWriter, r *http.Request) {
 	currentUserID := getCurrentUserID(r)

@@ -253,10 +253,7 @@ document.addEventListener("DOMContentLoaded", function() {
         return;
     }
 
-    const currentUserId = {{if .CurrentUser}}{{.CurrentUser.ID}}{{else}}0{{end}};
-    if (!currentUserId || currentUserId <= 0) {
-        return;
-    }
+    let currentUserId = {{if .CurrentUser}}{{.CurrentUser.ID}}{{else}}0{{end}};
 
     let globalWs = null;
     let globalCallOfferData = null;
@@ -334,14 +331,12 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         if ("Notification" in window) {
-            if (Notification.permission === "granted") {
-                triggerGlobalSysNotification(callerName, callType, avatarUrl, callId, convId);
-            } else if (Notification.permission === "default") {
-                Notification.requestPermission().then(perm => {
-                    if (perm === "granted") {
-                        triggerGlobalSysNotification(callerName, callType, avatarUrl, callId, convId);
-                    }
-                }).catch(() => {});
+            try {
+                if (Notification.permission === "granted") {
+                    triggerGlobalSysNotification(callerName, callType, avatarUrl, callId, convId);
+                }
+            } catch (e) {
+                console.warn("Global background alert error:", e);
             }
         }
     }
@@ -462,10 +457,19 @@ document.addEventListener("DOMContentLoaded", function() {
                             }
                         }
 
-                        playGlobalChime();
-                        startGlobalBackgroundAlert(data.caller_name, data.call_type, data.caller_avatar, data.call_id, data.conversation_id);
-                        const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-                        bsModal.show();
+                        const acceptBtn = document.getElementById("globalAcceptCallBtn");
+                        if (acceptBtn) {
+                            const iconEl = acceptBtn.querySelector("i");
+                            if (iconEl) {
+                                iconEl.className = (data.call_type === "video") ? "bi bi-camera-video-fill fs-4 text-white" : "bi bi-telephone-fill fs-4 text-white";
+                            }
+                        }
+
+                        try { playGlobalChime(); } catch(e) {}
+                        try { startGlobalBackgroundAlert(data.caller_name, data.call_type, data.caller_avatar, data.call_id, data.conversation_id); } catch(e) {}
+                        const bsModal = (typeof bootstrap !== "undefined" && bootstrap.Modal) ?
+                            (bootstrap.Modal.getOrCreateInstance ? bootstrap.Modal.getOrCreateInstance(modalEl) : (bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl))) : null;
+                        if (bsModal) bsModal.show();
 
                         clearTimeout(globalCallTimeout);
                         globalCallTimeout = setTimeout(() => {
@@ -503,10 +507,11 @@ document.addEventListener("DOMContentLoaded", function() {
                                 "badge bg-success-subtle text-success border border-success-subtle rounded-pill mx-auto mb-4 px-3 py-2";
                         }
 
-                        playGlobalChime();
-                        startGlobalBackgroundAlert(data.caller_name, `group_${data.call_type || 'audio'}`, data.caller_avatar, data.call_id, data.conversation_id);
-                        const bsGModal = bootstrap.Modal.getInstance(gModalEl) || new bootstrap.Modal(gModalEl);
-                        bsGModal.show();
+                        try { playGlobalChime(); } catch(e) {}
+                        try { startGlobalBackgroundAlert(data.caller_name, `group_${data.call_type || 'audio'}`, data.caller_avatar, data.call_id, data.conversation_id); } catch(e) {}
+                        const bsGModal = (typeof bootstrap !== "undefined" && bootstrap.Modal) ?
+                            (bootstrap.Modal.getOrCreateInstance ? bootstrap.Modal.getOrCreateInstance(gModalEl) : (bootstrap.Modal.getInstance(gModalEl) || new bootstrap.Modal(gModalEl))) : null;
+                        if (bsGModal) bsGModal.show();
 
                         clearTimeout(globalGroupCallTimeout);
                         globalGroupCallTimeout = setTimeout(() => {
@@ -619,10 +624,26 @@ document.addEventListener("DOMContentLoaded", function() {
     };
 
     document.addEventListener("DOMContentLoaded", function() {
-        connectGlobalSocket();
+        function initGlobalApp() {
+            if (!currentUserId || currentUserId <= 0) return;
+            connectGlobalSocket();
+            if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+                setupWebPushSubscription();
+            }
+        }
 
-        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-            setupWebPushSubscription();
+        if (currentUserId && currentUserId > 0) {
+            initGlobalApp();
+        } else {
+            fetch('/messages/current-user')
+                .then(res => res.ok ? res.json() : null)
+                .then(data => {
+                    if (data && data.user_id && data.user_id > 0) {
+                        currentUserId = data.user_id;
+                        initGlobalApp();
+                    }
+                })
+                .catch(() => {});
         }
 
         const acceptBtn = document.getElementById("globalAcceptCallBtn");
@@ -685,7 +706,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     if (bsModal) bsModal.hide();
                 }
                 if (globalGroupCallData) {
-                    window.location.href = `/messages?c=${globalGroupCallData.conversation_id}&autocall=${globalGroupCallData.call_type || 'audio'}`;
+                    window.location.href = `/messages?c=${globalGroupCallData.conversation_id}&call_id=${globalGroupCallData.call_id || 0}&role=callee&autocall=${globalGroupCallData.call_type || 'audio'}`;
                 }
             });
         }

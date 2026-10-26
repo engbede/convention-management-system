@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"convention-management-system/repository"
 	"convention-management-system/services"
 	"convention-management-system/sessions"
 )
@@ -31,11 +32,15 @@ func Community(
 		"youth-community",
 	)
 
+	var currentUser any
 	if userID, ok := session.Values["user_id"].(int); ok {
 		viewerUserID = userID
 		unread, _ = services.CountUnreadNotifications(userID)
 		if pending, pErr := services.GetPendingFriendRequests(userID); pErr == nil {
 			pendingRequestsCount = len(pending)
+		}
+		if u, uErr := repository.GetUserByID(userID); uErr == nil {
+			currentUser = u
 		}
 	}
 
@@ -45,6 +50,7 @@ func Community(
 		"Posts":                      posts,
 		"UnreadCount":                unread,
 		"Sidebar":                    sidebarData,
+		"CurrentUser":                currentUser,
 		"CurrentUserID":              viewerUserID,
 		"PendingFriendRequestsCount": pendingRequestsCount,
 		"ActiveNav":                  "feed",

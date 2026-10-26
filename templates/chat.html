@@ -5547,6 +5547,12 @@ document.addEventListener("DOMContentLoaded", function () {
         return false;
     }
 
+    function getIncomingCallModal() {
+        const el = document.getElementById("incomingCallModal");
+        if (!el || typeof bootstrap === "undefined" || !bootstrap.Modal) return null;
+        return bootstrap.Modal.getOrCreateInstance ? bootstrap.Modal.getOrCreateInstance(el) : (bootstrap.Modal.getInstance(el) || new bootstrap.Modal(el));
+    }
+
     // Connect WebSocket
     function connectWebSocket() {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -5766,9 +5772,18 @@ document.addEventListener("DOMContentLoaded", function () {
                             incomingCallerAvatar.textContent = (data.caller_name || "U").substring(0, 2).toUpperCase();
                         }
                     }
-                    startCallChime();
-                    startChatBackgroundCallAlert(data.caller_name, data.call_type, data.caller_avatar, data.call_id, data.conversation_id);
-                    if (incomingCallModal) incomingCallModal.show();
+                    if (acceptCallBtn) {
+                        const iconEl = acceptCallBtn.querySelector("i");
+                        if (iconEl) {
+                            iconEl.className = (data.call_type === "video") ? "bi bi-camera-video-fill fs-4 text-white" : "bi bi-telephone-fill fs-4 text-white";
+                        }
+                    }
+                    try { startCallChime(); } catch(e) {}
+                    try { startChatBackgroundCallAlert(data.caller_name, data.call_type, data.caller_avatar, data.call_id, data.conversation_id); } catch(e) {}
+                    
+                    const incModal = getIncomingCallModal();
+                    if (incModal) incModal.show();
+                    showChatNotification("Incoming " + (data.call_type === "video" ? "Video" : "Audio") + " Call from " + (data.caller_name || "Member"), true);
 
                     // 35s incoming ring timeout
                     clearTimeout(incomingCallRingTimeout);
@@ -5776,7 +5791,8 @@ document.addEventListener("DOMContentLoaded", function () {
                         stopCallChime();
                         stopChatBackgroundCallAlert();
                         if (pendingOfferData && pendingOfferData.call_id === data.call_id) {
-                            if (incomingCallModal) incomingCallModal.hide();
+                            const modal = getIncomingCallModal();
+                            if (modal) modal.hide();
                             pendingOfferData = null;
                             showChatNotification("Missed call from " + (data.caller_name || "Member"), false);
                         }
@@ -5787,7 +5803,8 @@ document.addEventListener("DOMContentLoaded", function () {
                     clearTimeout(incomingCallRingTimeout);
                     stopCallChime();
                     stopChatBackgroundCallAlert();
-                    if (incomingCallModal) incomingCallModal.hide();
+                    const cancelModal = getIncomingCallModal();
+                    if (cancelModal) cancelModal.hide();
                     pendingOfferData = null;
                     showChatNotification("Call cancelled by caller", false);
                     break;
@@ -6156,14 +6173,12 @@ document.addEventListener("DOMContentLoaded", function () {
         }
 
         if ("Notification" in window) {
-            if (Notification.permission === "granted") {
-                triggerChatSystemNotification(callerName, callType, avatarUrl, callId, convId);
-            } else if (Notification.permission === "default") {
-                Notification.requestPermission().then(perm => {
-                    if (perm === "granted") {
-                        triggerChatSystemNotification(callerName, callType, avatarUrl, callId, convId);
-                    }
-                }).catch(() => {});
+            try {
+                if (Notification.permission === "granted") {
+                    triggerChatSystemNotification(callerName, callType, avatarUrl, callId, convId);
+                }
+            } catch(e) {
+                console.warn("Chat background alert error:", e);
             }
         }
     }
@@ -6957,6 +6972,22 @@ document.addEventListener("DOMContentLoaded", function () {
     const acceptGroupCallBtn = document.getElementById("acceptGroupCallBtn");
     const declineGroupCallBtn = document.getElementById("declineGroupCallBtn");
 
+    function resetGroupJoinButtons() {
+        const joinBtn = document.getElementById("joinActiveGroupCallBtn");
+        const bannerBtn = document.getElementById("bannerJoinGroupCallBtn");
+        if (joinBtn) {
+            joinBtn.disabled = false;
+            const joinBtnText = document.getElementById("joinActiveGroupCallBtnText");
+            if (joinBtnText) joinBtnText.textContent = isUserInGroupCall ? "Return to Call" : "Join Call";
+        }
+        if (bannerBtn) {
+            bannerBtn.disabled = false;
+            bannerBtn.innerHTML = isUserInGroupCall ?
+                `<i class="bi bi-arrows-angle-expand me-1"></i> Return to Call` :
+                `<i class="bi bi-telephone-plus-fill me-1"></i> Join Call`;
+        }
+    }
+
     const groupToggleMicBtn = document.getElementById("groupToggleMicBtn");
     const groupToggleCamBtn = document.getElementById("groupToggleCamBtn");
     const groupLeaveCallBtn = document.getElementById("groupLeaveCallBtn");
@@ -7661,12 +7692,18 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     async function joinGroupCall(targetConversationId) {
-        const targetId = targetConversationId || (pendingIncomingGroupCall && pendingIncomingGroupCall.conversation_id) || convId;
-        if (!targetId) return;
+        let targetId = convId;
+        if (typeof targetConversationId === "number" && targetConversationId > 0) {
+            targetId = targetConversationId;
+        } else if (pendingIncomingGroupCall && pendingIncomingGroupCall.conversation_id) {
+            targetId = pendingIncomingGroupCall.conversation_id;
+        }
+        if (!targetId || targetId <= 0) return;
 
         if (targetId !== convId) {
             const cType = (pendingIncomingGroupCall && pendingIncomingGroupCall.call_type) || "video";
-            window.location.href = `/messages?c=${targetId}&autocall=${cType}`;
+            const cId = (pendingIncomingGroupCall && pendingIncomingGroupCall.call_id) || 0;
+            window.location.href = `/messages?c=${targetId}&call_id=${cId}&role=callee&autocall=${cType}`;
             return;
         }
 
@@ -7675,10 +7712,24 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
+        if (isGroupCallConnecting) {
+            return;
+        }
+
         if (incomingGroupCallModal) incomingGroupCallModal.hide();
 
         isGroupCallConnecting = true;
         queuedGroupSignals = [];
+
+        if (joinActiveGroupCallBtn) {
+            joinActiveGroupCallBtn.disabled = true;
+            const joinBtnText = document.getElementById("joinActiveGroupCallBtnText");
+            if (joinBtnText) joinBtnText.textContent = "Connecting...";
+        }
+        if (bannerJoinGroupCallBtn) {
+            bannerJoinGroupCallBtn.disabled = true;
+            bannerJoinGroupCallBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status"></span> Connecting...`;
+        }
 
         // 1. Immediately show modal in connecting state
         setGroupCallStatus("connecting");
@@ -7693,6 +7744,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const activeData = await activeRes.json();
             if (!activeData || !activeData.active) {
                 isGroupCallConnecting = false;
+                resetGroupJoinButtons();
                 showChatNotification("No active group call found to join.", false);
                 if (groupCallModal) groupCallModal.hide();
                 return;
@@ -7732,6 +7784,7 @@ document.addEventListener("DOMContentLoaded", function () {
             const joinData = await joinResp.json();
             if (!joinResp.ok || !joinData.success) {
                 isGroupCallConnecting = false;
+                resetGroupJoinButtons();
                 showChatNotification(joinData.error || "Failed to join group call", false);
                 if (groupCallModal) groupCallModal.hide();
                 return;
@@ -7739,6 +7792,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
             isUserInGroupCall = true;
             isGroupCallConnecting = false;
+            resetGroupJoinButtons();
             currentGroupCallType = callType;
             groupIsMicMuted = false;
             if (callType === "audio") {
@@ -7809,6 +7863,7 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         } catch (err) {
             isGroupCallConnecting = false;
+            resetGroupJoinButtons();
             queuedGroupSignals = [];
             console.error("Camera/Mic error joining group call:", err);
             leaveGroupMeeting(false);
@@ -7819,6 +7874,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function leaveGroupMeeting(notifyServer = true) {
         isGroupCallConnecting = false;
         queuedGroupSignals = [];
+        resetGroupJoinButtons();
         if (!isUserInGroupCall) return;
         isUserInGroupCall = false;
 
@@ -8181,8 +8237,8 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         });
     }
-    if (joinActiveGroupCallBtn) joinActiveGroupCallBtn.addEventListener("click", joinGroupCall);
-    if (bannerJoinGroupCallBtn) bannerJoinGroupCallBtn.addEventListener("click", joinGroupCall);
+    if (joinActiveGroupCallBtn) joinActiveGroupCallBtn.addEventListener("click", () => joinGroupCall());
+    if (bannerJoinGroupCallBtn) bannerJoinGroupCallBtn.addEventListener("click", () => joinGroupCall());
     if (groupCallMinimizeBtn) {
         groupCallMinimizeBtn.addEventListener("click", function() {
             if (groupCallModal) groupCallModal.hide();
@@ -8207,9 +8263,10 @@ document.addEventListener("DOMContentLoaded", function () {
         if (pendingIncomingGroupCall) {
             const targetCId = pendingIncomingGroupCall.conversation_id;
             const cType = pendingIncomingGroupCall.call_type || "audio";
+            const cId = pendingIncomingGroupCall.call_id || 0;
             if (targetCId && targetCId !== convId) {
                 if (incomingGroupCallModal) incomingGroupCallModal.hide();
-                window.location.href = `/messages?c=${targetCId}&autocall=${cType}`;
+                window.location.href = `/messages?c=${targetCId}&call_id=${cId}&role=callee&autocall=${cType}`;
                 return;
             }
         }
@@ -10790,10 +10847,36 @@ document.addEventListener("DOMContentLoaded", function () {
         const newUrl = new URL(window.location.href);
         newUrl.searchParams.delete("autocall");
         newUrl.searchParams.delete("call_id");
+        newUrl.searchParams.delete("role");
         window.history.replaceState({}, document.title, newUrl.pathname + newUrl.search);
 
-        // If this is an incoming call opened from cross-page navigation or notification click
         const roleParam = (urlParams.get("role") || "").toLowerCase();
+
+        // 1. Group conversation call handling
+        if (isGroupConversation) {
+            try {
+                const activeRes = await fetch(`/messages/call/group/active?conversation_id=${convId}`);
+                const activeData = await activeRes.json();
+                if (activeData && activeData.active) {
+                    joinGroupCall();
+                    return;
+                } else if (roleParam !== "callee") {
+                    initiateGroupCall(autoCallParam === "video" ? "video" : "audio");
+                    return;
+                } else {
+                    showChatNotification("This group call has ended", false);
+                    return;
+                }
+            } catch (e) {
+                console.warn("Auto-join group call check failed:", e);
+                if (roleParam !== "callee") {
+                    initiateGroupCall(autoCallParam === "video" ? "video" : "audio");
+                }
+                return;
+            }
+        }
+
+        // 2. Direct 1-to-1 call handling
         let savedOffer = null;
         try {
             const raw = sessionStorage.getItem("pendingCallOffer");
@@ -10866,27 +10949,13 @@ document.addEventListener("DOMContentLoaded", function () {
             return;
         }
 
-        // Outgoing call initiation
+        // Outgoing direct call initiation
         const callType = (autoCallParam === "video") ? "video" : "audio";
-        setTimeout(async () => {
-            if (isGroupConversation) {
-                try {
-                    const activeRes = await fetch(`/messages/call/group/active?conversation_id=${convId}`);
-                    const activeData = await activeRes.json();
-                    if (activeData && activeData.active) {
-                        joinGroupCall();
-                    } else {
-                        initiateGroupCall(callType);
-                    }
-                } catch (e) {
-                    initiateGroupCall(callType);
-                }
-            } else {
-                const startDirectBtn = (callType === "video")
-                    ? document.getElementById("startVideoCallBtn")
-                    : document.getElementById("startAudioCallBtn");
-                if (startDirectBtn) startDirectBtn.click();
-            }
+        setTimeout(() => {
+            const startDirectBtn = (callType === "video")
+                ? document.getElementById("startVideoCallBtn")
+                : document.getElementById("startAudioCallBtn");
+            if (startDirectBtn) startDirectBtn.click();
         }, 500);
     }
 

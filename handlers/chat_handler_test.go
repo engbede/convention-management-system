@@ -3985,6 +3985,271 @@ func TestGroupAudioCalling_InterfaceAndWorkflow(t *testing.T) {
 	}
 }
 
+func TestCurrentUserIDAPI(t *testing.T) {
+	// 1. Unauthenticated request
+	unauthReq := httptest.NewRequest(http.MethodGet, "/messages/current-user", nil)
+	unauthRR := httptest.NewRecorder()
+	CurrentUserIDAPI(unauthRR, unauthReq)
+	if unauthRR.Code != http.StatusUnauthorized {
+		t.Errorf("Expected 401 Unauthorized, got %d", unauthRR.Code)
+	}
 
+	// 2. Authenticated request with user ID 42
+	authReq, authRR := makeAuthReq(http.MethodGet, "/messages/current-user", "", "", 42)
+	CurrentUserIDAPI(authRR, authReq)
+	if authRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK, got %d", authRR.Code)
+	}
 
+	var res map[string]int
+	if err := json.Unmarshal(authRR.Body.Bytes(), &res); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+	if res["user_id"] != 42 {
+		t.Errorf("Expected user_id 42, got %d", res["user_id"])
+	}
+}
 
+func TestBugA_DirectVideoCall_LifecycleAndSignaling(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	// 1. Create a direct call log for User 1 calling User 2 with video
+	call := &models.CallLog{
+		ConversationID: 1,
+		CallerID:       1,
+		ReceiverID:     2,
+		CallType:       "video",
+		Status:         "initiated",
+	}
+	if err := repository.CreateCallLog(call); err != nil {
+		t.Fatalf("Failed to create call log: %v", err)
+	}
+	callID := call.ID
+	if callID <= 0 {
+		t.Fatalf("Invalid call ID: %d", callID)
+	}
+
+	// 2. Callee User 2 queries authoritative call status via GetCallStatusAPI
+	statusReq, statusRR := makeAuthReq(http.MethodGet, fmt.Sprintf("/messages/call/status?call_id=%d", callID), "", "", 2)
+	GetCallStatusAPI(statusRR, statusReq)
+	if statusRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from GetCallStatusAPI, got %d (body: %s)", statusRR.Code, statusRR.Body.String())
+	}
+
+	var statusRes map[string]any
+	if err := json.Unmarshal(statusRR.Body.Bytes(), &statusRes); err != nil {
+		t.Fatalf("Failed to parse status response: %v", err)
+	}
+	if statusRes["call_type"] != "video" {
+		t.Errorf("Expected call_type 'video', got %v", statusRes["call_type"])
+	}
+	if statusRes["is_active"] != true {
+		t.Errorf("Expected is_active true, got %v", statusRes["is_active"])
+	}
+
+	// 3. Callee declines call -> status updated to declined
+	declineReq, declineRR := makeAuthReq(http.MethodPost, "/messages/call/log", fmt.Sprintf(`{"call_id": %d, "status": "declined", "duration": 0}`, callID), "application/json", 2)
+	LogCallAPI(declineRR, declineReq)
+	if declineRR.Code != http.StatusOK {
+		t.Fatalf("Expected 200 OK from LogCallAPI decline, got %d", declineRR.Code)
+	}
+
+	// 4. Verify call status is now inactive
+	statusReq2, statusRR2 := makeAuthReq(http.MethodGet, fmt.Sprintf("/messages/call/status?call_id=%d", callID), "", "", 2)
+	GetCallStatusAPI(statusRR2, statusReq2)
+	var statusRes2 map[string]any
+	_ = json.Unmarshal(statusRR2.Body.Bytes(), &statusRes2)
+	if statusRes2["is_active"] == true {
+		t.Errorf("Expected call to be inactive after decline, got is_active=true")
+	}
+}
+
+func TestBugB_GroupVideoCall_JoinEstablishment(t *testing.T) {
+	cleanup := setupTestDB(t)
+	defer cleanup()
+
+	convID := 95
+
+	// Seed group 95 with User 1, 2, 3
+	_, err := database.DB.Exec(`
+		INSERT INTO conversations (id, type, title, created_by, call_permission) VALUES (95, 'group', 'Youth Video Call Group', 1, 'all_members');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (95, 1, 'owner');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (95, 2, 'member');
+		INSERT INTO conversation_members (conversation_id, user_id, role) VALUES (95, 3, 'member');
+	`)
+	if err != nil {
+		t.Fatalf("Failed to seed group 95: %v", err)
+	}
+
+	// 1. User 1 starts group video call
+	startPayload := fmt.Sprintf(`{"conversation_id": %d, "call_type": "video"}`, convID)
+	startReq, startRR := makeAuthReq(http.MethodPost, "/messages/call/group/start", startPayload, "application/json", 1)
+	StartGroupCallAPI(startRR, startReq)
+	if startRR.Code != http.StatusOK {
+		t.Fatalf("StartGroupCallAPI failed: %d (body: %s)", startRR.Code, startRR.Body.String())
+	}
+
+	// 2. Callee User 2 checks active group call
+	activeReq, activeRR := makeAuthReq(http.MethodGet, fmt.Sprintf("/messages/call/group/active?conversation_id=%d", convID), "", "", 2)
+	GetActiveGroupCallAPI(activeRR, activeReq)
+	if activeRR.Code != http.StatusOK {
+		t.Fatalf("GetActiveGroupCallAPI failed: %d", activeRR.Code)
+	}
+
+	var activeRes struct {
+		Active bool `json:"active"`
+		Room   struct {
+			CallID       int            `json:"call_id"`
+			CallType     string         `json:"call_type"`
+			Participants map[string]any `json:"participants"`
+		} `json:"room"`
+	}
+	if err := json.Unmarshal(activeRR.Body.Bytes(), &activeRes); err != nil {
+		t.Fatalf("Failed to unmarshal active call: %v", err)
+	}
+	if !activeRes.Active {
+		t.Fatalf("Expected group call to be active")
+	}
+	if activeRes.Room.CallType != "video" {
+		t.Errorf("Expected call_type 'video', got '%s'", activeRes.Room.CallType)
+	}
+
+	// 3. User 2 executes Join Group Call
+	joinPayload := fmt.Sprintf(`{"conversation_id": %d}`, convID)
+	joinReq, joinRR := makeAuthReq(http.MethodPost, "/messages/call/group/join", joinPayload, "application/json", 2)
+	JoinGroupCallAPI(joinRR, joinReq)
+	if joinRR.Code != http.StatusOK {
+		t.Fatalf("JoinGroupCallAPI failed for User 2: %d (body: %s)", joinRR.Code, joinRR.Body.String())
+	}
+
+	var joinRes struct {
+		Success bool `json:"success"`
+		Room    struct {
+			Participants map[string]any `json:"participants"`
+		} `json:"room"`
+	}
+	_ = json.Unmarshal(joinRR.Body.Bytes(), &joinRes)
+	if !joinRes.Success {
+		t.Fatalf("JoinGroupCallAPI reported failure: %s", joinRR.Body.String())
+	}
+	if len(joinRes.Room.Participants) != 2 {
+		t.Errorf("Expected 2 participants in room, got %d", len(joinRes.Room.Participants))
+	}
+
+	// 4. User 3 executes Join Group Call
+	joinReq3, joinRR3 := makeAuthReq(http.MethodPost, "/messages/call/group/join", joinPayload, "application/json", 3)
+	JoinGroupCallAPI(joinRR3, joinReq3)
+	if joinRR3.Code != http.StatusOK {
+		t.Fatalf("JoinGroupCallAPI failed for User 3: %d", joinRR3.Code)
+	}
+
+	// Verify User 2 and User 3 are registered in the room
+	activeReq2, activeRR2 := makeAuthReq(http.MethodGet, fmt.Sprintf("/messages/call/group/active?conversation_id=%d", convID), "", "", 1)
+	GetActiveGroupCallAPI(activeRR2, activeReq2)
+	_ = json.Unmarshal(activeRR2.Body.Bytes(), &activeRes)
+	if len(activeRes.Room.Participants) != 3 {
+		t.Errorf("Expected 3 participants, got %d", len(activeRes.Room.Participants))
+	}
+
+	// 5. User 2 leaves group call
+	leavePayload := fmt.Sprintf(`{"conversation_id": %d}`, convID)
+	leaveReq, leaveRR := makeAuthReq(http.MethodPost, "/messages/call/group/leave", leavePayload, "application/json", 2)
+	LeaveGroupCallAPI(leaveRR, leaveReq)
+	if leaveRR.Code != http.StatusOK {
+		t.Fatalf("LeaveGroupCallAPI failed: %d", leaveRR.Code)
+	}
+
+	// Verify participant count is now 2
+	activeReq3, activeRR3 := makeAuthReq(http.MethodGet, fmt.Sprintf("/messages/call/group/active?conversation_id=%d", convID), "", "", 1)
+	GetActiveGroupCallAPI(activeRR3, activeReq3)
+	var activeRes3 struct {
+		Active bool `json:"active"`
+		Room   struct {
+			CallID       int            `json:"call_id"`
+			CallType     string         `json:"call_type"`
+			Participants map[string]any `json:"participants"`
+		} `json:"room"`
+	}
+	_ = json.Unmarshal(activeRR3.Body.Bytes(), &activeRes3)
+	if len(activeRes3.Room.Participants) != 2 {
+		t.Errorf("Expected 2 participants after User 2 left, got %d", len(activeRes3.Room.Participants))
+	}
+
+	// 6. Host User 1 ends call
+	endPayload := fmt.Sprintf(`{"conversation_id": %d}`, convID)
+	endReq, endRR := makeAuthReq(http.MethodPost, "/messages/call/group/end", endPayload, "application/json", 1)
+	EndGroupCallAPI(endRR, endReq)
+	if endRR.Code != http.StatusOK {
+		t.Fatalf("EndGroupCallAPI failed: %d", endRR.Code)
+	}
+
+	// Verify room is closed
+	activeReq4, activeRR4 := makeAuthReq(http.MethodGet, fmt.Sprintf("/messages/call/group/active?conversation_id=%d", convID), "", "", 1)
+	GetActiveGroupCallAPI(activeRR4, activeReq4)
+	var activeRes4 struct {
+		Active bool `json:"active"`
+	}
+	_ = json.Unmarshal(activeRR4.Body.Bytes(), &activeRes4)
+	if activeRes4.Active {
+		t.Errorf("Expected group call to be inactive after end")
+	}
+}
+
+func TestBugA_BugB_TemplateIntegrity(t *testing.T) {
+	// Verify navbar.html fixes
+	navbarBytes, err := os.ReadFile("templates/partials/navbar.html")
+	if err != nil {
+		navbarBytes, err = os.ReadFile("../templates/partials/navbar.html")
+	}
+	if err != nil {
+		t.Fatalf("Failed to read navbar.html: %v", err)
+	}
+	navbarContent := string(navbarBytes)
+
+	// 1. CurrentUser and async current-user fallback in navbar
+	if !strings.Contains(navbarContent, ".CurrentUser") {
+		t.Errorf("navbar.html missing .CurrentUser template check")
+	}
+	if !strings.Contains(navbarContent, "/messages/current-user") {
+		t.Errorf("navbar.html missing async /messages/current-user fallback")
+	}
+
+	// 2. No unprompted Notification.requestPermission in background alert
+	if strings.Contains(navbarContent, "startGlobalBackgroundAlert") && strings.Contains(navbarContent, "Notification.permission === \"default\"") {
+		t.Errorf("navbar.html still has unprompted Notification.requestPermission in background alert")
+	}
+
+	// 3. Navbar group call accept preserves call_id and role=callee
+	if !strings.Contains(navbarContent, "call_id=${globalGroupCallData.call_id || 0}&role=callee") {
+		t.Errorf("navbar.html globalAcceptGroupCallBtn does not preserve call_id and role=callee")
+	}
+
+	// Verify chat.html fixes
+	chatBytes, err := os.ReadFile("templates/chat.html")
+	if err != nil {
+		chatBytes, err = os.ReadFile("../templates/chat.html")
+	}
+	if err != nil {
+		t.Fatalf("Failed to read chat.html: %v", err)
+	}
+	chatContent := string(chatBytes)
+
+	// 4. Join group call button does not pass PointerEvent as target ID
+	if strings.Contains(chatContent, `joinActiveGroupCallBtn.addEventListener("click", joinGroupCall);`) {
+		t.Errorf("chat.html still binds joinActiveGroupCallBtn directly to joinGroupCall, passing PointerEvent")
+	}
+	if strings.Contains(chatContent, `bannerJoinGroupCallBtn.addEventListener("click", joinGroupCall);`) {
+		t.Errorf("chat.html still binds bannerJoinGroupCallBtn directly to joinGroupCall, passing PointerEvent")
+	}
+
+	// 5. Autocall parameter handles isGroupConversation first
+	if !strings.Contains(chatContent, "if (isGroupConversation) {") {
+		t.Errorf("chat.html handleAutoCallIfRequested missing isGroupConversation check")
+	}
+
+	// 6. Incoming call modal helper getIncomingCallModal exists
+	if !strings.Contains(chatContent, "getIncomingCallModal()") {
+		t.Errorf("chat.html missing getIncomingCallModal()")
+	}
+}

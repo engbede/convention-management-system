@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"convention-management-system/repository"
 	"convention-management-system/services"
 	"convention-management-system/sessions"
 )
@@ -32,12 +33,16 @@ func Notifications(w http.ResponseWriter, r *http.Request) {
 	// Mark notifications as read once viewed
 	_ = services.MarkNotificationsAsRead(userID)
 
+	currentUser, _ := repository.GetUserByID(userID)
+
 	Render(
 		w,
 		"notifications.html",
 		map[string]any{
 			"Notifications": notifications,
 			"UnreadCount":   unread,
+			"CurrentUser":   currentUser,
+			"CurrentUserID": userID,
 		},
 	)
 }
